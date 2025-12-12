@@ -1,16 +1,6 @@
-# ROOT-MCP: Production-Grade MCP Server for CERN ROOT Files
+# ROOT-MCP: MCP Server for CERN ROOT Files
 
-A Model Context Protocol (MCP) server that provides AI models with safe, high-level access to CERN ROOT files and their contents (TFile, TDirectory, TTree, TBranch, histograms). Enables declarative, tool-based interaction with ROOT data without requiring users to write low-level C++ or PyROOT code.
-
-## Features
-
-- **Safe ROOT I/O**: Uses uproot (pure Python) to avoid segfaults and C++ crashes
-- **LLM-Optimized**: Declarative tools designed for AI model composition
-- **Production-Ready**: Resource limits, caching, validation, and comprehensive error handling
-- **Physics-Friendly**: Built-in support for common HEP analysis patterns
-- **Scalable**: Handles multi-GB files with streaming and pagination
-- **Remote Access**: Support for XRootD, HTTP, and S3 (configurable)
-- **Export Capabilities**: Convert data to JSON, CSV, or Parquet
+A Model Context Protocol (`MCP`) server that provides AI models with safe, high-level access to CERN `ROOT` files and their contents (`TFile`, `TDirectory`, `TTree`, `TBranch`, histograms). Enables declarative, tool-based interaction with `ROOT` data without requiring users to write low-level C++ or `PyROOT` code.
 
 ## Quick Start
 
@@ -18,7 +8,7 @@ A Model Context Protocol (MCP) server that provides AI models with safe, high-le
 
 ```bash
 # Clone repository
-git clone https://github.com/root-mcp/root-mcp.git
+git clone https://github.com/MohamedElashri/root-mcp.git
 cd root-mcp
 
 # Install with pip
@@ -83,7 +73,7 @@ Storage (Local files, XRootD, HTTP, S3)
 
 ### Safety Features
 
-- **Pure Python I/O**: uproot eliminates C++ crashes
+- **Pure Python I/O**: uproot eliminates C++ crashes and segfaults
 - **Resource Limits**: Configurable memory, row, and timeout limits
 - **Path Validation**: Prevents directory traversal and unauthorized access
 - **Error Guidance**: LLM-friendly error messages with suggestions
@@ -240,17 +230,6 @@ limits:
   max_histogram_bins: 10_000
   operation_timeout_sec: 60
 ```
-
-## Performance
-
-| Operation | Typical Time | Notes |
-|-----------|-------------|-------|
-| `inspect_file` | <100ms | Metadata only |
-| `list_branches` | <500ms | Tree structure |
-| `read_branches` (10k rows) | <1s | With selection |
-| `compute_histogram` (1M entries) | 2-5s | Full tree scan |
-| `export_branches` (100k rows) | 5-30s | Depends on format |
-
 ### Optimization Tips
 
 1. **Use selections early**: `apply_selection()` is fast and helps estimate costs
@@ -362,7 +341,7 @@ def export_to_hdf5(data, path):
 ### Docker
 
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 RUN pip install root-mcp
 
@@ -371,27 +350,6 @@ WORKDIR /app
 
 CMD ["root-mcp"]
 ```
-
-### Kubernetes
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: root-mcp-server
-spec:
-  containers:
-  - name: root-mcp
-    image: root-mcp:latest
-    volumeMounts:
-    - name: data
-      mountPath: /data
-    resources:
-      limits:
-        memory: "2Gi"
-        cpu: "2"
-```
-
 ## Monitoring
 
 Enable Prometheus metrics:
@@ -416,13 +374,13 @@ Metrics include:
 **File Not Found**
 ```
 Error: file_not_found
-Solution: Use list_files() to see available files, check allowed_roots in config
+Solution: Use `list_files()` to see available files, check allowed_roots in config
 ```
 
 **Branch Not Found**
 ```
 Error: branch_not_found
-Solution: Use list_branches() to see available branches, check for typos
+Solution: Use `list_branches()` to see available branches, check for typos
 ```
 
 **Selection Syntax Error**
@@ -434,7 +392,7 @@ Solution: Use ROOT syntax: 'pt > 20 && abs(eta) < 2.4' (not Python syntax)
 **Limit Exceeded**
 ```
 Error: limit_exceeded
-Solution: Use apply_selection() first, or increase limit in config, or paginate
+Solution: Use `apply_selection()` first, or increase limit in config, or paginate
 ```
 
 ### Debugging
@@ -475,9 +433,9 @@ If you use ROOT-MCP in your research, please cite:
 ```bibtex
 @software{root_mcp,
   title = {ROOT-MCP: Production-Grade MCP Server for CERN ROOT Files},
-  author = {ROOT-MCP Team},
+  author = {Mohamed Elashri},
   year = {2025},
-  url = {https://github.com/root-mcp/root-mcp}
+  url = {https://github.com/MohamedElashri/root-mcp}
 }
 ```
 
@@ -492,8 +450,3 @@ If you use ROOT-MCP in your research, please cite:
 
 - **Issues**: https://github.com/root-mcp/root-mcp/issues
 - **Discussions**: https://github.com/root-mcp/root-mcp/discussions
-- **Documentation**: https://root-mcp.readthedocs.io
-
----
-
-**Status**: Production Ready | **Version**: 1.0.0 | **Last Updated**: 2025-12-12
