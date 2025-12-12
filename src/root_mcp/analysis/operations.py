@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import ast
 from typing import TYPE_CHECKING, Any
 
 import awkward as ak
@@ -268,14 +270,28 @@ class AnalysisOperations:
         logger.info(f"Applying selection to {tree_name}: {selection}")
 
         # Count entries passing selection
-        # Read minimal data (just to trigger cut evaluation)
-        arrays = tree.arrays(
-            filter_name=tree.keys()[0:1],  # Just first branch
-            cut=selection,
-            library="ak",
-        )
+        branches_to_read = _extract_branches_from_expression(selection, list(tree.keys()))
+        if not branches_to_read:
+            branches_to_read = tree.keys()[0:1]
 
-        selected_entries = len(arrays)
+        chunk_size = self.config.analysis.default_chunk_size
+        selected_entries = 0
+        entry_start = 0
+        while entry_start < total_entries:
+            entry_stop = min(entry_start + chunk_size, total_entries)
+            arrays = tree.arrays(
+                filter_name=branches_to_read,
+                entry_start=entry_start,
+                entry_stop=entry_stop,
+                library="ak",
+            )
+            if len(arrays) == 0:
+                entry_start = entry_stop
+                continue
+
+            mask = _evaluate_selection_any(arrays, selection)
+            selected_entries += int(ak.sum(mask))
+            entry_start = entry_stop
         efficiency = selected_entries / total_entries if total_entries > 0 else 0.0
 
         return {
@@ -452,3 +468,221 @@ def _is_list_like(array: ak.Array) -> bool:
     return type(layout).__name__ in {"RegularArray", "ListArray", "ListOffsetArray"} or (
         "ListOffsetArray" in type(layout).__name__
     )
+
+
+def _extract_branches_from_expression(selection: str, available_branches: list[str]) -> list[str]:
+    available = set(available_branches)
+    tokens = set(re.findall(r"[A-Za-z_]\w*", selection))
+    reserved = {
+        "and",
+        "or",
+        "not",
+        "true",
+        "false",
+        "abs",
+        "sqrt",
+        "log",
+        "exp",
+        "sin",
+        "cos",
+        "tan",
+        "arcsin",
+        "arccos",
+        "arctan",
+        "min",
+        "max",
+        "where",
+    }
+    return sorted([t for t in tokens if t in available and t not in reserved])
+
+
+def _strip_outer_parens(expr: str) -> str:
+    expr = expr.strip()
+    while expr.startswith("(") and expr.endswith(")"):
+        depth = 0
+        ok = True
+        for i, ch in enumerate(expr):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0 and i != len(expr) - 1:
+                    ok = False
+                    break
+        if not ok:
+            break
+        expr = expr[1:-1].strip()
+    return expr
+
+
+def _split_top_level(expr: str, sep: str) -> list[str]:
+    parts: list[str] = []
+    depth = 0
+    start = 0
+    i = 0
+    while i < len(expr):
+        ch = expr[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+
+        if depth == 0 and expr.startswith(sep, i):
+            parts.append(expr[start:i].strip())
+            i += len(sep)
+            start = i
+            continue
+
+        i += 1
+
+    parts.append(expr[start:].strip())
+    return [p for p in parts if p]
+
+
+def _translate_leaf_expr(expr: str) -> str:
+    expr = expr.strip()
+    expr = expr.replace("&&", "&").replace("||", "|")
+    expr = re.sub(r"!(?!=)", "~", expr)
+    expr = re.sub(r"\btrue\b", "True", expr, flags=re.IGNORECASE)
+    expr = re.sub(r"\bfalse\b", "False", expr, flags=re.IGNORECASE)
+    return expr
+
+
+class _SafeExprEvaluator(ast.NodeVisitor):
+    def __init__(self, names: dict[str, Any]):
+        self.names = names
+        self.funcs: dict[str, Any] = {
+            "abs": np.abs,
+            "sqrt": np.sqrt,
+            "log": np.log,
+            "exp": np.exp,
+            "sin": np.sin,
+            "cos": np.cos,
+            "tan": np.tan,
+            "min": np.minimum,
+            "max": np.maximum,
+        }
+
+    def visit_Expression(self, node: ast.Expression) -> Any:
+        return self.visit(node.body)
+
+    def visit_Name(self, node: ast.Name) -> Any:
+        if node.id in self.names:
+            return self.names[node.id]
+        if node.id in {"True", "False"}:
+            return node.id == "True"
+        if node.id in self.funcs:
+            return self.funcs[node.id]
+        raise ValueError(f"Unknown identifier in selection: {node.id}")
+
+    def visit_Constant(self, node: ast.Constant) -> Any:
+        return node.value
+
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
+        operand = self.visit(node.operand)
+        if isinstance(node.op, ast.USub):
+            return -operand
+        if isinstance(node.op, ast.UAdd):
+            return +operand
+        if isinstance(node.op, ast.Invert):
+            return ~operand
+        raise ValueError("Unsupported unary operator")
+
+    def visit_BinOp(self, node: ast.BinOp) -> Any:
+        left = self.visit(node.left)
+        right = self.visit(node.right)
+        op = node.op
+        if isinstance(op, ast.Add):
+            return left + right
+        if isinstance(op, ast.Sub):
+            return left - right
+        if isinstance(op, ast.Mult):
+            return left * right
+        if isinstance(op, ast.Div):
+            return left / right
+        if isinstance(op, ast.Pow):
+            return left**right
+        if isinstance(op, ast.Mod):
+            return left % right
+        if isinstance(op, ast.BitAnd):
+            return left & right
+        if isinstance(op, ast.BitOr):
+            return left | right
+        raise ValueError("Unsupported binary operator")
+
+    def visit_Compare(self, node: ast.Compare) -> Any:
+        if len(node.ops) != 1 or len(node.comparators) != 1:
+            raise ValueError("Chained comparisons are not supported")
+
+        left = self.visit(node.left)
+        right = self.visit(node.comparators[0])
+        op = node.ops[0]
+        if isinstance(op, ast.Lt):
+            return left < right
+        if isinstance(op, ast.LtE):
+            return left <= right
+        if isinstance(op, ast.Gt):
+            return left > right
+        if isinstance(op, ast.GtE):
+            return left >= right
+        if isinstance(op, ast.Eq):
+            return left == right
+        if isinstance(op, ast.NotEq):
+            return left != right
+        raise ValueError("Unsupported comparison operator")
+
+    def visit_Call(self, node: ast.Call) -> Any:
+        if not isinstance(node.func, ast.Name):
+            raise ValueError("Only simple function calls are allowed")
+        fn = self.visit_Name(node.func)
+        if fn not in self.funcs.values():
+            raise ValueError(f"Function '{node.func.id}' is not allowed")
+        if node.keywords:
+            raise ValueError("Keyword arguments are not supported")
+        args = [self.visit(a) for a in node.args]
+        return fn(*args)
+
+    def generic_visit(self, node: ast.AST) -> Any:
+        raise ValueError(f"Unsupported syntax in selection: {type(node).__name__}")
+
+
+def _eval_leaf(arrays: ak.Array, expr: str) -> Any:
+    expr = _translate_leaf_expr(expr)
+    names = {field: arrays[field] for field in arrays.fields}
+    tree = ast.parse(expr, mode="eval")
+    return _SafeExprEvaluator(names).visit(tree)
+
+
+def _evaluate_selection_any(arrays: ak.Array, selection: str) -> ak.Array:
+    expr = _strip_outer_parens(selection)
+
+    or_parts = _split_top_level(expr, "||")
+    if len(or_parts) > 1:
+        mask = _evaluate_selection_any(arrays, or_parts[0])
+        for part in or_parts[1:]:
+            mask = mask | _evaluate_selection_any(arrays, part)
+        return mask
+
+    and_parts = _split_top_level(expr, "&&")
+    if len(and_parts) > 1:
+        mask = _evaluate_selection_any(arrays, and_parts[0])
+        for part in and_parts[1:]:
+            mask = mask & _evaluate_selection_any(arrays, part)
+        return mask
+
+    term = _strip_outer_parens(expr)
+    neg = False
+    while term.startswith("!") and not term.startswith("!="):
+        neg = not neg
+        term = term[1:].strip()
+
+    result = _eval_leaf(arrays, term)
+    if neg:
+        result = ~result
+
+    if _is_list_like(result):
+        result = ak.any(result, axis=1)
+    elif isinstance(result, (bool, np.bool_)):
+        result = ak.Array([bool(result)] * len(arrays))
+
+    return result
