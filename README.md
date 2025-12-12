@@ -7,13 +7,13 @@ A Model Context Protocol (`MCP`) server that provides AI models with safe, high-
 ### Install
 
 ```bash
-pip install -e .
+pip install root-mcp
 ```
 
 Optional XRootD support:
 
 ```bash
-pip install -e ".[xrootd]"
+pip install "root-mcp[xrootd]"
 ```
 
 ### Generate sample ROOT files
@@ -40,6 +40,8 @@ security:
   allowed_protocols: ["file"]
 ```
 
+You can start from the repository example config at `config.yaml`.
+
 ### Run
 
 ```bash
@@ -51,10 +53,6 @@ ROOT_MCP_CONFIG=/path/to/config.yaml root-mcp
 - `docs/README.md`: complete documentation (tools reference, configuration, Claude Desktop)
 - `docs/ARCHITECTURE.md`: architecture and design notes
 - `docs/CONTRIBUTING.md`: contributing guidelines
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
 
 ## Citation
 

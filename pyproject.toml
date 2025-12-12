@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "root-mcp"
-version = "1.0.0"
+version = "0.1.0"
 description = "Production-grade MCP server for CERN ROOT file analysis"
 authors = [{name = "Mohamed Elashri"}]
-license = {text = "MIT"}
+maintainers = [{name = "Mohamed Elashri"}]
+license = {file = "LICENSE"}
 readme = "README.md"
 requires-python = ">=3.10"
 keywords = ["ROOT", "CERN", "HEP", "MCP", "particle physics"]
@@ -19,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Physics",
 ]
 
@@ -45,6 +47,8 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
+    "build>=1.0.0",
+    "twine>=4.0.0",
 ]
 
 xrootd = [
@@ -58,6 +62,8 @@ root-mcp = "root_mcp.server:main"
 Homepage = "https://github.com/MohamedElashri/root-mcp"
 Repository = "https://github.com/MohamedElashri/root-mcp"
 Issues = "https://github.com/MohamedElashri/root-mcp/issues"
+Documentation = "https://github.com/MohamedElashri/root-mcp/tree/main/docs"
+Changelog = "https://github.com/MohamedElashri/root-mcp/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

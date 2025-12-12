@@ -3,7 +3,6 @@
 # Server settings
 server:
   name: "root-mcp"
-  version: "1.0.0"
   log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
   log_format: "json"  # json or text
 

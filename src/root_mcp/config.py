@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version as _dist_version
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -10,11 +11,18 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 
+def _package_version() -> str:
+    try:
+        return _dist_version("root-mcp")
+    except PackageNotFoundError:
+        return "0.0.0"
+
+
 class ServerConfig(BaseModel):
     """Server-level settings."""
 
     name: str = "root-mcp"
-    version: str = "1.0.0"
+    version: str = Field(default_factory=_package_version)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     log_format: Literal["json", "text"] = "json"
 
