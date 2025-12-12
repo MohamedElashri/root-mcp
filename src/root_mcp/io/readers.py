@@ -285,7 +285,7 @@ class TreeReader:
             data = arrays[branch]
 
             # Flatten jagged arrays
-            if ak.is_jagged(data):
+            if _is_list_like(data):
                 data = ak.flatten(data)
 
             # Convert to numpy for stats
@@ -314,7 +314,7 @@ class TreeReader:
     def _check_if_jagged(arrays: ak.Array) -> bool:
         """Check if arrays contain jagged (variable-length) data."""
         for field in arrays.fields:
-            if ak.is_jagged(arrays[field]):
+            if _is_variable_length_list(arrays[field]):
                 return True
         return False
 
@@ -329,6 +329,48 @@ class TreeReader:
         """Find branches with similar names using simple heuristics."""
         from difflib import get_close_matches
         return get_close_matches(target, available, n=3, cutoff=0.6)
+
+
+def _unwrap_awkward_layout(layout: Any) -> Any:
+    while True:
+        name = type(layout).__name__
+        if (
+            name in {
+                "IndexedArray",
+                "IndexedOptionArray",
+                "ByteMaskedArray",
+                "BitMaskedArray",
+                "UnmaskedArray",
+            }
+            or name.endswith("OptionArray")
+            or name.endswith("MaskedArray")
+        ) and hasattr(layout, "content"):
+            layout = layout.content
+            continue
+        return layout
+
+
+def _is_list_like(array: ak.Array) -> bool:
+    try:
+        layout = _unwrap_awkward_layout(ak.to_layout(array))
+    except Exception:
+        return False
+
+    return type(layout).__name__ in {"RegularArray", "ListArray", "ListOffsetArray"} or (
+        "ListOffsetArray" in type(layout).__name__
+    )
+
+
+def _is_variable_length_list(array: ak.Array) -> bool:
+    try:
+        layout = _unwrap_awkward_layout(ak.to_layout(array))
+    except Exception:
+        return False
+
+    name = type(layout).__name__
+    if name == "RegularArray":
+        return False
+    return name == "ListArray" or name == "ListOffsetArray" or "ListOffsetArray" in name
 
 
 class HistogramReader:

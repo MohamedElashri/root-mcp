@@ -86,7 +86,7 @@ class AnalysisOperations:
         data = arrays[branch]
 
         # Flatten if jagged and requested
-        if flatten and ak.is_jagged(data):
+        if flatten and _is_list_like(data):
             data = ak.flatten(data)
 
         # Convert to numpy
@@ -96,7 +96,7 @@ class AnalysisOperations:
         weights_np = None
         if weights:
             weights_data = arrays[weights]
-            if flatten and ak.is_jagged(weights_data):
+            if flatten and _is_list_like(weights_data):
                 weights_data = ak.flatten(weights_data)
             weights_np = ak.to_numpy(weights_data)
 
@@ -206,9 +206,9 @@ class AnalysisOperations:
 
         # Flatten if jagged
         if flatten:
-            if ak.is_jagged(x_data):
+            if _is_list_like(x_data):
                 x_data = ak.flatten(x_data)
-            if ak.is_jagged(y_data):
+            if _is_list_like(y_data):
                 y_data = ak.flatten(y_data)
 
         # Convert to numpy
@@ -401,7 +401,7 @@ class AnalysisOperations:
             # Convert to pandas and write CSV
             import pandas as pd
             # Flatten if jagged
-            if any(ak.is_jagged(data[field]) for field in data.fields):
+            if any(_is_list_like(data[field]) for field in data.fields):
                 data = ak.flatten(data)
             df = ak.to_pandas(data)
             df.to_csv(output_path_obj, index=False)
@@ -425,3 +425,33 @@ class AnalysisOperations:
             "entries_written": len(data),
             "size_bytes": size_bytes,
         }
+
+
+def _unwrap_awkward_layout(layout: Any) -> Any:
+    while True:
+        name = type(layout).__name__
+        if (
+            name in {
+                "IndexedArray",
+                "IndexedOptionArray",
+                "ByteMaskedArray",
+                "BitMaskedArray",
+                "UnmaskedArray",
+            }
+            or name.endswith("OptionArray")
+            or name.endswith("MaskedArray")
+        ) and hasattr(layout, "content"):
+            layout = layout.content
+            continue
+        return layout
+
+
+def _is_list_like(array: ak.Array) -> bool:
+    try:
+        layout = _unwrap_awkward_layout(ak.to_layout(array))
+    except Exception:
+        return False
+
+    return type(layout).__name__ in {"RegularArray", "ListArray", "ListOffsetArray"} or (
+        "ListOffsetArray" in type(layout).__name__
+    )

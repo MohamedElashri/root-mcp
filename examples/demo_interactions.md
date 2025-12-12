@@ -612,21 +612,3 @@ Arguments: {
 - jet_pt
 
 I've plotted the **muon pT distribution** (most common choice). Would you like electrons or jets instead?"
-
----
-
-## Summary: AI Interaction Patterns
-
-These examples show how the ROOT-MCP server enables:
-
-1. **Progressive Discovery**: Start broad (list files) → narrow down (inspect) → detailed (branches)
-2. **Error Guidance**: Helpful suggestions when tools fail
-3. **Efficiency Checks**: Test selections before expensive operations
-4. **Domain Knowledge**: Understand physics conventions and typical workflows
-5. **Multi-Step Analysis**: Compose tools to answer complex questions
-
-The declarative tool interface allows AI models to:
-- Explore unfamiliar data autonomously
-- Validate assumptions before committing to expensive operations
-- Receive actionable feedback from errors
-- Build complex analyses from simple primitives
