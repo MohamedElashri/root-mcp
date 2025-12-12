@@ -400,10 +400,7 @@ class AnalysisOperations:
         elif format == "csv":
             # Convert to pandas and write CSV
             import pandas as pd
-            # Flatten if jagged
-            if any(_is_list_like(data[field]) for field in data.fields):
-                data = ak.flatten(data)
-            df = ak.to_pandas(data)
+            df = pd.DataFrame(ak.to_list(data))
             df.to_csv(output_path_obj, index=False)
 
         elif format == "parquet":
