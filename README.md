@@ -1,4 +1,4 @@
-# ROOT-MCP: MCP Server for CERN ROOT Files
+# MCP Server for CERN ROOT Files
 
 A Model Context Protocol (`MCP`) server that provides AI models with safe, high-level access to CERN `ROOT` files and their contents (`TFile`, `TDirectory`, `TTree`, `TBranch`, histograms). Enables declarative, tool-based interaction with `ROOT` data without requiring users to write low-level C++ or `PyROOT` code.
 
@@ -76,7 +76,6 @@ If you use ROOT-MCP in your research, please cite:
 - [uproot](https://github.com/scikit-hep/uproot5)
 - [awkward-array](https://github.com/scikit-hep/awkward)
 
-## Support
+## License
 
-- **Issues**: https://github.com/root-mcp/root-mcp/issues
-- **Discussions**: https://github.com/root-mcp/root-mcp/discussions
+MIT License - see [LICENSE](LICENSE) for details.
