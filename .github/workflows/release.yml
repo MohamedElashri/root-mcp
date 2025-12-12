@@ -34,6 +34,21 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Verify tag matches pyproject version
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          python -c "import re,sys; p=open('pyproject.toml','r',encoding='utf-8').read(); m=re.search(r'^version\\s*=\\s*\"([^\"]+)\"\\s*$', p, re.M); print(m.group(1) if m else '', end='')" > .version
+          VERSION=$(cat .version)
+          if [ -z "$VERSION" ]; then
+            echo "Could not read version from pyproject.toml" >&2
+            exit 1
+          fi
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "Tag version ($TAG) does not match pyproject.toml version ($VERSION)" >&2
+            exit 1
+          fi
+
       - name: Build distributions
         run: |
           python -m pip install --upgrade pip
@@ -61,6 +76,21 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+
+      - name: Verify tag matches pyproject version
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          python -c "import re,sys; p=open('pyproject.toml','r',encoding='utf-8').read(); m=re.search(r'^version\\s*=\\s*\"([^\"]+)\"\\s*$', p, re.M); print(m.group(1) if m else '', end='')" > .version
+          VERSION=$(cat .version)
+          if [ -z "$VERSION" ]; then
+            echo "Could not read version from pyproject.toml" >&2
+            exit 1
+          fi
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "Tag version ($TAG) does not match pyproject.toml version ($VERSION)" >&2
+            exit 1
+          fi
 
       - name: Build distributions
         run: |

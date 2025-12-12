@@ -8,6 +8,33 @@ This folder contains the full documentation for `ROOT-MCP`, a Model Context Prot
 - **Architecture and design**: `ARCHITECTURE.md`
 - **Contributing**: `CONTRIBUTING.md`
 
+## Releasing
+
+Releases are handled by the GitHub Actions workflow: `.github/workflows/release.yml`.
+
+- **Version source of truth**: update `pyproject.toml` (`[project].version`).
+- **Tag rule**: when the workflow runs on a tag push `vX.Y.Z`, it will fail unless `X.Y.Z` matches `pyproject.toml`.
+- **Publishing auth**: publishing uses PyPI/TestPyPI **Trusted Publishers (OIDC)** and requires the environment names below.
+
+Steps:
+
+1) Bump version in `pyproject.toml` and merge to `main`.
+
+2) Create and push a matching tag:
+
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+3) This triggers an automatic publish to **TestPyPI** (job environment: `publish_testpypi`).
+
+4) Publish to **PyPI** manually:
+
+- GitHub → **Actions** → **Release** → **Run workflow**
+- Select `repository = pypi`
+- This runs under job environment: `publish_pypi`
+
 ## Running the server
 
 ### Install
