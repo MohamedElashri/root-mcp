@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/MohamedElashri/root-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedElashri/root-mcp/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/root-mcp.svg)](https://pypi.org/project/root-mcp/)
-[![Python](https://img.shields.io/pypi/pyversions/root-mcp.svg)](https://pypi.org/project/root-mcp/)
 [![License](https://img.shields.io/pypi/l/root-mcp.svg)](LICENSE)
 [![Language](https://img.shields.io/badge/language-Python-blue.svg)](https://www.python.org/)
 
