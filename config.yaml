@@ -1,0 +1,120 @@
+# ROOT-MCP Server Configuration
+
+# Server settings
+server:
+  name: "root-mcp"
+  version: "1.0.0"
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_format: "json"  # json or text
+
+# Resource limits (safety bounds)
+limits:
+  max_rows_per_call: 1_000_000
+  max_memory_mb: 512
+  max_file_handles: 100
+  max_histogram_bins: 10_000
+  operation_timeout_sec: 60
+  max_concurrent_operations: 10
+  max_file_size_gb: 50
+
+# Caching configuration
+cache:
+  enabled: true
+  file_cache_size: 50  # Number of open file handles to cache
+  metadata_cache_size: 200  # Number of tree metadata entries
+  cache_ttl_seconds: 3600  # 1 hour
+
+# Data sources (MCP resources)
+resources:
+  - name: "local_data"
+    uri: "file:///data/root_files"
+    description: "Local ROOT files for analysis"
+    allowed_patterns:
+      - "*.root"
+    excluded_patterns:
+      - ".*"  # No hidden files
+      - "tmp*"
+    max_file_size_gb: 10
+    read_only: true
+
+  # Example: Remote XRootD storage
+  # - name: "xrootd_data"
+  #   uri: "root://eosuser.cern.ch//eos/user/data"
+  #   description: "CERN EOS storage"
+  #   allowed_patterns:
+  #     - "*.root"
+  #   requires_auth: true
+  #   auth_type: "kerberos"
+
+  # Example: HTTP open data
+  # - name: "opendata"
+  #   uri: "https://opendata.cern.ch/record/12345/files"
+  #   description: "CERN Open Data samples"
+  #   allowed_patterns:
+  #     - "*.root"
+  #   read_only: true
+
+# Security settings
+security:
+  # Allowed directories (absolute paths) - prevents path traversal
+  allowed_roots:
+    - "/data/root_files"
+    - "/tmp/root_mcp_output"
+
+  # Whether to allow remote file access
+  allow_remote: false
+
+  # Protocols allowed for remote files
+  allowed_protocols:
+    - "file"
+    # - "root"  # XRootD
+    # - "http"
+    # - "https"
+
+  # Maximum path depth to prevent DoS
+  max_path_depth: 10
+
+# Output settings
+output:
+  # Where to write exported files
+  export_base_path: "/tmp/root_mcp_output"
+
+  # Allowed export formats
+  allowed_formats:
+    - "json"
+    - "csv"
+    - "parquet"
+
+  # Cleanup exported files after this time
+  cleanup_after_hours: 24
+
+# Analysis defaults
+analysis:
+  # Default chunk size for iterating large TTrees
+  default_chunk_size: 10_000
+
+  # Default limit for data reads if not specified
+  default_read_limit: 1_000
+
+  # Whether to use awkward arrays by default
+  use_awkward: true
+
+  # Histogram defaults
+  histogram:
+    default_bins: 100
+    max_bins_1d: 10_000
+    max_bins_2d: 1_000  # Per dimension
+
+# Feature flags
+features:
+  enable_write_operations: false  # Allow creating ROOT files
+  enable_remote_files: false
+  enable_export: true
+  enable_statistics: true
+  enable_advanced_selections: true
+
+# Monitoring (future)
+monitoring:
+  enabled: false
+  prometheus_port: 9090
+  metrics_path: "/metrics"

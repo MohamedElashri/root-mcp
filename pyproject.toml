@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "root-mcp"
+version = "1.0.0"
+description = "Production-grade MCP server for CERN ROOT file analysis"
+authors = [{name = "Mohamed Elashri"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["ROOT", "CERN", "HEP", "MCP", "particle physics"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+dependencies = [
+    "uproot>=5.0.0,<6.0.0",
+    "awkward>=2.0.0,<3.0.0",
+    "numpy>=1.24.0,<2.0.0",
+    "pandas>=2.0.0,<3.0.0",
+    "mcp>=0.9.0",
+    "pydantic>=2.0.0,<3.0.0",
+    "pydantic-settings>=2.0.0",
+    "aiofiles>=23.0.0",
+    "fsspec>=2023.0.0",
+    "pyarrow>=14.0.0",  # For Parquet export
+    "pyyaml>=6.0",
+    "xxhash>=3.0.0",  # Fast hashing for caching
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+xrootd = [
+    "XRootD>=5.5.0",  # For root:// protocol
+]
+
+[project.scripts]
+root-mcp = "root_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/MohamedElashri/root-mcp"
+Repository = "https://github.com/MohamedElashri/root-mcp"
+Issues = "https://github.com/MohamedElashri/root-mcp/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"

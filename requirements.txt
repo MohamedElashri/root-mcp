@@ -1,0 +1,26 @@
+# ROOT-MCP Dependencies
+# ROOT I/O and data handling
+uproot
+awkward
+numpy
+pandas
+
+# MCP protocol
+mcp
+
+# Configuration and validation
+pydantic
+pydantic-settings
+pyyaml
+
+# Async I/O
+aiofiles
+
+# Filesystem abstraction
+fsspec
+
+# Data export
+pyarrow
+
+# Utilities
+xxhash
