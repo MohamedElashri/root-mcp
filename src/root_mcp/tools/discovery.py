@@ -108,12 +108,14 @@ class DiscoveryTools:
             # Get file info
             try:
                 stat = file_path.stat()
-                files.append({
-                    "path": str(file_path),
-                    "size_bytes": stat.st_size,
-                    "modified": stat.st_mtime,
-                    "resource": resource_config.name,
-                })
+                files.append(
+                    {
+                        "path": str(file_path),
+                        "size_bytes": stat.st_size,
+                        "modified": stat.st_mtime,
+                        "resource": resource_config.name,
+                    }
+                )
             except OSError as e:
                 logger.warning(f"Failed to stat {file_path}: {e}")
                 continue
@@ -202,15 +204,13 @@ class DiscoveryTools:
 
         # Get all objects to find directories
         all_objects = self.file_manager.list_objects(validated_path)
-        directories = [
-            obj["path"] for obj in all_objects
-            if "TDirectory" in obj["type"]
-        ]
+        directories = [obj["path"] for obj in all_objects if "TDirectory" in obj["type"]]
 
         # Other objects (not trees or histograms)
         known_paths = {t["path"] for t in trees} | {h["path"] for h in histograms}
         other_objects = [
-            obj for obj in all_objects
+            obj
+            for obj in all_objects
             if obj["path"] not in known_paths and "TDirectory" not in obj["type"]
         ]
 
@@ -283,10 +283,11 @@ class DiscoveryTools:
 
         # Get branch info
         from root_mcp.io.readers import TreeReader
+
         reader = TreeReader(self.config, self.file_manager)
 
         try:
-            branch_info = reader.get_branch_info(validated_path, tree, pattern)
+            branch_info = reader.get_branch_info(str(validated_path), tree, pattern)
         except Exception as e:
             return {
                 "error": "read_error",
@@ -302,7 +303,7 @@ class DiscoveryTools:
             try:
                 branch_names = [b["name"] for b in branch_info]
                 stats = reader.compute_branch_stats(
-                    validated_path,
+                    str(validated_path),
                     tree,
                     branch_names,
                 )
@@ -339,4 +340,5 @@ class DiscoveryTools:
     def _matches_pattern(filename: str, pattern: str) -> bool:
         """Check if filename matches glob pattern."""
         import fnmatch
+
         return fnmatch.fnmatch(filename, pattern)

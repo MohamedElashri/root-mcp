@@ -130,7 +130,8 @@ class TreeReader:
                 "entries_scanned": entry_stop - entry_start,
                 "entries_selected": entries_returned,
                 "entries_returned": entries_returned,
-                "truncated": entry_stop < total_entries or entries_returned < (entry_stop - entry_start),
+                "truncated": entry_stop < total_entries
+                or entries_returned < (entry_stop - entry_start),
                 "selection": selection,
             },
         }
@@ -215,7 +216,9 @@ class TreeReader:
         else:
             raise ValueError(f"Unknown sampling method: {method}. Use 'first' or 'random'")
 
-    def get_branch_info(self, path: str, tree_name: str, pattern: str | None = None) -> list[dict[str, Any]]:
+    def get_branch_info(
+        self, path: str, tree_name: str, pattern: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Get information about branches in a tree.
 
@@ -322,12 +325,14 @@ class TreeReader:
     def _matches_glob(text: str, pattern: str) -> bool:
         """Check if text matches glob pattern."""
         import fnmatch
+
         return fnmatch.fnmatch(text, pattern)
 
     @staticmethod
     def _find_similar_branches(target: str, available: list[str]) -> list[str]:
         """Find branches with similar names using simple heuristics."""
         from difflib import get_close_matches
+
         return get_close_matches(target, available, n=3, cutoff=0.6)
 
 
@@ -335,7 +340,8 @@ def _unwrap_awkward_layout(layout: Any) -> Any:
     while True:
         name = type(layout).__name__
         if (
-            name in {
+            name
+            in {
                 "IndexedArray",
                 "IndexedOptionArray",
                 "ByteMaskedArray",
@@ -408,9 +414,7 @@ class HistogramReader:
             hist = file_obj[hist_name]
         except KeyError as e:
             available = [h["name"] for h in self.file_manager.list_histograms(path)]
-            raise KeyError(
-                f"Histogram '{hist_name}' not found. Available: {available}"
-            ) from e
+            raise KeyError(f"Histogram '{hist_name}' not found. Available: {available}") from e
 
         # Get histogram type
         classname = hist.classname

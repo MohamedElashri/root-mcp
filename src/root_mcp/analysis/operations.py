@@ -119,7 +119,7 @@ class AnalysisOperations:
             errors = np.sqrt(counts)
         else:
             # For weighted histograms, error is sqrt(sum of weights squared)
-            weights_sq = weights_np ** 2
+            weights_sq = weights_np**2
             errors_sq, _ = np.histogram(data_np, bins=bins, range=range, weights=weights_sq)
             errors = np.sqrt(errors_sq)
 
@@ -188,9 +188,7 @@ class AnalysisOperations:
         # Validate bins
         max_bins = self.config.analysis.histogram.max_bins_2d
         if x_bins > max_bins or y_bins > max_bins:
-            raise ValueError(
-                f"Number of bins ({x_bins}, {y_bins}) exceeds maximum ({max_bins})"
-            )
+            raise ValueError(f"Number of bins ({x_bins}, {y_bins}) exceeds maximum ({max_bins})")
 
         tree = self.file_manager.get_tree(path, tree_name)
 
@@ -416,13 +414,14 @@ class AnalysisOperations:
         elif format == "csv":
             # Convert to pandas and write CSV
             import pandas as pd
+
             df = pd.DataFrame(ak.to_list(data))
             df.to_csv(output_path_obj, index=False)
 
         elif format == "parquet":
             # Write as Parquet
             import pyarrow.parquet as pq
-            import pyarrow as pa
+
             table = ak.to_arrow_table(data)
             pq.write_table(table, output_path_obj)
 
@@ -444,7 +443,8 @@ def _unwrap_awkward_layout(layout: Any) -> Any:
     while True:
         name = type(layout).__name__
         if (
-            name in {
+            name
+            in {
                 "IndexedArray",
                 "IndexedOptionArray",
                 "ByteMaskedArray",

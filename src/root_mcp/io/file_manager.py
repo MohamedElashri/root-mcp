@@ -97,7 +97,7 @@ class FileManager:
         """
         self.config = config
         self._cache = FileCache(config.cache.file_cache_size) if config.cache.enabled else None
-        self._open_files = set()
+        self._open_files: set[str] = set()
         logger.info(
             f"FileManager initialized (cache: {config.cache.enabled}, "
             f"max_files: {config.cache.file_cache_size})"
@@ -271,11 +271,13 @@ class FileManager:
                 classname = directory.classname_of(key)
                 full_path = f"{current_path}/{key}" if current_path else key
 
-                objects.append({
-                    "name": key,
-                    "path": full_path,
-                    "type": classname,
-                })
+                objects.append(
+                    {
+                        "name": key,
+                        "path": full_path,
+                        "type": classname,
+                    }
+                )
 
                 # Recurse into directories
                 if "TDirectory" in classname or classname == "TDirectoryFile":
@@ -307,8 +309,7 @@ class FileManager:
             # Try to provide helpful error message
             available_trees = [t["name"] for t in self.list_trees(path)]
             raise KeyError(
-                f"Tree '{tree_name}' not found in {path}. "
-                f"Available trees: {available_trees}"
+                f"Tree '{tree_name}' not found in {path}. " f"Available trees: {available_trees}"
             ) from e
 
         return tree

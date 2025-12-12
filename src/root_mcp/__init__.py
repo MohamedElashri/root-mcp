@@ -6,6 +6,7 @@ Model Context Protocol.
 """
 
 from importlib.metadata import PackageNotFoundError, version as _dist_version
+from .config import Config, load_config
 
 
 def _get_version() -> str:
@@ -16,8 +17,7 @@ def _get_version() -> str:
 
 
 __version__ = _get_version()
-__author__ = "ROOT-MCP Team"
+__author__ = "Mohamed Elashri"
 
-from .config import Config, load_config
 
 __all__ = ["Config", "load_config", "__version__"]

@@ -5,9 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-from pathlib import Path
-from typing import Any
-
+from typing import Any, cast
 from mcp.server import Server
 from mcp.types import Resource, Tool, TextContent
 from mcp.server.stdio import stdio_server
@@ -48,9 +46,7 @@ class ROOTMCPServer:
         self.analysis_ops = AnalysisOperations(config, self.file_manager)
 
         # Initialize tool handlers
-        self.discovery_tools = DiscoveryTools(
-            config, self.file_manager, self.path_validator
-        )
+        self.discovery_tools = DiscoveryTools(config, self.file_manager, self.path_validator)
         self.data_access_tools = DataAccessTools(
             config, self.file_manager, self.path_validator, self.tree_reader
         )
@@ -78,7 +74,7 @@ class ROOTMCPServer:
             for resource_config in self.config.resources:
                 resources.append(
                     Resource(
-                        uri=f"root-mcp://{resource_config.name}",
+                        uri=cast(Any, f"root-mcp://{resource_config.name}"),
                         name=resource_config.name,
                         description=resource_config.description,
                         mimeType="application/x-root",
@@ -396,6 +392,7 @@ class ROOTMCPServer:
 
             # Format result as JSON
             import json
+
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     async def run(self) -> None:

@@ -72,9 +72,7 @@ class PathValidator:
         # Check path depth (prevent excessively deep paths)
         depth = len(resolved.parts)
         if depth > self.max_depth:
-            raise SecurityError(
-                f"Path depth {depth} exceeds maximum {self.max_depth}: {path}"
-            )
+            raise SecurityError(f"Path depth {depth} exceeds maximum {self.max_depth}: {path}")
 
         # Check if path is under any allowed root
         for allowed_root in self.allowed_roots:
@@ -113,9 +111,7 @@ class PathValidator:
         # If resource is provided, check if URI matches resource pattern
         if resource:
             if not uri.startswith(resource.uri):
-                raise SecurityError(
-                    f"URI '{uri}' does not match resource URI '{resource.uri}'"
-                )
+                raise SecurityError(f"URI '{uri}' does not match resource URI '{resource.uri}'")
 
         # Return a Path-like object (will be handled specially by file manager)
         # For remote URIs, we don't return a local Path
@@ -146,9 +142,7 @@ class PathValidator:
         resource = self.config.get_resource(resource_name)
         if not resource:
             available = [r.name for r in self.config.resources]
-            raise SecurityError(
-                f"Unknown resource '{resource_name}'. Available: {available}"
-            )
+            raise SecurityError(f"Unknown resource '{resource_name}'. Available: {available}")
 
         # Get file path from alias
         if len(parts) > 1:
@@ -212,8 +206,6 @@ class PathValidator:
         try:
             resolved.relative_to(export_base)
         except ValueError as e:
-            raise SecurityError(
-                f"Output path must be under {export_base}: {path}"
-            ) from e
+            raise SecurityError(f"Output path must be under {export_base}: {path}") from e
 
         return resolved

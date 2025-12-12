@@ -18,19 +18,28 @@ repos:
     hooks:
       - id: black
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.18.1
-    hooks:
-      - id: mypy
-        args: [src]
-        additional_dependencies: []
-        stages: [pre-push]
-
   - repo: local
     hooks:
-      - id: pytest
-        name: pytest
-        entry: pytest -q
+      - id: mypy
+        name: mypy
+        entry: venv/bin/python -m mypy src
         language: system
         pass_filenames: false
-        stages: [pre-push]
+
+      - id: pytest
+        name: pytest
+        entry: venv/bin/python -m pytest -q
+        language: system
+        pass_filenames: false
+
+      - id: build
+        name: build
+        entry: venv/bin/python -m build
+        language: system
+        pass_filenames: false
+
+      - id: twine-check
+        name: twine check
+        entry: venv/bin/python -m twine check dist/*
+        language: system
+        pass_filenames: false
