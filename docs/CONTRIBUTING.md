@@ -154,23 +154,23 @@ def test_file_manager_cache():
 
 ### Documentation
 
-- Update README.md for user-facing changes
-- Update ARCHITECTURE.md for design changes
-- Update TOOL_SPECIFICATIONS.md for new tools
+- Update `../README.md` for user-facing quick start changes
+- Update `ARCHITECTURE.md` for design changes
+- Update `README.md` (in this folder) for documentation changes, tool reference updates, and usage examples
 - Add docstrings to all public functions/classes
 - Include examples in docstrings
 
 ### Commit Guidelines
 
 Good commit messages:
-- ✅ "Add histogram_2d tool for correlation analysis"
-- ✅ "Fix security issue in path validation"
-- ✅ "Improve caching performance by 30%"
+- "Add histogram_2d tool for correlation analysis"
+- "Fix security issue in path validation"
+- "Improve caching performance by 30%"
 
 Bad commit messages:
-- ❌ "Fix bug"
-- ❌ "Update code"
-- ❌ "WIP"
+- "Fix bug"
+- "Update code"
+- "WIP"
 
 ## Project Structure
 
@@ -243,8 +243,7 @@ To add a new MCP tool:
    ```
 
 6. **Update documentation**:
-   - Add to TOOL_SPECIFICATIONS.md
-   - Add example to demo_interactions.md
+   - Add to `docs/README.md` (tool reference + usage)
 
 ## Code Review Process
 
