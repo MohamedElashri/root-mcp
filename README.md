@@ -1,5 +1,11 @@
 # MCP Server for CERN ROOT Files
 
+[![CI](https://github.com/MohamedElashri/root-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedElashri/root-mcp/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/root-mcp.svg)](https://pypi.org/project/root-mcp/)
+[![Python](https://img.shields.io/pypi/pyversions/root-mcp.svg)](https://pypi.org/project/root-mcp/)
+[![License](https://img.shields.io/pypi/l/root-mcp.svg)](LICENSE)
+[![Language](https://img.shields.io/badge/language-Python-blue.svg)](https://www.python.org/)
+
 A Model Context Protocol (`MCP`) server that provides AI models with safe, high-level access to CERN `ROOT` files and their contents (`TFile`, `TDirectory`, `TTree`, `TBranch`, histograms). Enables declarative, tool-based interaction with `ROOT` data without requiring users to write low-level C++ or `PyROOT` code.
 
 ## Quick Start
