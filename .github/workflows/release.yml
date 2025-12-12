@@ -16,11 +16,13 @@ on:
           - pypi
 
 jobs:
-  publish:
+  publish_testpypi:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
+
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.repository == 'testpypi') }}
 
     steps:
       - uses: actions/checkout@v6.0.1
@@ -37,11 +39,32 @@ jobs:
           python -m build
 
       - name: Publish to TestPyPI
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.repository == 'testpypi' }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
 
+  publish_pypi:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.repository == 'pypi' }}
+    environment: pypi
+
+    steps:
+      - uses: actions/checkout@v6.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+          python -m build
+
       - name: Publish to PyPI
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.repository == 'pypi') }}
         uses: pypa/gh-action-pypi-publish@release/v1
