@@ -1,63 +1,68 @@
-# MCP Server for CERN ROOT Files
+# ROOT-MCP: AI-Powered HEP Analysis
 
 [![CI](https://github.com/MohamedElashri/root-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedElashri/root-mcp/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/root-mcp.svg)](https://pypi.org/project/root-mcp/)
 [![License](https://img.shields.io/pypi/l/root-mcp.svg)](LICENSE)
 [![Language](https://img.shields.io/badge/language-Python-blue.svg)](https://www.python.org/)
 
-A Model Context Protocol (`MCP`) server that provides AI models with safe, high-level access to CERN `ROOT` files and their contents (`TFile`, `TDirectory`, `TTree`, `TBranch`, histograms). Enables declarative, tool-based interaction with `ROOT` data without requiring users to write low-level C++ or `PyROOT` code.
+**ROOT-MCP** empowers Large Language Models (LLMs) to natively understand and analyze CERN ROOT files.
+
+By exposing a set of specialized tools via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), it turns Claude (and other MCP-compliant agents) into capable physics research assistants that can:
+- **Inspect** ROOT file structures (Trees, Branches, Histograms)
+- **Analyze** data distributions (Compute Histograms, Statistics)
+- **Visualize** results directly in the chat
+- **Filter** data using physics cuts ("selections")
+
+> **Why this matters**: Instead of asking an LLM to "write a script" that you have to debug and run, you can ask the LLM to *"Check the muon pT distribution in this file"* and it will **just do it**.
+
+---
 
 ## Quick Start
 
-### Install
+### 1. Install
 
 ```bash
 pip install root-mcp
+# Optional: pip install "root-mcp[xrootd]" for remote file support
 ```
 
-Optional XRootD support:
+### 2. Configure
 
-```bash
-pip install "root-mcp[xrootd]"
-```
-
-### Generate sample ROOT files
-
-```bash
-python examples/create_sample_data.py
-```
-
-### Configure
-
-Create a config (example):
+Create a `config.yaml` to tell the server where your data is:
 
 ```yaml
 resources:
-  - name: "local_data"
-    uri: "file:///absolute/path/to/data/root_files"
-    description: "Sample ROOT files"
+  - name: "my_analysis"
+    uri: "file:///Users/me/data"
     allowed_patterns: ["*.root"]
 
 security:
   allowed_roots:
-    - "/absolute/path/to/data/root_files"
-    - "/tmp/root_mcp_output"
-  allowed_protocols: ["file"]
+    - "/Users/me/data"
 ```
 
-You can start from the repository example config at `config.yaml`.
+### 3. Run with Claude Desktop
 
-### Run
+Add to your `claude_desktop_config.json`:
 
-```bash
-ROOT_MCP_CONFIG=/path/to/config.yaml root-mcp
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "env": {
+        "ROOT_MCP_CONFIG": "/path/to/config.yaml"
+      }
+    }
+  }
+}
 ```
 
 ## Documentation
 
-- `docs/README.md`: complete documentation (tools reference, configuration, Claude Desktop)
-- `docs/ARCHITECTURE.md`: architecture and design notes
-- `docs/CONTRIBUTING.md`: contributing guidelines
+- **[Full Documentation](docs/README.md)**: The complete guide.
+- **[Tool Reference](docs/api/tools.md)**: Detailed API definition for all tools.
+- **[LLM Integration Guide](docs/guides/llm_integration.md)**: How to prompt and work with the agent.
 
 ## Citation
 
@@ -71,14 +76,6 @@ If you use ROOT-MCP in your research, please cite:
   url = {https://github.com/MohamedElashri/root-mcp}
 }
 ```
-
-## References
-
-- [Model Context Protocol](https://modelcontextprotocol.io/)
-- [CERN ROOT](https://root.cern/)
-- [uproot](https://github.com/scikit-hep/uproot5)
-- [awkward-array](https://github.com/scikit-hep/awkward)
-
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.

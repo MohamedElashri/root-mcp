@@ -77,10 +77,10 @@ The ROOT-MCP server provides AI models with safe, high-level access to CERN ROOT
 │                  Logic Layer                            │
 │  ┌────────────────────────────────────────────────────┐ │
 │  │ Analysis Operations                                │ │
-│  │ - describe_file()      - read_branch_slice()      │ │
-│  │ - list_trees()         - compute_histogram()      │ │
-│  │ - list_branches()      - apply_selection()        │ │
-│  │ - get_statistics()     - project_2d()             │ │
+│  │ - inspect_file()       - read_branches()          │ │
+│  │ - list_branches()      - compute_histogram()      │ │
+│  │ - get_branch_stats()   - apply_selection()        │ │
+│  │ - fit_histogram()      - generate_plot()          │ │
 │  └────────────────────────────────────────────────────┘ │
 │  ┌────────────────────────────────────────────────────┐ │
 │  │ Query Planner & Optimizer                          │ │
@@ -151,8 +151,7 @@ The ROOT-MCP server provides AI models with safe, high-level access to CERN ROOT
 
 #### Discovery Tools (Read-Only, Fast)
 - `list_files`: Enumerate accessible ROOT files
-- `inspect_file`: Get high-level metadata
-- `list_trees`: List all TTrees in a file
+- `inspect_file`: Get high-level metadata(trees, histograms)
 - `list_branches`: List branches with types and stats
 
 #### Data Access Tools (Read, Potentially Slow)
@@ -163,12 +162,12 @@ The ROOT-MCP server provides AI models with safe, high-level access to CERN ROOT
 #### Analysis Tools (Compute, Potentially Slow)
 - `compute_histogram`: 1D histogram with selection
 - `compute_histogram_2d`: 2D histogram/scatter
-- `compute_profile`: TProfile-like mean vs binned variable
 - `apply_selection`: Count entries passing a cut
+- `fit_histogram`: Fit data to models (Gaussian, Crystal Ball, etc.)
+- `generate_plot`: Generate visualizations (histograms, fits)
 
 #### Export Tools (Write, Restricted)
 - `export_branches`: Extract filtered data to JSON/CSV/Parquet
-- `create_derived_file`: Write a new ROOT file with subset
 
 ### Tool Specifications
 

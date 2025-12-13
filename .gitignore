@@ -1,0 +1,103 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter
+.ipynb_checkpoints
+
+# ROOT files (large data)
+*.root
+data/root_files/*.root
+
+# Temporary files
+*.tmp
+*.log
+/tmp/
+
+# Output files
+/output/
+/exports/
+/tmp/root_mcp_output/
+
+# Configuration (might contain sensitive info)
+config.local.yaml
+.env
+
+# Documentation builds
+docs/_build/
+docs/.doctrees/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# data (not to pollute git with root files)
+data/
+*.root
+
+# hidden files/folders (i.e .vscode)
+.*
+!.github/
+!.github/**
+!.pre-commit-config.yaml
+!.gitignore
+
+# examples tests
+examples/config.yaml
+
+# pdf files
+*.pdf

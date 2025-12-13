@@ -156,7 +156,8 @@ def test_file_manager_cache():
 
 - Update `../README.md` for user-facing quick start changes
 - Update `ARCHITECTURE.md` for design changes
-- Update `README.md` (in this folder) for documentation changes, tool reference updates, and usage examples
+- Update `api/tools.md` for tool reference updates
+- Usage examples should go in `guides/` or docstrings
 - Add docstrings to all public functions/classes
 - Include examples in docstrings
 
@@ -243,7 +244,7 @@ To add a new MCP tool:
    ```
 
 6. **Update documentation**:
-   - Add to `docs/README.md` (tool reference + usage)
+   - Add to `docs/api/tools.md` (tool reference + usage)
 
 ## Code Review Process
 
