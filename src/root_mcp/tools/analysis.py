@@ -5,6 +5,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from root_mcp.analysis.fitting import fit_histogram
+from root_mcp.analysis.plotting import generate_plot
+
 if TYPE_CHECKING:
     from root_mcp.config import Config
     from root_mcp.io.file_manager import FileManager
@@ -51,6 +54,7 @@ class AnalysisTools:
         range: tuple[float, float] | None = None,
         selection: str | None = None,
         weights: str | None = None,
+        defines: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """
         Compute a 1D histogram.
@@ -63,6 +67,7 @@ class AnalysisTools:
             range: (min, max) for histogram
             selection: Optional cut expression
             weights: Optional weight branch
+            defines: Optional variable definitions
 
         Returns:
             Histogram data and metadata
@@ -86,6 +91,7 @@ class AnalysisTools:
                 range=range,
                 selection=selection,
                 weights=weights,
+                defines=defines,
             )
         except ValueError as e:
             return {
@@ -131,6 +137,7 @@ class AnalysisTools:
         x_range: tuple[float, float] | None = None,
         y_range: tuple[float, float] | None = None,
         selection: str | None = None,
+        defines: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """
         Compute a 2D histogram.
@@ -145,6 +152,7 @@ class AnalysisTools:
             x_range: (min, max) for x-axis
             y_range: (min, max) for y-axis
             selection: Optional cut expression
+            defines: Optional variable definitions
 
         Returns:
             2D histogram data and metadata
@@ -170,6 +178,7 @@ class AnalysisTools:
                 x_range=x_range,
                 y_range=y_range,
                 selection=selection,
+                defines=defines,
             )
         except Exception as e:
             return {
@@ -184,11 +193,72 @@ class AnalysisTools:
 
         return result
 
+    def fit_histogram(
+        self,
+        data: dict[str, Any],
+        model: str | list[str | dict[str, Any]] | dict[str, Any],
+        initial_guess: list[float] | None = None,
+        bounds: list[list[float]] | None = None,
+        fixed_parameters: dict[str | int, float] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Fit a histogram to a model.
+
+        Args:
+            data: Histogram data (from compute_histogram)
+            model: Model configuration. Can be:
+                   - Name (e.g. "gaussian")
+                   - List of names (e.g. ["gaussian", "exponential"])
+                   - List of dicts (e.g. [{"model": "gaussian", "prefix": "s_"}])
+                   - Param dict (e.g. {"expr": "A*x", "params": ["A"]})
+            initial_guess: Initial parameters for fit.
+            bounds: Parameter bounds
+            fixed_parameters: Fixed parameters
+
+        Returns:
+            Fit results
+        """
+        try:
+            return fit_histogram(data, model, initial_guess, bounds, fixed_parameters)
+        except Exception as e:
+            return {
+                "error": "fit_error",
+                "message": f"Fitting failed: {e}",
+            }
+
+    def generate_plot(
+        self,
+        data: dict[str, Any],
+        plot_type: str = "histogram",
+        fit_data: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate a plot.
+
+        Args:
+            data: Analysis data
+            plot_type: Plot type
+            fit_data: Optional fit to overlay
+            options: Plot settings
+
+        Returns:
+            Plot image data
+        """
+        try:
+            return generate_plot(data, plot_type, fit_data, options)
+        except Exception as e:
+            return {
+                "error": "plot_error",
+                "message": f"Plotting failed: {e}",
+            }
+
     def apply_selection(
         self,
         path: str,
         tree: str,
         selection: str,
+        defines: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """
         Count entries passing a selection.
@@ -197,6 +267,7 @@ class AnalysisTools:
             path: File path
             tree: Tree name
             selection: Cut expression
+            defines: Optional variable definitions
 
         Returns:
             Selection statistics
@@ -216,6 +287,7 @@ class AnalysisTools:
                 path=str(validated_path),
                 tree_name=tree,
                 selection=selection,
+                defines=defines,
             )
         except Exception as e:
             return {
@@ -229,17 +301,16 @@ class AnalysisTools:
 
         if efficiency < 0.01:
             suggestions.append(
-                f"Very tight selection ({efficiency*100:.3f}%) - "
+                f"Very tight selection ({efficiency * 100:.3f}%) - "
                 "consider loosening cuts or checking syntax"
             )
         elif efficiency > 0.95:
             suggestions.append(
-                f"Selection passes most events ({efficiency*100:.1f}%) - "
-                "consider tightening cuts"
+                f"Selection passes most events ({efficiency * 100:.1f}%) - consider tightening cuts"
             )
         else:
             suggestions.append(
-                f"{efficiency*100:.1f}% of events pass selection - "
+                f"{efficiency * 100:.1f}% of events pass selection - "
                 "proceed with compute_histogram() or read_branches()"
             )
 

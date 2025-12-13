@@ -37,6 +37,8 @@ dependencies = [
     "pyarrow>=14.0.0",  # For Parquet export
     "pyyaml>=6.0",
     "xxhash>=3.0.0",  # Fast hashing for caching
+    "scipy>=1.10.0",
+    "matplotlib>=3.7.0",
 ]
 
 [project.optional-dependencies]

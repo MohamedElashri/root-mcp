@@ -4,6 +4,8 @@ uproot
 awkward
 numpy
 pandas
+scipy
+matplotlib
 
 # MCP protocol
 mcp

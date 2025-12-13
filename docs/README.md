@@ -248,7 +248,7 @@ ROOT-MCP accepts **ROOT-style** selection expressions in `selection` fields.
 
 - Supported boolean operators: `&&`, `||`, `!`
 - Supported comparisons: `<`, `<=`, `>`, `>=`, `==`, `!=`
-- Supported functions: `abs`, `sqrt`, `log`, `exp`, `sin`, `cos`, `tan`, `min`, `max`
+- Supported functions: `abs`, `sqrt`, `log`, `exp`, `sin`, `cos`, `tan`, `sinh`, `cosh`, `tanh`, `arcsin`, `arccos`, `arctan`, `arctan2`, `min`, `max`
 
 ### Jagged (variable-length) semantics
 
@@ -263,6 +263,34 @@ muon_pt > 20 && muon_eta < 0
 ```
 
 Means: *count events with at least one muon that satisfies both constraints.*
+
+### Advanced Analysis
+
+#### `fit_histogram`
+
+- **Purpose**: Fit a histogram to a model.
+- **Arguments**:
+  - `data` (required): Histogram data.
+  - `model` (required):
+      - **String**: Built-in name (`"gaussian"`, `"exponential"`, `"polynomial"`, `"crystal_ball"`).
+      - **List**: Composite model (e.g., `["gaussian", "exponential"]`).
+      - **Dict**: Custom model (e.g., `{"expr": "A*x+B", "params": ["A", "B"]}`).
+  - `initial_guess` (optional): List of starting values for parameters.
+  - `bounds` (optional): List of `[min, max]` for each parameter. Use `null` or `[-inf, inf]` for unbounded.
+  - `fixed_parameters` (optional): Dictionary mapping parameter names or indices to fixed values (e.g., `{"mu": 91.2}`).
+
+#### `generate_plot`
+
+- **Purpose**: Generate a plot image.
+- **Arguments**:
+  - `data` (required): Histogram data.
+  - `plot_type` (optional): Defaults to `"histogram"`.
+  - `fit_data` (optional): Result from `fit_histogram` to overlay.
+  - `options` (optional):
+      - `title`, `xlabel`, `ylabel`
+      - `log_x`, `log_y`: Boolean to enable log scales.
+      - `grid`: Boolean to show grid.
+      - `unit`: String unit for axes (e.g., `"GeV"`).
 
 ## Practical usage examples
 

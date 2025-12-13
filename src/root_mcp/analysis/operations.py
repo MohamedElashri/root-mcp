@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from root_mcp.config import Config
     from root_mcp.io.file_manager import FileManager
 
+from root_mcp.analysis.expression import SafeExprEvaluator, translate_leaf_expr, strip_outer_parens
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +37,50 @@ class AnalysisOperations:
         self.config = config
         self.file_manager = file_manager
 
+    def _process_defines(self, arrays: ak.Array, defines: dict[str, str] | None) -> ak.Array:
+        """
+        Process derived variable definitions.
+
+        Args:
+            arrays: Input ak.Array
+            defines: Dictionary of {name: expression}
+
+        Returns:
+            ak.Array with new fields attached
+        """
+        if not defines:
+            return arrays
+
+        # Create a mutable dict for evaluation
+        names = {field: arrays[field] for field in arrays.fields}
+
+        # We need to respect dependencies, so we ideally sort them topologicaly
+        # For now, we assume user defines things in order or independent
+        # A robust solution would parse all dependencies first
+
+        for name, expr in defines.items():
+            try:
+                # Evaluate expression
+                # We reuse the safe evaluator logic
+                translated_expr = translate_leaf_expr(expr)
+                tree = ast.parse(translated_expr, mode="eval")
+                result = SafeExprEvaluator(names).visit(tree)
+
+                # Add to context
+                names[name] = result
+
+                # Ideally add back to array, but ak.Array is immutable in structure
+                # We can simulate it by keeping the 'names' dict as the truth
+                # For downstream consumers expecting an array with fields, we can zip it up
+
+            except Exception as e:
+                logger.error(f"Failed to define {name} = {expr}: {e}")
+                raise ValueError(f"Failed to define {name}: {e}")
+
+        # Construct new array with all original + new fields
+        # This is expensive if we duplicate data, so we use zip
+        return ak.zip(names, depth_limit=1)
+
     def compute_histogram(
         self,
         path: str,
@@ -44,6 +90,7 @@ class AnalysisOperations:
         range: tuple[float, float] | None = None,
         selection: str | None = None,
         weights: str | None = None,
+        defines: dict[str, str] | None = None,
         flatten: bool = True,
     ) -> dict[str, Any]:
         """
@@ -57,6 +104,7 @@ class AnalysisOperations:
             range: (min, max) for histogram range (auto if None)
             selection: Optional cut expression
             weights: Optional branch for weights
+            defines: Optional derived variable definitions
             flatten: Flatten jagged arrays before histogramming
 
         Returns:
@@ -72,18 +120,48 @@ class AnalysisOperations:
         tree = self.file_manager.get_tree(path, tree_name)
 
         # Build list of branches to read
-        branches_to_read = [branch]
-        if weights:
-            branches_to_read.append(weights)
+        # Must include branches used in defines
+        needed_branches = set()
+        if defines:
+            for expr in defines.values():
+                needed_branches.update(_extract_branches_from_expression(expr, list(tree.keys())))
 
-        logger.info(f"Computing histogram for {branch} with {bins} bins")
+        # If branch is a defined variable, we don't need to read it from tree directly
+        # checks if branch is in tree, if not, assume it is defined
+        is_defined_branch = defines and branch in defines
+        if not is_defined_branch:
+            needed_branches.add(branch)
+
+        if weights:
+            is_defined_weight = defines and weights in defines
+            if not is_defined_weight:
+                needed_branches.add(weights)
+
+        if selection:
+            needed_branches.update(_extract_branches_from_expression(selection, list(tree.keys())))
+
+        # Filter available branches
+        available_branches = set(tree.keys())
+        branches_to_read = list(needed_branches.intersection(available_branches))
+
+        logger.info(
+            f"Computing histogram for {branch} with {bins} bins (defines: {list(defines.keys()) if defines else 'None'})"
+        )
 
         # Read data
         arrays = tree.arrays(
             filter_name=branches_to_read,
-            cut=selection,
             library="ak",
         )
+
+        # Process definitions
+        if defines:
+            arrays = self._process_defines(arrays, defines)
+
+        # Apply selection AFTER definitions (so we can cut on defined variables)
+        if selection:
+            mask = _evaluate_selection_any(arrays, selection)
+            arrays = arrays[mask]
 
         data = arrays[branch]
 
@@ -104,7 +182,10 @@ class AnalysisOperations:
 
         # Determine range if not provided
         if range is None:
-            range = (float(np.min(data_np)), float(np.max(data_np)))
+            if len(data_np) == 0:
+                range = (0.0, 1.0)
+            else:
+                range = (float(np.min(data_np)), float(np.max(data_np)))
 
         # Compute histogram
         counts, edges = np.histogram(
@@ -129,8 +210,12 @@ class AnalysisOperations:
 
         # Statistics
         total_entries = len(data_np)
-        mean = float(np.mean(data_np))
-        std = float(np.std(data_np))
+        if total_entries > 0:
+            mean = float(np.mean(data_np))
+            std = float(np.std(data_np))
+        else:
+            mean = 0.0
+            std = 0.0
 
         return {
             "data": {
@@ -151,6 +236,7 @@ class AnalysisOperations:
                 "range": range,
                 "selection": selection,
                 "weighted": weights is not None,
+                "defines": defines,
             },
         }
 
@@ -165,6 +251,7 @@ class AnalysisOperations:
         x_range: tuple[float, float] | None = None,
         y_range: tuple[float, float] | None = None,
         selection: str | None = None,
+        defines: dict[str, str] | None = None,
         flatten: bool = True,
     ) -> dict[str, Any]:
         """
@@ -180,6 +267,7 @@ class AnalysisOperations:
             x_range: (min, max) for x-axis
             y_range: (min, max) for y-axis
             selection: Optional cut expression
+            defines: Optional derived variable definitions
             flatten: Flatten jagged arrays
 
         Returns:
@@ -194,12 +282,40 @@ class AnalysisOperations:
 
         logger.info(f"Computing 2D histogram: {x_branch} vs {y_branch}")
 
+        # Build list of branches to read (reusing logic)
+        needed_branches = set()
+        if defines:
+            for expr in defines.values():
+                needed_branches.update(_extract_branches_from_expression(expr, list(tree.keys())))
+
+        is_defined_x = defines and x_branch in defines
+        if not is_defined_x:
+            needed_branches.add(x_branch)
+
+        is_defined_y = defines and y_branch in defines
+        if not is_defined_y:
+            needed_branches.add(y_branch)
+
+        if selection:
+            needed_branches.update(_extract_branches_from_expression(selection, list(tree.keys())))
+
+        available_branches = set(tree.keys())
+        branches_to_read = list(needed_branches.intersection(available_branches))
+
         # Read data
         arrays = tree.arrays(
-            filter_name=[x_branch, y_branch],
-            cut=selection,
+            filter_name=branches_to_read,
             library="ak",
         )
+
+        # Process defines
+        if defines:
+            arrays = self._process_defines(arrays, defines)
+
+        # Apply selection
+        if selection:
+            mask = _evaluate_selection_any(arrays, selection)
+            arrays = arrays[mask]
 
         x_data = arrays[x_branch]
         y_data = arrays[y_branch]
@@ -241,6 +357,7 @@ class AnalysisOperations:
                 "x_branch": x_branch,
                 "y_branch": y_branch,
                 "selection": selection,
+                "defines": defines,
             },
         }
 
@@ -249,6 +366,7 @@ class AnalysisOperations:
         path: str,
         tree_name: str,
         selection: str,
+        defines: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """
         Count entries passing a selection.
@@ -257,24 +375,35 @@ class AnalysisOperations:
             path: File path
             tree_name: Tree name
             selection: Cut expression
+            defines: Optional variable definitions
 
         Returns:
             Selection statistics
         """
         tree = self.file_manager.get_tree(path, tree_name)
-
         total_entries = tree.num_entries
-
         logger.info(f"Applying selection to {tree_name}: {selection}")
 
-        # Count entries passing selection
-        branches_to_read = _extract_branches_from_expression(selection, list(tree.keys()))
+        # Need to read in chunks if defines are involved?
+        # If defines are involved, we might need all branches they depend on.
+        # But apply_selection is often optimized to read only needed branches.
+
+        # Determine needed branches
+        needed_branches = set()
+        needed_branches.update(_extract_branches_from_expression(selection, list(tree.keys())))
+        if defines:
+            for expr in defines.values():
+                needed_branches.update(_extract_branches_from_expression(expr, list(tree.keys())))
+
+        available_branches = set(tree.keys())
+        branches_to_read = list(needed_branches.intersection(available_branches))
         if not branches_to_read:
-            branches_to_read = tree.keys()[0:1]
+            branches_to_read = tree.keys()[0:1]  # Fallback in case of no branches
 
         chunk_size = self.config.analysis.default_chunk_size
         selected_entries = 0
         entry_start = 0
+
         while entry_start < total_entries:
             entry_stop = min(entry_start + chunk_size, total_entries)
             arrays = tree.arrays(
@@ -287,9 +416,13 @@ class AnalysisOperations:
                 entry_start = entry_stop
                 continue
 
+            if defines:
+                arrays = self._process_defines(arrays, defines)
+
             mask = _evaluate_selection_any(arrays, selection)
             selected_entries += int(ak.sum(mask))
             entry_start = entry_stop
+
         efficiency = selected_entries / total_entries if total_entries > 0 else 0.0
 
         return {
@@ -301,6 +434,7 @@ class AnalysisOperations:
             },
             "metadata": {
                 "operation": "apply_selection",
+                "defines": defines,
             },
         }
 
@@ -492,27 +626,15 @@ def _extract_branches_from_expression(selection: str, available_branches: list[s
         "min",
         "max",
         "where",
+        "sinh",
+        "cosh",
+        "tanh",
+        "arcsin",
+        "arccos",
+        "arctan",
+        "arctan2",
     }
     return sorted([t for t in tokens if t in available and t not in reserved])
-
-
-def _strip_outer_parens(expr: str) -> str:
-    expr = expr.strip()
-    while expr.startswith("(") and expr.endswith(")"):
-        depth = 0
-        ok = True
-        for i, ch in enumerate(expr):
-            if ch == "(":
-                depth += 1
-            elif ch == ")":
-                depth -= 1
-                if depth == 0 and i != len(expr) - 1:
-                    ok = False
-                    break
-        if not ok:
-            break
-        expr = expr[1:-1].strip()
-    return expr
 
 
 def _split_top_level(expr: str, sep: str) -> list[str]:
@@ -539,122 +661,15 @@ def _split_top_level(expr: str, sep: str) -> list[str]:
     return [p for p in parts if p]
 
 
-def _translate_leaf_expr(expr: str) -> str:
-    expr = expr.strip()
-    expr = expr.replace("&&", "&").replace("||", "|")
-    expr = re.sub(r"!(?!=)", "~", expr)
-    expr = re.sub(r"\btrue\b", "True", expr, flags=re.IGNORECASE)
-    expr = re.sub(r"\bfalse\b", "False", expr, flags=re.IGNORECASE)
-    return expr
-
-
-class _SafeExprEvaluator(ast.NodeVisitor):
-    def __init__(self, names: dict[str, Any]):
-        self.names = names
-        self.funcs: dict[str, Any] = {
-            "abs": np.abs,
-            "sqrt": np.sqrt,
-            "log": np.log,
-            "exp": np.exp,
-            "sin": np.sin,
-            "cos": np.cos,
-            "tan": np.tan,
-            "min": np.minimum,
-            "max": np.maximum,
-        }
-
-    def visit_Expression(self, node: ast.Expression) -> Any:
-        return self.visit(node.body)
-
-    def visit_Name(self, node: ast.Name) -> Any:
-        if node.id in self.names:
-            return self.names[node.id]
-        if node.id in {"True", "False"}:
-            return node.id == "True"
-        if node.id in self.funcs:
-            return self.funcs[node.id]
-        raise ValueError(f"Unknown identifier in selection: {node.id}")
-
-    def visit_Constant(self, node: ast.Constant) -> Any:
-        return node.value
-
-    def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
-        operand = self.visit(node.operand)
-        if isinstance(node.op, ast.USub):
-            return -operand
-        if isinstance(node.op, ast.UAdd):
-            return +operand
-        if isinstance(node.op, ast.Invert):
-            return ~operand
-        raise ValueError("Unsupported unary operator")
-
-    def visit_BinOp(self, node: ast.BinOp) -> Any:
-        left = self.visit(node.left)
-        right = self.visit(node.right)
-        op = node.op
-        if isinstance(op, ast.Add):
-            return left + right
-        if isinstance(op, ast.Sub):
-            return left - right
-        if isinstance(op, ast.Mult):
-            return left * right
-        if isinstance(op, ast.Div):
-            return left / right
-        if isinstance(op, ast.Pow):
-            return left**right
-        if isinstance(op, ast.Mod):
-            return left % right
-        if isinstance(op, ast.BitAnd):
-            return left & right
-        if isinstance(op, ast.BitOr):
-            return left | right
-        raise ValueError("Unsupported binary operator")
-
-    def visit_Compare(self, node: ast.Compare) -> Any:
-        if len(node.ops) != 1 or len(node.comparators) != 1:
-            raise ValueError("Chained comparisons are not supported")
-
-        left = self.visit(node.left)
-        right = self.visit(node.comparators[0])
-        op = node.ops[0]
-        if isinstance(op, ast.Lt):
-            return left < right
-        if isinstance(op, ast.LtE):
-            return left <= right
-        if isinstance(op, ast.Gt):
-            return left > right
-        if isinstance(op, ast.GtE):
-            return left >= right
-        if isinstance(op, ast.Eq):
-            return left == right
-        if isinstance(op, ast.NotEq):
-            return left != right
-        raise ValueError("Unsupported comparison operator")
-
-    def visit_Call(self, node: ast.Call) -> Any:
-        if not isinstance(node.func, ast.Name):
-            raise ValueError("Only simple function calls are allowed")
-        fn = self.visit_Name(node.func)
-        if fn not in self.funcs.values():
-            raise ValueError(f"Function '{node.func.id}' is not allowed")
-        if node.keywords:
-            raise ValueError("Keyword arguments are not supported")
-        args = [self.visit(a) for a in node.args]
-        return fn(*args)
-
-    def generic_visit(self, node: ast.AST) -> Any:
-        raise ValueError(f"Unsupported syntax in selection: {type(node).__name__}")
-
-
 def _eval_leaf(arrays: ak.Array, expr: str) -> Any:
-    expr = _translate_leaf_expr(expr)
+    expr = translate_leaf_expr(expr)
     names = {field: arrays[field] for field in arrays.fields}
     tree = ast.parse(expr, mode="eval")
-    return _SafeExprEvaluator(names).visit(tree)
+    return SafeExprEvaluator(names).visit(tree)
 
 
 def _evaluate_selection_any(arrays: ak.Array, selection: str) -> ak.Array:
-    expr = _strip_outer_parens(selection)
+    expr = strip_outer_parens(selection)
 
     or_parts = _split_top_level(expr, "||")
     if len(or_parts) > 1:
@@ -670,7 +685,7 @@ def _evaluate_selection_any(arrays: ak.Array, selection: str) -> ak.Array:
             mask = mask & _evaluate_selection_any(arrays, part)
         return mask
 
-    term = _strip_outer_parens(expr)
+    term = strip_outer_parens(expr)
     neg = False
     while term.startswith("!") and not term.startswith("!="):
         neg = not neg

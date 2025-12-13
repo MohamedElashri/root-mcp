@@ -274,6 +274,11 @@ class ROOTMCPServer:
                                 "type": "string",
                                 "description": "Branch name for weights",
                             },
+                            "defines": {
+                                "type": "object",
+                                "description": "Dictionary of derived variable definitions {name: expression}",
+                                "additionalProperties": {"type": "string"},
+                            },
                         },
                         "required": ["path", "tree", "branch", "bins"],
                     },
@@ -303,6 +308,11 @@ class ROOTMCPServer:
                                 "maxItems": 2,
                             },
                             "selection": {"type": "string"},
+                            "defines": {
+                                "type": "object",
+                                "description": "Dictionary of derived variable definitions {name: expression}",
+                                "additionalProperties": {"type": "string"},
+                            },
                         },
                         "required": ["path", "tree", "x_branch", "y_branch", "x_bins", "y_bins"],
                     },
@@ -319,8 +329,130 @@ class ROOTMCPServer:
                                 "type": "string",
                                 "description": "Cut expression",
                             },
+                            "defines": {
+                                "type": "object",
+                                "description": "Dictionary of derived variable definitions {name: expression}",
+                                "additionalProperties": {"type": "string"},
+                            },
                         },
                         "required": ["path", "tree", "selection"],
+                    },
+                ),
+                Tool(
+                    name="fit_histogram",
+                    description="Fit a histogram to a model (gaussian, exponential, polynomial, crystal_ball) or a composite of them.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "data": {
+                                "type": "object",
+                                "description": "Histogram data from compute_histogram",
+                            },
+                            "model": {
+                                "description": "Model to fit. Can be a string (single model) or list of models (composite).",
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "enum": [
+                                            "gaussian",
+                                            "exponential",
+                                            "polynomial",
+                                            "crystal_ball",
+                                        ],
+                                        "description": "Single model name",
+                                    },
+                                    {
+                                        "type": "array",
+                                        "items": {
+                                            "anyOf": [
+                                                {"type": "string"},
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "model": {"type": "string"},
+                                                        "prefix": {"type": "string"},
+                                                    },
+                                                },
+                                            ]
+                                        },
+                                        "description": "Composite model (list of names or configs)",
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "expr": {"type": "string"},
+                                            "params": {
+                                                "type": "array",
+                                                "items": {"type": "string"},
+                                            },
+                                        },
+                                        "required": ["expr", "params"],
+                                        "description": "Custom model expression",
+                                    },
+                                ],
+                            },
+                            "initial_guess": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "description": "Initial guess for parameters",
+                            },
+                            "bounds": {
+                                "type": "array",
+                                "items": {
+                                    "type": "array",
+                                    "items": {"type": "number"},
+                                    "minItems": 2,
+                                    "maxItems": 2,
+                                },
+                                "description": "Bounds [min, max] for each parameter",
+                            },
+                            "fixed_parameters": {
+                                "type": "object",
+                                "additionalProperties": {"type": "number"},
+                                "description": "Map of parameter name or index to fixed value",
+                            },
+                        },
+                        "required": ["data", "model"],
+                    },
+                ),
+                Tool(
+                    name="generate_plot",
+                    description="Generate a plot (base64 image) from analysis data.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "data": {
+                                "type": "object",
+                                "description": "Analysis data (e.g. histogram)",
+                            },
+                            "plot_type": {
+                                "type": "string",
+                                "enum": ["histogram"],
+                                "default": "histogram",
+                            },
+                            "fit_data": {
+                                "type": "object",
+                                "description": "Optional fit results to overlay",
+                            },
+                            "options": {
+                                "type": "object",
+                                "description": "Plotting options",
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "xlabel": {"type": "string"},
+                                    "ylabel": {"type": "string"},
+                                    "unit": {
+                                        "type": "string",
+                                        "description": "Unit string for axes (e.g. GeV)",
+                                    },
+                                    "log_x": {"type": "boolean"},
+                                    "log_y": {"type": "boolean"},
+                                    "grid": {"type": "boolean"},
+                                    "color": {"type": "string"},
+                                },
+                            },
+                        },
+                        "required": ["data"],
                     },
                 ),
                 Tool(
@@ -376,6 +508,10 @@ class ROOTMCPServer:
                     result = self.analysis_tools.compute_histogram_2d(**arguments)
                 elif name == "apply_selection":
                     result = self.analysis_tools.apply_selection(**arguments)
+                elif name == "fit_histogram":
+                    result = self.analysis_tools.fit_histogram(**arguments)
+                elif name == "generate_plot":
+                    result = self.analysis_tools.generate_plot(**arguments)
                 elif name == "export_branches":
                     result = self.analysis_tools.export_branches(**arguments)
                 else:
