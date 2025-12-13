@@ -409,6 +409,8 @@ Means: *count events with at least one muon that satisfies both constraints.*
 5. `apply_selection`
 6. `compute_histogram`
 7. `export_branches`
+8. `fit_histogram`
+9. `generate_plot`
 
 ## References
 
