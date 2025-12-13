@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "root-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "Production-grade MCP server for CERN ROOT file analysis"
 authors = [{name = "Mohamed Elashri"}]
 maintainers = [{name = "Mohamed Elashri"}]
