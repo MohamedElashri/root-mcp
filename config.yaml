@@ -46,12 +46,13 @@ resources:
   #   auth_type: "kerberos"
 
   # Example: HTTP open data
-  # - name: "opendata"
-  #   uri: "https://opendata.cern.ch/record/12345/files"
-  #   description: "CERN Open Data samples"
-  #   allowed_patterns:
-  #     - "*.root"
-  #   read_only: true
+  # HTTP open data
+  - name: "opendata"
+    uri: "root://eospublic.cern.ch//eos/opendata/cms/derived-data/AOD2NanoAODOutreachTool"
+    description: "CERN Open Data samples"
+    allowed_patterns:
+      - "*.root"
+    read_only: true
 
 # Security settings
 security:
@@ -66,9 +67,9 @@ security:
   # Protocols allowed for remote files
   allowed_protocols:
     - "file"
-    # - "root"  # XRootD
-    # - "http"
-    # - "https"
+    - "root"
+    - "http"
+    - "https"
 
   # Maximum path depth to prevent DoS
   max_path_depth: 10
@@ -107,7 +108,7 @@ analysis:
 # Feature flags
 features:
   enable_write_operations: false  # Allow creating ROOT files
-  enable_remote_files: false
+  enable_remote_files: true
   enable_export: true
   enable_statistics: true
   enable_advanced_selections: true

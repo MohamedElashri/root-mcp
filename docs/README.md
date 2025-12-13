@@ -264,6 +264,12 @@ muon_pt > 20 && muon_eta < 0
 
 Means: *count events with at least one muon that satisfies both constraints.*
 
+# Run the analysis
+# Note 1: Network settings (IPv4) might be needed for some Open Data servers
+# Note 2: The script processes 1M events by default. Edit 'max_events' in the script for full stats.
+export XRD_NETWORKSTACK=IPv4
+python examples/cms_dimuon_analysis.py
+
 ### Advanced Analysis
 
 #### `fit_histogram`

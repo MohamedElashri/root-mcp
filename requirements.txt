@@ -26,3 +26,7 @@ pyarrow
 
 # Utilities
 xxhash
+
+# xrootd
+fsspec-xrootd
+XRootD
