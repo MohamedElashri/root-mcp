@@ -203,10 +203,7 @@ for chunk in tree.iterate(step_size=10_000, filter_name=branches):
 
 **Resource Limits (Configurable)**
 - `MAX_ROWS_PER_CALL`: 1,000,000 (default)
-- `MAX_MEMORY_MB`: 512 (per operation)
-- `MAX_FILE_HANDLES`: 100 (concurrent)
-- `MAX_HISTOGRAM_BINS`: 10,000 (per dimension)
-- `OPERATION_TIMEOUT_SEC`: 60 (default)
+
 
 ### Performance Optimizations
 

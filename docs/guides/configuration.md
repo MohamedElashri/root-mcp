@@ -41,9 +41,7 @@ Resource usage limits to prevent the server from crashing the host.
 ```yaml
 limits:
   max_rows_per_call: 1000000        # Max entries returned by read_branches
-  max_memory_mb: 512                # Hint for internal caches
-  max_file_handles: 100             # Max open ROOT files
-  operation_timeout_sec: 60         # Timeout for long operations
+
 ```
 
 ### `output`
@@ -61,7 +59,6 @@ Tweak the analysis engine.
 ```yaml
 analysis:
   default_chunk_size: 10000         # Chunk size for iterative processing
-  use_awkward: true                 # Use awkward-array (recommended)
   histogram:
     max_bins_1d: 10000
     max_bins_2d: 1000

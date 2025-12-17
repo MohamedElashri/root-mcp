@@ -5,7 +5,6 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version as _dist_version
 import os
 from pathlib import Path
-from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -23,20 +22,12 @@ class ServerConfig(BaseModel):
 
     name: str = "root-mcp"
     version: str = Field(default_factory=_package_version)
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    log_format: Literal["json", "text"] = "json"
 
 
 class LimitsConfig(BaseModel):
     """Resource limits for safety."""
 
     max_rows_per_call: int = Field(1_000_000, gt=0)
-    max_memory_mb: int = Field(512, gt=0)
-    max_file_handles: int = Field(100, gt=0)
-    max_histogram_bins: int = Field(10_000, gt=0)
-    operation_timeout_sec: int = Field(60, gt=0)
-    max_concurrent_operations: int = Field(10, gt=0)
-    max_file_size_gb: int = Field(50, gt=0)
 
 
 class CacheConfig(BaseModel):
@@ -44,8 +35,6 @@ class CacheConfig(BaseModel):
 
     enabled: bool = True
     file_cache_size: int = Field(50, gt=0)
-    metadata_cache_size: int = Field(200, gt=0)
-    cache_ttl_seconds: int = Field(3600, gt=0)
 
 
 class ResourceConfig(BaseModel):
@@ -56,10 +45,6 @@ class ResourceConfig(BaseModel):
     description: str = ""
     allowed_patterns: list[str] = Field(default_factory=lambda: ["*.root"])
     excluded_patterns: list[str] = Field(default_factory=list)
-    max_file_size_gb: int = Field(10, gt=0)
-    read_only: bool = True
-    requires_auth: bool = False
-    auth_type: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -96,7 +81,6 @@ class OutputConfig(BaseModel):
 
     export_base_path: str = "/tmp/root_mcp_output"
     allowed_formats: list[str] = Field(default_factory=lambda: ["json", "csv", "parquet"])
-    cleanup_after_hours: int = Field(24, gt=0)
 
     @field_validator("export_base_path")
     @classmethod
@@ -109,7 +93,6 @@ class OutputConfig(BaseModel):
 class HistogramConfig(BaseModel):
     """Histogram-specific settings."""
 
-    default_bins: int = Field(100, gt=0)
     max_bins_1d: int = Field(10_000, gt=0)
     max_bins_2d: int = Field(1_000, gt=0)
 
@@ -119,26 +102,13 @@ class AnalysisConfig(BaseModel):
 
     default_chunk_size: int = Field(10_000, gt=0)
     default_read_limit: int = Field(1_000, gt=0)
-    use_awkward: bool = True
     histogram: HistogramConfig = Field(default_factory=HistogramConfig)
 
 
 class FeatureFlags(BaseModel):
     """Feature toggles."""
 
-    enable_write_operations: bool = False
-    enable_remote_files: bool = False
     enable_export: bool = True
-    enable_statistics: bool = True
-    enable_advanced_selections: bool = True
-
-
-class MonitoringConfig(BaseModel):
-    """Monitoring and observability settings."""
-
-    enabled: bool = False
-    prometheus_port: int = Field(9090, gt=0, lt=65536)
-    metrics_path: str = "/metrics"
 
 
 class Config(BaseModel):
@@ -152,7 +122,6 @@ class Config(BaseModel):
     output: OutputConfig = Field(default_factory=OutputConfig)
     analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
     features: FeatureFlags = Field(default_factory=FeatureFlags)
-    monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
 
     def get_resource(self, name: str) -> ResourceConfig | None:
         """Get resource configuration by name."""
