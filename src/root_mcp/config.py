@@ -28,6 +28,7 @@ class LimitsConfig(BaseModel):
     """Resource limits for safety."""
 
     max_rows_per_call: int = Field(1_000_000, gt=0)
+    max_export_rows: int = Field(10_000_000, gt=0)
 
 
 class CacheConfig(BaseModel):
@@ -97,12 +98,45 @@ class HistogramConfig(BaseModel):
     max_bins_2d: int = Field(1_000, gt=0)
 
 
+class PlottingConfig(BaseModel):
+    """Plotting and visualization settings."""
+
+    # Figure settings
+    figure_width: float = Field(10.0, gt=0)
+    figure_height: float = Field(6.0, gt=0)
+    dpi: int = Field(100, gt=0)
+
+    # Data point settings
+    marker_size: float = Field(4.0, gt=0)
+    marker_style: str = "o"
+    error_bar_cap_size: float = Field(2.0, ge=0)
+
+    # Line settings
+    line_width: float = Field(2.0, gt=0)
+    fit_line_color: str = "red"
+    fit_line_style: str = "-"
+
+    # Histogram settings
+    hist_fill_alpha: float = Field(0.2, ge=0, le=1)
+    hist_fill_color: str = "blue"
+    data_color: str = "black"
+
+    # Grid settings
+    grid_alpha: float = Field(0.3, ge=0, le=1)
+    grid_enabled: bool = True
+
+    # Output format
+    default_format: str = "png"
+    allowed_formats: list[str] = Field(default_factory=lambda: ["png", "pdf", "svg"])
+
+
 class AnalysisConfig(BaseModel):
     """Analysis operation settings."""
 
     default_chunk_size: int = Field(10_000, gt=0)
     default_read_limit: int = Field(1_000, gt=0)
     histogram: HistogramConfig = Field(default_factory=HistogramConfig)
+    plotting: PlottingConfig = Field(default_factory=PlottingConfig)
 
 
 class FeatureFlags(BaseModel):

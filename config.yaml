@@ -7,6 +7,7 @@ server:
 # Resource limits (safety bounds)
 limits:
   max_rows_per_call: 1_000_000
+  max_export_rows: 10_000_000  # Maximum rows for data export operations
 
 # Caching configuration
 cache:
@@ -84,6 +85,39 @@ analysis:
   histogram:
     max_bins_1d: 10_000
     max_bins_2d: 1_000  # Per dimension
+
+  # Plotting and visualization settings
+  plotting:
+    # Figure dimensions and quality
+    figure_width: 10.0
+    figure_height: 6.0
+    dpi: 100
+
+    # Data point styling
+    marker_size: 4.0
+    marker_style: "o"
+    error_bar_cap_size: 2.0
+
+    # Line styling
+    line_width: 2.0
+    fit_line_color: "red"
+    fit_line_style: "-"
+
+    # Histogram styling
+    hist_fill_alpha: 0.2
+    hist_fill_color: "blue"
+    data_color: "black"
+
+    # Grid settings
+    grid_alpha: 0.3
+    grid_enabled: true
+
+    # Output formats
+    default_format: "png"
+    allowed_formats:
+      - "png"
+      - "pdf"
+      - "svg"
 
 # Feature flags
 features:

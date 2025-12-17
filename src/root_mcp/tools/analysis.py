@@ -246,7 +246,7 @@ class AnalysisTools:
             Plot image data
         """
         try:
-            return generate_plot(data, plot_type, fit_data, options)
+            return generate_plot(data, plot_type, fit_data, options, self.config)
         except Exception as e:
             return {
                 "error": "plot_error",
@@ -369,12 +369,13 @@ class AnalysisTools:
             }
 
         # Validate limit
+        max_export = self.config.limits.max_export_rows
         if limit is None:
-            limit = 10_000_000  # Default max for export
-        if limit > 10_000_000:
+            limit = max_export  # Use configured max for export
+        if limit > max_export:
             return {
                 "error": "limit_exceeded",
-                "message": "Export limit cannot exceed 10,000,000 entries",
+                "message": f"Export limit cannot exceed {max_export:,} entries",
             }
 
         # Read data

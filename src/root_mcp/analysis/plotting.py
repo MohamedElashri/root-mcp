@@ -21,6 +21,7 @@ def generate_plot(
     plot_type: str = "histogram",
     fit_data: dict[str, Any] | None = None,
     options: dict[str, Any] | None = None,
+    config: Any | None = None,
 ) -> dict[str, str]:
     """
     Generate a plot from analysis data.
@@ -30,6 +31,7 @@ def generate_plot(
         plot_type: Type of plot (histogram, etc.)
         fit_data: Optional fit results to overlay
         options: Plotting options (title, labels, etc.)
+        config: Configuration object with plotting settings
 
     Returns:
         Dictionary with base64 encoded image
@@ -37,11 +39,18 @@ def generate_plot(
     if options is None:
         options = {}
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    # Get plotting config or use defaults
+    if config and hasattr(config, "analysis") and hasattr(config.analysis, "plotting"):
+        plot_cfg = config.analysis.plotting
+        figsize = (plot_cfg.figure_width, plot_cfg.figure_height)
+    else:
+        figsize = (10, 6)
+
+    fig, ax = plt.subplots(figsize=figsize)
 
     try:
         if plot_type == "histogram":
-            plot_metadata = _plot_histogram(ax, data, fit_data, options)
+            plot_metadata = _plot_histogram(ax, data, fit_data, options, config)
         else:
             raise ValueError(f"Unsupported plot type: {plot_type}")
 
@@ -79,16 +88,31 @@ def generate_plot(
         if options.get("log_x"):
             ax.set_xscale("log")
 
-        grid_style = options.get("grid", True)
+        # Get grid alpha from config
+        if config and hasattr(config, "analysis") and hasattr(config.analysis, "plotting"):
+            plot_cfg = config.analysis.plotting
+            grid_alpha = plot_cfg.grid_alpha
+            grid_enabled = plot_cfg.grid_enabled
+        else:
+            grid_alpha = 0.3
+            grid_enabled = True
+
+        grid_style = options.get("grid", grid_enabled)
         if grid_style:
-            ax.grid(True, alpha=0.3, which="both" if options.get("log_y") else "major")
+            ax.grid(True, alpha=grid_alpha, which="both" if options.get("log_y") else "major")
 
         ax.legend()
+
+        # Get DPI from config
+        if config and hasattr(config, "analysis") and hasattr(config.analysis, "plotting"):
+            dpi = config.analysis.plotting.dpi
+        else:
+            dpi = 100
 
         # Save to buffer
         buf = io.BytesIO()
         fig.tight_layout()
-        fig.savefig(buf, format="png", dpi=100)
+        fig.savefig(buf, format="png", dpi=dpi)
         plt.close(fig)
 
         buf.seek(0)
@@ -107,6 +131,7 @@ def _plot_histogram(
     data: dict[str, Any],
     fit_data: dict[str, Any] | None,
     options: dict[str, Any],
+    config: Any | None = None,
 ) -> dict[str, Any]:
     """Helper to plot 1D histogram."""
     hist_data = data["data"]
@@ -122,20 +147,57 @@ def _plot_histogram(
     centers = (edges[:-1] + edges[1:]) / 2
     width = edges[1] - edges[0]
 
+    # Get plotting config or use defaults
+    if config and hasattr(config, "analysis") and hasattr(config.analysis, "plotting"):
+        plot_cfg = config.analysis.plotting
+        data_color = plot_cfg.data_color
+        marker_size = plot_cfg.marker_size
+        marker_style = plot_cfg.marker_style
+        cap_size = plot_cfg.error_bar_cap_size
+        hist_alpha = plot_cfg.hist_fill_alpha
+        hist_color = plot_cfg.hist_fill_color
+        line_width = plot_cfg.line_width
+        fit_color = plot_cfg.fit_line_color
+        fit_style = plot_cfg.fit_line_style
+    else:
+        data_color = "black"
+        marker_size = 4.0
+        marker_style = "o"
+        cap_size = 2.0
+        hist_alpha = 0.2
+        hist_color = "blue"
+        line_width = 2.0
+        fit_color = "red"
+        fit_style = "-"
+
     # Plot data points with errors
-    color = options.get("color", "black")
+    color = options.get("color", data_color)
     ax.errorbar(
-        centers, counts, yerr=errors, fmt="o", color=color, label="Data", markersize=4, capsize=2
+        centers,
+        counts,
+        yerr=errors,
+        fmt=marker_style,
+        color=color,
+        label="Data",
+        markersize=marker_size,
+        capsize=cap_size,
     )
 
     # Plot histogram step
-    ax.stairs(counts, edges, fill=True, alpha=0.2, color="blue", label="Hist")
+    ax.stairs(counts, edges, fill=True, alpha=hist_alpha, color=hist_color, label="Hist")
 
     # Overlay fit if present
     if fit_data:
         fitted_values = fit_data.get("fitted_values")
         if fitted_values:
             # If fit returned values on the same x-coord
-            ax.plot(centers, fitted_values, "r-", linewidth=2, label=f"Fit ({fit_data['model']})")
+            ax.plot(
+                centers,
+                fitted_values,
+                fit_style,
+                linewidth=line_width,
+                color=fit_color,
+                label=f"Fit ({fit_data['model']})",
+            )
 
     return {"bin_width": width}
