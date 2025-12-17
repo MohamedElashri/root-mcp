@@ -43,9 +43,7 @@ htmlcov/
 .hypothesis/
 
 # Type checking
-.mypy_cache/
-.dmypy.json
-dmypy.json
+.ty_cache/
 
 # Jupyter
 .ipynb_checkpoints

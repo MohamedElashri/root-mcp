@@ -65,7 +65,7 @@ Be respectful, professional, and inclusive. We welcome contributions from everyo
    ruff check src/
 
    # Type check
-   mypy src/
+   ty check --python venv/bin/python src/
    ```
 
 7. **Commit your changes**

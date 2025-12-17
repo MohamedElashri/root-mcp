@@ -20,9 +20,9 @@ repos:
 
   - repo: local
     hooks:
-      - id: mypy
-        name: mypy
-        entry: venv/bin/python -m mypy src
+      - id: ty
+        name: ty
+        entry: ty check --python venv/bin/python src
         language: system
         pass_filenames: false
 
