@@ -53,9 +53,11 @@ The ROOT-MCP server provides AI models with safe, high-level access to CERN ROOT
 
 ### Constraints and Limitations
 
-- **Write Operations**: Limited write support (uproot can write simple ROOT files but not complex objects)
-- **Object Types**: Focus on common types (TTree, histograms); rare/exotic objects require fallback or extensions
-- **Version Compatibility**: uproot supports ROOT files v4+ (covers most HEP use cases)
+- **Write Operations**: No native ROOT write support; exports use JSON/CSV/Parquet formats
+- **Object Types**: Focus on TTrees and histograms (TH1, TH2); other ROOT objects may have limited support
+- **Version Compatibility**: uproot supports ROOT files v4+ (covers most HEP use cases since ROOT 5.x)
+- **Complex Expressions**: Selection expressions use custom parser, not full RDataFrame syntax
+- **No Plugin System**: All functionality is built-in; no plugin architecture currently implemented
 
 ## 3. High-Level Architecture
 
@@ -150,24 +152,25 @@ The ROOT-MCP server provides AI models with safe, high-level access to CERN ROOT
 ### Tool Categories
 
 #### Discovery Tools (Read-Only, Fast)
-- `list_files`: Enumerate accessible ROOT files
-- `inspect_file`: Get high-level metadata(trees, histograms)
-- `list_branches`: List branches with types and stats
+- `list_files`: Enumerate accessible ROOT files with glob pattern support
+- `inspect_file`: Get high-level metadata (trees, histograms, directories)
+- `list_branches`: List branches with type information and optional statistics
 
 #### Data Access Tools (Read, Potentially Slow)
-- `read_branches`: Extract branch data with filtering and pagination
-- `sample_tree`: Get a small random/sequential sample
-- `get_branch_stats`: Compute min/max/mean/std for branches
+- `read_branches`: Extract branch data with filtering, pagination, and derived variables (defines)
+- `sample_tree`: Get a small random/sequential sample for quick inspection
+- `get_branch_stats`: Compute summary statistics (min, max, mean, std) for branches
 
 #### Analysis Tools (Compute, Potentially Slow)
-- `compute_histogram`: 1D histogram with selection
-- `compute_histogram_2d`: 2D histogram/scatter
-- `apply_selection`: Count entries passing a cut
-- `fit_histogram`: Fit data to models (Gaussian, Crystal Ball, etc.)
-- `generate_plot`: Generate visualizations (histograms, fits)
+- `compute_histogram`: 1D histogram with selection, weights, and derived variables
+- `compute_histogram_2d`: 2D histogram for correlation studies and Dalitz plots
+- `apply_selection`: Count entries passing a cut without reading data
+- `compute_kinematics`: Compute kinematic quantities (invariant masses, ΔR, Δφ) from four-momenta
+- `fit_histogram`: Fit data to models (Gaussian, exponential, polynomial, Crystal Ball, custom)
+- `generate_plot`: Generate base64-encoded PNG visualizations with optional fit overlays
 
 #### Export Tools (Write, Restricted)
-- `export_branches`: Extract filtered data to JSON/CSV/Parquet
+- `export_branches`: Extract filtered data to JSON/CSV/Parquet format
 
 ### Tool Specifications
 
@@ -186,10 +189,10 @@ Each tool is specified with:
 ### Memory Safety
 
 **Crash Prevention**
-- ✅ Use uproot (pure Python, no C++ crashes)
-- ✅ Validate all file paths and object names before access
-- ✅ Wrap all I/O operations in try-except with specific error handling
-- ✅ Use context managers for file handles (automatic cleanup)
+- Use uproot (pure Python, no C++ crashes)
+- Validate all file paths and object names before access
+- Wrap all I/O operations in try-except with specific error handling
+- Use context managers for file handles (automatic cleanup)
 
 **Memory Management**
 ```python
@@ -202,7 +205,10 @@ for chunk in tree.iterate(step_size=10_000, filter_name=branches):
 ```
 
 **Resource Limits (Configurable)**
-- `MAX_ROWS_PER_CALL`: 1,000,000 (default)
+- `max_rows_per_call`: 1,000,000 (default, enforced in data access tools)
+- `max_export_rows`: 1,000,000 (default, enforced in export operations)
+- `max_bins_1d`: 10,000 (default, for 1D histograms)
+- `max_bins_2d`: 1,000 (default, for 2D histograms)
 
 
 ### Performance Optimizations
@@ -479,85 +485,53 @@ Every response includes:
 }
 ```
 
-## 8. Extensibility
+## 8. Current Extensibility
 
-### Extension Points
+### Built-in Extension Mechanisms
 
-**1. Custom Analysis Tools**
+While a full plugin system is not currently implemented, the codebase is designed with modularity in mind:
+
+**1. Analysis Operations Layer**
+New analysis operations can be added to `analysis/operations.py`:
 ```python
-# plugins/jet_clustering.py
-@register_tool
-def cluster_jets(
+def compute_new_quantity(
+    self,
     path: str,
-    tree: str,
-    algorithm: str = "anti_kt",
-    radius: float = 0.4
-):
-    """Run jet clustering algorithm on particle candidates."""
-    # Implementation using fastjet or similar
-    ...
+    tree_name: str,
+    # ... parameters
+) -> dict[str, Any]:
+    """Add new physics computation."""
+    # Implementation
 ```
 
-**2. Experiment-Specific Conventions**
+**2. Tool Registration**
+New tools are registered in `server.py` by:
+1. Adding a method to the appropriate tools class (DiscoveryTools, DataAccessTools, AnalysisTools)
+2. Adding a Tool definition in the `list_tools()` function
+3. Adding a handler case in `call_tool()` function
+
+**3. Export Formats**
+Supported formats (JSON, CSV, Parquet) are implemented in `operations.py`. New formats can be added to the `export_to_formats()` method.
+
+**4. File Protocols**
+Supported via uproot/fsspec:
+- Local files: `file://` or absolute paths
+- XRootD: `root://server.cern.ch/path`
+- HTTP(S): `https://example.com/file.root`
+- S3: (via fsspec with s3fs installed)
+
+### Derived Variables System
+
+The `defines` parameter provides on-the-fly computation:
 ```python
-# plugins/atlas_conventions.py
-class ATLASPlugin(ExperimentPlugin):
-    def resolve_branch_alias(self, name: str) -> str:
-        """Map common ATLAS names to actual branch names."""
-        aliases = {
-            "pt": "el_pt",  # ATLAS uses el_pt, mu_pt, etc.
-            "eta": "el_eta",
-        }
-        return aliases.get(name, name)
-
-    def get_standard_selections(self) -> dict:
-        """Provide common ATLAS selections."""
-        return {
-            "good_electron": "el_pt > 25 && abs(el_eta) < 2.47",
-            "good_muon": "mu_pt > 20 && abs(mu_eta) < 2.5"
-        }
+defines = {
+    "pt": "sqrt(px**2 + py**2)",
+    "eta": "arcsinh(pz / sqrt(px**2 + py**2))",
+    "mass": "sqrt(E**2 - px**2 - py**2 - pz**2)"
+}
 ```
 
-**3. Output Format Plugins**
-```python
-# plugins/arrow_export.py
-@register_exporter("arrow")
-def export_to_arrow(data: ak.Array, path: str):
-    """Export to Apache Arrow IPC format."""
-    import pyarrow as pa
-    table = ak.to_arrow_table(data)
-    with pa.OSFile(path, 'wb') as f:
-        with pa.RecordBatchFileWriter(f, table.schema) as writer:
-            writer.write_table(table)
-```
-
-**4. Remote Storage Backends**
-```python
-# plugins/eos_backend.py
-class EOSBackend(StorageBackend):
-    """CERN EOS-specific optimizations."""
-
-    def open(self, path: str):
-        # Use EOS-optimized reading
-        return uproot.open(
-            path,
-            **{"timeout": 300, "max_workers": 4}
-        )
-```
-
-### Plugin Discovery
-
-```python
-# config.yaml
-plugins:
-  - name: "atlas_conventions"
-    module: "plugins.atlas_conventions"
-    enabled: true
-
-  - name: "jet_clustering"
-    module: "plugins.jet_clustering"
-    enabled: false  # Enable when needed
-```
+This allows users to compute derived quantities without modifying the codebase.
 
 ## 9. Deployment Considerations
 
@@ -602,23 +576,43 @@ CMD ["python", "-m", "root_mcp.server"]
 ### Planned Features
 
 1. **Parallel Query Execution**: Distribute histogram computation across multiple workers
-2. **Advanced Selections**: Support for complex expressions (ROOT RDataFrame-like)
-3. **Caching Layer**: Redis/Memcached for frequent queries
-4. **Incremental Processing**: Process new data as files are updated
-5. **Derived Columns**: Register user-defined functions for on-the-fly computation
-6. **Systematic Variations**: Tools for uncertainty propagation in HEP analyses
-7. **ML Integration**: Export directly to TensorFlow/PyTorch datasets
-8. **Visualization Hints**: Suggest plot types and binning based on data
+2. **Caching Layer**: Redis/Memcached for frequent queries and file metadata
+3. **Advanced Fitting**: More models, simultaneous fits, error propagation
+4. **Systematic Variations**: Tools for uncertainty propagation in HEP analyses
+5. **Visualization Enhancements**: More plot types (scatter, profile, 2D fits), interactive plots
+6. **Additional Kinematic Tools**: Lorentz boosts, helicity angles, phase space calculations
+7. **Dalitz Plot Overlays**: Kinematic boundaries, phase space density, resonance bands
 
 ### Research Directions
 
 - **Query Optimization**: ML-based query planning from LLM intent
 - **Natural Language Selections**: Parse "high momentum muons" → `pt > 50`
 - **Autonomous Analysis**: Multi-step agent workflows for standard analyses
-- **Collaboration**: Multi-user access with shared workspaces
+- **Smart Binning**: Automatic histogram binning based on data distribution
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2025-12-12
+## 11. Recent Additions
+
+### Kinematic Computation Tool (v1.1)
+
+Added `compute_kinematics` tool for physics analysis:
+- **Invariant masses**: Calculate m and m² for particle combinations (essential for Dalitz plots)
+- **Transverse masses**: For W/Z boson reconstruction
+- **Angular separations**: ΔR and Δφ for particle correlations
+- **Vectorized operations**: Efficient NumPy-based calculations
+- **Flexible particle naming**: Configurable component suffixes
+
+This tool bridges the gap between raw four-momentum data and physics observables, enabling:
+- Dalitz plot construction
+- Resonance studies
+- Angular correlation analyses
+- Missing energy analyses
+
+See [Kinematic Computation Guide](guides/compute_kinematics.md) for detailed documentation.
+
+---
+
+**Document Version**: 1.1
+**Last Updated**: 2025-12-18
 **Authors**: Mohamed Elashri

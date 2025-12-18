@@ -10,8 +10,6 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Added
 - **New Tool**: `compute_kinematics` - Compute derived kinematic quantities (invariant mass, transverse mass, delta R, delta phi) from particle four-momenta and angular coordinates. Supports multiple calculations in a single request with physics selections.
-- **New Tool**: `fit_histogram` - Fit histograms with built-in (Gaussian, Exponential, Crystal Ball, Polynomial), composite (sum of models), and custom string models. Includes support for parameter constraints (`bounds`, `fixed_parameters`).
-- **New Tool**: `generate_plot` - Generate plots from analysis data with support for log scales, grids, and automatic unit labeling.
 
 ### Changed
 - Updated documentation with detailed guides and API references for new tools.
