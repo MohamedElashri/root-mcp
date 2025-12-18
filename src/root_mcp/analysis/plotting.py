@@ -134,7 +134,14 @@ def _plot_histogram(
     config: Any | None = None,
 ) -> dict[str, Any]:
     """Helper to plot 1D histogram."""
-    hist_data = data["data"]
+    # Handle both formats:
+    # 1. Full histogram result: {"data": {...}, "metadata": {...}}
+    # 2. Just the data dict: {"bin_edges": [...], "bin_counts": [...]}
+    if "data" in data and "bin_edges" not in data:
+        hist_data = data["data"]
+    else:
+        hist_data = data
+
     edges = np.array(hist_data["bin_edges"])
     counts = np.array(hist_data["bin_counts"])
 

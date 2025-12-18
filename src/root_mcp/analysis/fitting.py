@@ -189,14 +189,22 @@ def fit_histogram(
     Returns:
         Dictionary with fitted parameters, errors, and stats
     """
+    # Handle both formats:
+    # 1. Full histogram result: {"data": {...}, "metadata": {...}}
+    # 2. Just the data dict: {"bin_edges": [...], "bin_counts": [...]}
+    if "data" in data and "bin_edges" not in data:
+        hist_data = data["data"]
+    else:
+        hist_data = data
+
     # Extract x and y
-    bin_edges = np.array(data["data"]["bin_edges"])
-    y = np.array(data["data"]["bin_counts"])
+    bin_edges = np.array(hist_data["bin_edges"])
+    y = np.array(hist_data["bin_counts"])
     x = (bin_edges[:-1] + bin_edges[1:]) / 2
 
     # Errors
-    if "bin_errors" in data["data"]:
-        sigma = np.array(data["data"]["bin_errors"])
+    if "bin_errors" in hist_data:
+        sigma = np.array(hist_data["bin_errors"])
         # Handle zero errors to avoid div by zero in chi2
         sigma[sigma == 0] = 1.0
     else:
