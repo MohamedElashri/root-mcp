@@ -156,7 +156,7 @@ Tools for reading actual data from TTrees.
 
 ### `read_branches`
 
-Read branch data from a TTree with optional filtering and pagination.
+Read branch data from a TTree with optional filtering and pagination. Supports derived branches through the `defines` parameter.
 
 **Arguments:**
 
@@ -164,13 +164,14 @@ Read branch data from a TTree with optional filtering and pagination.
 |------|------|----------|-------------|
 | `path` | `string` | Yes | Absolute path to the ROOT file |
 | `tree` | `string` | Yes | Name of the TTree |
-| `branches` | `string[]` | Yes | List of branch names to read |
+| `branches` | `string[]` | Yes | List of branch names to read (can include physical or derived branches) |
 | `selection` | `string` | No | ROOT-style cut expression (e.g., `'pt > 20'`) |
 | `limit` | `integer` | No | Maximum entries to return |
 | `offset` | `integer` | No | Number of entries to skip |
 | `flatten` | `boolean` | No | Flatten jagged arrays (default `false`) |
+| `defines` | `object` | No | Dictionary of derived variable definitions `{name: expression}` |
 
-**Example Request:**
+**Example Request (Basic):**
 
 ```json
 {
@@ -179,6 +180,25 @@ Read branch data from a TTree with optional filtering and pagination.
     "path": "/data/root_files/sample_events.root",
     "tree": "events",
     "branches": ["muon_pt", "muon_eta"],
+    "limit": 2
+  }
+}
+```
+
+**Example Request (With Derived Branches):**
+
+```json
+{
+  "name": "read_branches",
+  "arguments": {
+    "path": "/data/root_files/sample_events.root",
+    "tree": "events",
+    "branches": ["met", "met_x", "met_y"],
+    "defines": {
+      "met_x": "met * cos(met_phi)",
+      "met_y": "met * sin(met_phi)"
+    },
+    "selection": "met > 50",
     "limit": 2
   }
 }
@@ -202,6 +222,11 @@ Read branch data from a TTree with optional filtering and pagination.
         "muon_eta": [-1.42, 0.29]
       }
     ]
+  },
+  "metadata": {
+    "operation": "read_branches",
+    "entries_selected": 2,
+    "defines": null
   }
 }
 ```

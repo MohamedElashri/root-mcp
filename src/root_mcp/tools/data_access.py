@@ -47,6 +47,7 @@ class DataAccessTools:
         limit: int | None = None,
         offset: int = 0,
         flatten: bool = False,
+        defines: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """
         Read branch data from a TTree.
@@ -54,11 +55,12 @@ class DataAccessTools:
         Args:
             path: File path
             tree: Tree name
-            branches: List of branch names
+            branches: List of branch names (can include derived branches from defines)
             selection: Optional cut expression
             limit: Maximum entries to return
             offset: Number of entries to skip
             flatten: Flatten jagged arrays
+            defines: Optional derived variable definitions {name: expression}
 
         Returns:
             Branch data and metadata
@@ -95,6 +97,7 @@ class DataAccessTools:
                 limit=limit,
                 offset=offset,
                 flatten=flatten,
+                defines=defines,
             )
         except KeyError as e:
             return {

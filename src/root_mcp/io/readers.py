@@ -43,6 +43,7 @@ class TreeReader:
         limit: int | None = None,
         offset: int = 0,
         flatten: bool = False,
+        defines: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """
         Read branch data from a TTree.
@@ -50,27 +51,66 @@ class TreeReader:
         Args:
             path: File path
             tree_name: Tree name
-            branches: List of branch names to read
+            branches: List of branch names to read (can include derived branches from defines)
             selection: Optional ROOT-style cut expression
             limit: Maximum number of entries to return
             offset: Number of entries to skip
             flatten: Flatten jagged arrays
+            defines: Optional derived variable definitions {name: expression}
 
         Returns:
             Dictionary with data and metadata
         """
         tree = self.file_manager.get_tree(path, tree_name)
 
-        # Validate branches exist
-        available_branches = tree.keys()
+        # Get available branches from tree
+        available_branches = set(tree.keys())
+
+        # Determine which branches are physical vs derived
+        defined_branches = set(defines.keys()) if defines else set()
+        physical_branches_requested = []
+        derived_branches_requested = []
+
+        # Validate all requested branches exist (either in tree or in defines)
         for branch in branches:
-            if branch not in available_branches:
-                similar = self._find_similar_branches(branch, available_branches)
+            if branch in available_branches:
+                physical_branches_requested.append(branch)
+            elif branch in defined_branches:
+                derived_branches_requested.append(branch)
+            else:
+                similar = self._find_similar_branches(branch, list(available_branches))
                 suggestion = f"Did you mean: {similar[:3]}?" if similar else ""
                 raise KeyError(
-                    f"Branch '{branch}' not found in tree '{tree_name}'. "
+                    f"Branch '{branch}' not found in tree '{tree_name}' or defines. "
                     f"Available: {list(available_branches)[:10]}... {suggestion}"
                 )
+
+        # Collect all branches needed for reading (physical branches + dependencies of derived branches)
+        branches_to_read = set(physical_branches_requested)
+
+        if defines:
+            # Extract dependencies from all define expressions
+            from root_mcp.analysis.operations import _extract_branches_from_expression
+
+            for def_name, def_expr in defines.items():
+                # Get branches used in this definition
+                needed = _extract_branches_from_expression(def_expr, list(available_branches))
+                branches_to_read.update(needed)
+
+            # Also extract branches from selection if it exists
+            if selection:
+                selection_branches = _extract_branches_from_expression(
+                    selection, list(available_branches)
+                )
+                branches_to_read.update(selection_branches)
+        elif selection:
+            # Just selection, no defines
+            from root_mcp.analysis.operations import _extract_branches_from_expression
+
+            selection_branches = _extract_branches_from_expression(
+                selection, list(available_branches)
+            )
+            branches_to_read.update(selection_branches)
 
         # Apply limit bounds
         if limit is None:
@@ -83,30 +123,54 @@ class TreeReader:
         entry_stop = min(offset + limit, total_entries)
 
         logger.info(
-            f"Reading {len(branches)} branches from {tree_name} "
-            f"(entries {entry_start}:{entry_stop}/{total_entries})"
+            f"Reading {len(branches_to_read)} physical branches from {tree_name} "
+            f"(entries {entry_start}:{entry_stop}/{total_entries}), "
+            f"with {len(derived_branches_requested)} derived branches"
         )
 
-        # Read data
+        # Read data from tree
         try:
             arrays = tree.arrays(
-                filter_name=branches,
-                cut=selection,
+                filter_name=list(branches_to_read),
+                cut=None,  # We'll apply selection after computing derived branches
                 entry_start=entry_start,
                 entry_stop=entry_stop,
                 library="ak",  # Use awkward arrays
             )
         except Exception as e:
             logger.error(f"Failed to read branches: {e}")
-            if "cut" in str(e).lower() or "expression" in str(e).lower():
+            raise
+
+        # Process derived branches if defines are provided
+        if defines:
+            from root_mcp.analysis.operations import AnalysisOperations
+
+            analysis_ops = AnalysisOperations(self.config, self.file_manager)
+            arrays = analysis_ops._process_defines(arrays, defines)
+
+        # Apply selection after computing derived branches (if applicable)
+        if selection:
+            try:
+                from root_mcp.analysis.operations import _evaluate_selection_any
+
+                mask = _evaluate_selection_any(arrays, selection)
+                arrays = arrays[mask]
+            except Exception as e:
+                logger.error(f"Failed to apply selection: {e}")
                 raise ValueError(
                     f"Invalid selection expression: {selection}. "
                     "Use ROOT-style syntax (e.g., 'pt > 20 && abs(eta) < 2.4')"
                 ) from e
-            raise
 
         # Get actual number of entries (after selection)
         entries_returned = len(arrays)
+
+        # Select only the requested branches (filter out intermediate branches)
+        try:
+            arrays = arrays[branches]
+        except Exception as e:
+            logger.error(f"Failed to select requested branches: {e}")
+            raise
 
         # Flatten if requested
         if flatten:
@@ -133,6 +197,7 @@ class TreeReader:
                 "truncated": entry_stop < total_entries
                 or entries_returned < (entry_stop - entry_start),
                 "selection": selection,
+                "defines": list(defines.keys()) if defines else None,
             },
         }
 

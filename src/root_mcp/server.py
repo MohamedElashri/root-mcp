@@ -164,7 +164,7 @@ class ROOTMCPServer:
                 ),
                 Tool(
                     name="read_branches",
-                    description="Read branch data from a TTree with optional filtering and pagination.",
+                    description="Read branch data from a TTree with optional filtering and pagination. Supports derived branches through the defines parameter.",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -173,7 +173,7 @@ class ROOTMCPServer:
                             "branches": {
                                 "type": "array",
                                 "items": {"type": "string"},
-                                "description": "List of branch names to read",
+                                "description": "List of branch names to read (can include physical branches or derived branches defined in 'defines')",
                             },
                             "selection": {
                                 "type": "string",
@@ -192,6 +192,11 @@ class ROOTMCPServer:
                                 "type": "boolean",
                                 "description": "Flatten jagged arrays",
                                 "default": False,
+                            },
+                            "defines": {
+                                "type": "object",
+                                "description": "Dictionary of derived variable definitions {name: expression}. Expressions can use existing branches and mathematical functions.",
+                                "additionalProperties": {"type": "string"},
                             },
                         },
                         "required": ["path", "tree", "branches"],
