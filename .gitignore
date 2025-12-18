@@ -99,3 +99,7 @@ examples/config.yaml
 
 # pdf files
 *.pdf
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
