@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "root-mcp"
-version = "0.1.1"
+version = "0.1.2"
 description = "Production-grade MCP server for CERN ROOT file analysis"
 authors = [{name = "Mohamed Elashri"}]
 maintainers = [{name = "Mohamed Elashri"}]
@@ -88,8 +88,6 @@ unused-ignore-comment = "warn"
 redundant-cast = "ignore"
 possibly-missing-attribute = "error"
 possibly-missing-import = "error"
-
-
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
