@@ -10,6 +10,7 @@
 By exposing a set of specialized tools via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), it turns Claude (and other MCP-compliant agents) into capable physics research assistants that can:
 - **Inspect** ROOT file structures (Trees, Branches, Histograms)
 - **Analyze** data distributions (Compute Histograms, Statistics)
+- **Compute** kinematic quantities (invariant masses, angular correlations for Dalitz plots)
 - **Visualize** results directly in the chat
 - **Filter** data using physics cuts ("selections")
 

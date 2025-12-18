@@ -279,6 +279,87 @@ Get a quick sample from a TTree. useful for understanding the data schema.
 
 Tools for performing computations on the data without transferring it all.
 
+### `compute_kinematics`
+
+Compute kinematic quantities (invariant masses, ΔR, Δφ, etc.) from particle four-momenta. Essential for Dalitz plots, resonance studies, and angular correlations.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `path` | `string` | Yes | File path |
+| `tree` | `string` | Yes | Tree name |
+| `computations` | `array` | Yes | List of kinematic calculations (see below) |
+| `selection` | `string` | No | Optional cut expression |
+| `limit` | `integer` | No | Max entries to process |
+
+**Computation Object:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | Output variable name |
+| `type` | `string` | Yes | One of: `invariant_mass`, `invariant_mass_squared`, `transverse_mass`, `delta_r`, `delta_phi` |
+| `particles` | `array` | Yes | List of particle name prefixes |
+| `components` | `array` | No | Component suffixes (default: `['PX', 'PY', 'PZ', 'PE']`) |
+| `eta_suffix` | `string` | No | Eta suffix for delta_r (default: `'ETA'`) |
+| `phi_suffix` | `string` | No | Phi suffix for delta_r/delta_phi (default: `'PHI'`) |
+
+**Example Request (Dalitz Plot):**
+
+```json
+{
+  "name": "compute_kinematics",
+  "arguments": {
+    "path": "/data/D0_decay.root",
+    "tree": "DecayTree",
+    "computations": [
+      {
+        "name": "m_Kpi_squared",
+        "type": "invariant_mass_squared",
+        "particles": ["K", "pi_1"]
+      },
+      {
+        "name": "m_pipi_squared",
+        "type": "invariant_mass_squared",
+        "particles": ["pi_1", "pi_2"]
+      }
+    ],
+    "selection": "K_PT > 500",
+    "limit": 10000
+  }
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "data": {
+    "m_Kpi_squared": [1.234, 2.345, 3.456, ...],
+    "m_pipi_squared": [0.987, 1.876, 2.765, ...]
+  },
+  "metadata": {
+    "operation": "compute_kinematics",
+    "tree": "DecayTree",
+    "entries_processed": 10000,
+    "computations": [
+      {"name": "m_Kpi_squared", "type": "invariant_mass_squared"},
+      {"name": "m_pipi_squared", "type": "invariant_mass_squared"}
+    ],
+    "selection": "K_PT > 500"
+  },
+  "suggestions": [
+    "Computed 2 kinematic quantities: m_Kpi_squared, m_pipi_squared",
+    "Processed 10,000 entries",
+    "Use compute_histogram() to visualize mass distributions or compute_histogram_2d() for Dalitz plots"
+  ]
+}
+```
+
+See [Kinematic Computation Guide](../guides/compute_kinematics.md) for detailed examples and physics applications.
+
+---
+
 ### `apply_selection`
 
 Count how many entries pass a selection.

@@ -516,6 +516,136 @@ class AnalysisOperations:
             },
         }
 
+    def compute_kinematics(
+        self,
+        path: str,
+        tree_name: str,
+        computations: list[dict[str, Any]],
+        selection: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Compute kinematic quantities from four-momenta.
+
+        Args:
+            path: File path
+            tree_name: Tree name
+            computations: List of kinematic calculations, each dict should have:
+                - name: Output variable name
+                - type: Calculation type (invariant_mass, invariant_mass_squared,
+                        transverse_mass, delta_r, delta_phi)
+                - particles: List of particle prefixes
+                - components: Component suffixes (default based on type)
+            selection: Optional cut expression
+            limit: Maximum entries to process
+
+        Returns:
+            Dictionary with computed kinematic quantities
+        """
+        # Collect all branches we need to read
+        branches_needed = set()
+        for comp in computations:
+            comp_type = comp.get("type", "")
+            particles = comp.get("particles", [])
+
+            if comp_type in ["invariant_mass", "invariant_mass_squared", "transverse_mass"]:
+                components = comp.get("components", ["PX", "PY", "PZ", "PE"])
+                for particle in particles:
+                    for component in components:
+                        branches_needed.add(f"{particle}_{component}")
+
+            elif comp_type in ["delta_r"]:
+                eta_suffix = comp.get("eta_suffix", "ETA")
+                phi_suffix = comp.get("phi_suffix", "PHI")
+                if len(particles) != 2:
+                    raise ValueError(f"delta_r requires exactly 2 particles, got {len(particles)}")
+                branches_needed.add(f"{particles[0]}_{eta_suffix}")
+                branches_needed.add(f"{particles[0]}_{phi_suffix}")
+                branches_needed.add(f"{particles[1]}_{eta_suffix}")
+                branches_needed.add(f"{particles[1]}_{phi_suffix}")
+
+            elif comp_type == "delta_phi":
+                phi_suffix = comp.get("phi_suffix", "PHI")
+                if len(particles) != 2:
+                    raise ValueError(
+                        f"delta_phi requires exactly 2 particles, got {len(particles)}"
+                    )
+                branches_needed.add(f"{particles[0]}_{phi_suffix}")
+                branches_needed.add(f"{particles[1]}_{phi_suffix}")
+
+        # Open file and read branches
+        tree = self.file_manager.get_tree(path, tree_name)
+
+        # Apply limit
+        entry_stop = limit if limit is not None else None
+
+        # Read arrays
+        arrays = tree.arrays(
+            filter_name=list(branches_needed),
+            cut=selection,
+            entry_stop=entry_stop,
+            library="ak",
+        )
+
+        # Compute each requested quantity
+        results = {}
+        for comp in computations:
+            name = comp.get("name")
+            comp_type = comp.get("type")
+            particles = comp.get("particles", [])
+
+            if not name:
+                raise ValueError("Each computation must have a 'name'")
+            if not comp_type:
+                raise ValueError(f"Computation '{name}' must have a 'type'")
+
+            try:
+                if comp_type == "invariant_mass":
+                    components = comp.get("components", ["PX", "PY", "PZ", "PE"])
+                    result = _compute_invariant_mass(arrays, particles, components, squared=False)
+                    results[name] = ak.to_list(result)
+
+                elif comp_type == "invariant_mass_squared":
+                    components = comp.get("components", ["PX", "PY", "PZ", "PE"])
+                    result = _compute_invariant_mass(arrays, particles, components, squared=True)
+                    results[name] = ak.to_list(result)
+
+                elif comp_type == "transverse_mass":
+                    components = comp.get("components", ["PX", "PY", "PZ", "PE"])
+                    result = _compute_transverse_mass(arrays, particles, components)
+                    results[name] = ak.to_list(result)
+
+                elif comp_type == "delta_r":
+                    eta_suffix = comp.get("eta_suffix", "ETA")
+                    phi_suffix = comp.get("phi_suffix", "PHI")
+                    result = _compute_delta_r(
+                        arrays, particles[0], particles[1], eta_suffix, phi_suffix
+                    )
+                    results[name] = ak.to_list(result)
+
+                elif comp_type == "delta_phi":
+                    phi_suffix = comp.get("phi_suffix", "PHI")
+                    result = _compute_delta_phi(arrays, particles[0], particles[1], phi_suffix)
+                    results[name] = ak.to_list(result)
+
+                else:
+                    raise ValueError(f"Unknown computation type: {comp_type}")
+
+            except Exception as e:
+                logger.error(f"Failed to compute {name}: {e}")
+                raise ValueError(f"Failed to compute {name}: {e}")
+
+        return {
+            "data": results,
+            "metadata": {
+                "operation": "compute_kinematics",
+                "tree": tree_name,
+                "entries_processed": len(arrays),
+                "computations": [{"name": c["name"], "type": c["type"]} for c in computations],
+                "selection": selection,
+            },
+        }
+
     def export_to_formats(
         self,
         data: ak.Array,
@@ -701,3 +831,131 @@ def _evaluate_selection_any(arrays: ak.Array, selection: str) -> ak.Array:
         result = ak.Array([bool(result)] * len(arrays))
 
     return result
+
+
+def _compute_invariant_mass(
+    arrays: ak.Array,
+    particles: list[str],
+    components: list[str],
+    squared: bool = False,
+) -> ak.Array:
+    """
+    Compute invariant mass from four-momenta.
+
+    Args:
+        arrays: Input arrays with four-momentum components
+        particles: List of particle prefixes (e.g., ['K', 'pi1'])
+        components: Component suffixes (e.g., ['PX', 'PY', 'PZ', 'PE'])
+        squared: Return m² instead of m
+
+    Returns:
+        Array of invariant masses
+    """
+    if len(components) != 4:
+        raise ValueError("Need exactly 4 components for invariant mass (px, py, pz, E)")
+
+    # Sum four-momenta
+    px_total = sum(arrays[f"{p}_{components[0]}"] for p in particles)
+    py_total = sum(arrays[f"{p}_{components[1]}"] for p in particles)
+    pz_total = sum(arrays[f"{p}_{components[2]}"] for p in particles)
+    E_total = sum(arrays[f"{p}_{components[3]}"] for p in particles)
+
+    # Compute invariant mass squared: m² = E² - p²
+    m_squared = E_total**2 - px_total**2 - py_total**2 - pz_total**2
+
+    if squared:
+        return m_squared
+    else:
+        # Handle negative values (should be rare, but can occur from numerical precision)
+        return np.sqrt(np.maximum(m_squared, 0))
+
+
+def _compute_transverse_mass(
+    arrays: ak.Array,
+    particles: list[str],
+    components: list[str],
+) -> ak.Array:
+    """
+    Compute transverse mass.
+
+    Args:
+        arrays: Input arrays
+        particles: List of particle prefixes
+        components: Component suffixes (px, py, E)
+
+    Returns:
+        Array of transverse masses
+    """
+    if len(components) < 3:
+        raise ValueError("Need at least 3 components (px, py, E)")
+
+    px_total = sum(arrays[f"{p}_{components[0]}"] for p in particles)
+    py_total = sum(arrays[f"{p}_{components[1]}"] for p in particles)
+    E_total = sum(
+        arrays[f"{p}_{components[3] if len(components) > 3 else components[2]}"] for p in particles
+    )
+
+    mt_squared = E_total**2 - px_total**2 - py_total**2
+
+    return np.sqrt(np.maximum(mt_squared, 0))
+
+
+def _compute_delta_r(
+    arrays: ak.Array,
+    particle1: str,
+    particle2: str,
+    eta_suffix: str = "ETA",
+    phi_suffix: str = "PHI",
+) -> ak.Array:
+    """
+    Compute ΔR = sqrt(Δη² + Δφ²) between two particles.
+
+    Args:
+        arrays: Input arrays
+        particle1: First particle prefix
+        particle2: Second particle prefix
+        eta_suffix: Pseudorapidity suffix
+        phi_suffix: Azimuthal angle suffix
+
+    Returns:
+        Array of ΔR values
+    """
+    eta1 = arrays[f"{particle1}_{eta_suffix}"]
+    eta2 = arrays[f"{particle2}_{eta_suffix}"]
+    phi1 = arrays[f"{particle1}_{phi_suffix}"]
+    phi2 = arrays[f"{particle2}_{phi_suffix}"]
+
+    delta_eta = eta1 - eta2
+    delta_phi = phi1 - phi2
+
+    # Wrap delta_phi to [-π, π]
+    delta_phi = np.arctan2(np.sin(delta_phi), np.cos(delta_phi))
+
+    return np.sqrt(delta_eta**2 + delta_phi**2)
+
+
+def _compute_delta_phi(
+    arrays: ak.Array,
+    particle1: str,
+    particle2: str,
+    phi_suffix: str = "PHI",
+) -> ak.Array:
+    """
+    Compute Δφ between two particles, wrapped to [-π, π].
+
+    Args:
+        arrays: Input arrays
+        particle1: First particle prefix
+        particle2: Second particle prefix
+        phi_suffix: Azimuthal angle suffix
+
+    Returns:
+        Array of Δφ values
+    """
+    phi1 = arrays[f"{particle1}_{phi_suffix}"]
+    phi2 = arrays[f"{particle2}_{phi_suffix}"]
+
+    delta_phi = phi1 - phi2
+
+    # Wrap to [-π, π]
+    return np.arctan2(np.sin(delta_phi), np.cos(delta_phi))

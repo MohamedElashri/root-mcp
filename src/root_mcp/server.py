@@ -461,6 +461,77 @@ class ROOTMCPServer:
                     },
                 ),
                 Tool(
+                    name="compute_kinematics",
+                    description="Compute kinematic quantities (invariant masses, ΔR, Δφ, etc.) from particle four-momenta. "
+                    "Essential for physics analysis including Dalitz plots, angular correlations, and mass distributions.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "File path",
+                            },
+                            "tree": {
+                                "type": "string",
+                                "description": "Tree name",
+                            },
+                            "computations": {
+                                "type": "array",
+                                "description": "List of kinematic calculations to perform",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Name for the computed quantity (e.g., 'm12', 'delta_r_12')",
+                                        },
+                                        "type": {
+                                            "type": "string",
+                                            "enum": [
+                                                "invariant_mass",
+                                                "invariant_mass_squared",
+                                                "transverse_mass",
+                                                "delta_r",
+                                                "delta_phi",
+                                            ],
+                                            "description": "Type of kinematic calculation",
+                                        },
+                                        "particles": {
+                                            "type": "array",
+                                            "items": {"type": "string"},
+                                            "description": "List of particle name prefixes (e.g., ['K', 'pi_1', 'pi_2']). "
+                                            "For mass calculations: 2+ particles. For delta_r/delta_phi: exactly 2 particles.",
+                                        },
+                                        "components": {
+                                            "type": "array",
+                                            "items": {"type": "string"},
+                                            "description": "Component suffixes for four-momenta (default: ['PX', 'PY', 'PZ', 'PE'])",
+                                        },
+                                        "eta_suffix": {
+                                            "type": "string",
+                                            "description": "Suffix for pseudorapidity (default: 'ETA', used for delta_r)",
+                                        },
+                                        "phi_suffix": {
+                                            "type": "string",
+                                            "description": "Suffix for azimuthal angle (default: 'PHI', used for delta_r and delta_phi)",
+                                        },
+                                    },
+                                    "required": ["name", "type", "particles"],
+                                },
+                            },
+                            "selection": {
+                                "type": "string",
+                                "description": "Optional cut expression to apply before computation",
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of entries to process",
+                            },
+                        },
+                        "required": ["path", "tree", "computations"],
+                    },
+                ),
+                Tool(
                     name="export_branches",
                     description="Export branch data to JSON, CSV, or Parquet format.",
                     inputSchema={
@@ -517,6 +588,8 @@ class ROOTMCPServer:
                     result = self.analysis_tools.fit_histogram(**arguments)
                 elif name == "generate_plot":
                     result = self.analysis_tools.generate_plot(**arguments)
+                elif name == "compute_kinematics":
+                    result = self.analysis_tools.compute_kinematics(**arguments)
                 elif name == "export_branches":
                     result = self.analysis_tools.export_branches(**arguments)
                 else:

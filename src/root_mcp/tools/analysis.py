@@ -416,3 +416,124 @@ class AnalysisTools:
                 f"File size: {export_result['size_bytes'] / 1024 / 1024:.2f} MB",
             ],
         }
+
+    def compute_kinematics(
+        self,
+        path: str,
+        tree: str,
+        computations: list[dict[str, Any]],
+        selection: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Compute kinematic quantities from four-momenta.
+
+        Args:
+            path: File path
+            tree: Tree name
+            computations: List of kinematic calculations, each dict should have:
+                - name: Output variable name
+                - type: Calculation type (invariant_mass, invariant_mass_squared,
+                        transverse_mass, delta_r, delta_phi)
+                - particles: List of particle prefixes (e.g., ['K', 'pi1'])
+                - components: Component suffixes (optional, defaults based on type)
+            selection: Optional cut expression
+            limit: Maximum entries to process
+
+        Returns:
+            Dictionary with computed kinematic quantities
+        """
+        # Validate path
+        try:
+            validated_path = self.path_validator.validate_path(path)
+        except Exception as e:
+            return {
+                "error": "invalid_path",
+                "message": str(e),
+            }
+
+        # Validate computations
+        if not computations or not isinstance(computations, list):
+            return {
+                "error": "invalid_parameter",
+                "message": "computations must be a non-empty list",
+            }
+
+        # Validate each computation
+        for comp in computations:
+            if not isinstance(comp, dict):
+                return {
+                    "error": "invalid_parameter",
+                    "message": "Each computation must be a dictionary",
+                }
+            if "name" not in comp:
+                return {
+                    "error": "invalid_parameter",
+                    "message": "Each computation must have a 'name' field",
+                }
+            if "type" not in comp:
+                return {
+                    "error": "invalid_parameter",
+                    "message": f"Computation '{comp.get('name')}' must have a 'type' field",
+                }
+            if "particles" not in comp:
+                return {
+                    "error": "invalid_parameter",
+                    "message": f"Computation '{comp.get('name')}' must have a 'particles' field",
+                }
+
+        # Apply limit from config if necessary
+        if limit is not None and limit > self.config.limits.max_rows_per_call:
+            return {
+                "error": "limit_exceeded",
+                "message": f"Limit cannot exceed {self.config.limits.max_rows_per_call:,} entries",
+            }
+
+        # Compute kinematics
+        try:
+            result = self.analysis_ops.compute_kinematics(
+                path=str(validated_path),
+                tree_name=tree,
+                computations=computations,
+                selection=selection,
+                limit=limit,
+            )
+        except ValueError as e:
+            return {
+                "error": "invalid_parameter",
+                "message": str(e),
+            }
+        except KeyError as e:
+            return {
+                "error": "branch_not_found",
+                "message": f"Required branch not found: {e}",
+                "suggestion": "Use list_branches() to see available branches",
+            }
+        except Exception as e:
+            logger.error(f"Failed to compute kinematics: {e}")
+            return {
+                "error": "computation_error",
+                "message": f"Failed to compute kinematics: {e}",
+            }
+
+        # Add suggestions
+        comp_names = [c["name"] for c in computations]
+        suggestions = [
+            f"Computed {len(comp_names)} kinematic quantities: {', '.join(comp_names)}",
+            f"Processed {result['metadata']['entries_processed']:,} entries",
+        ]
+
+        if selection:
+            suggestions.append("Selection was applied during computation")
+
+        # Suggest next steps based on computation type
+        has_mass = any("mass" in c["type"] for c in computations)
+        if has_mass:
+            suggestions.append(
+                "Use compute_histogram() to visualize mass distributions or "
+                "compute_histogram_2d() for Dalitz plots"
+            )
+
+        result["suggestions"] = suggestions
+
+        return result
