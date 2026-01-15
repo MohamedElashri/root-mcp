@@ -6,22 +6,27 @@ This directory contains utilities and examples for ROOT-MCP.
 
 ### Basic Usage Example
 
-**`basic_usage.py`** - Complete working example demonstrating core ROOT-MCP functionality
+**`basic_usage.py`** - Interactive tutorial demonstrating core ROOT-MCP functionality
 
-This example shows:
+This example runs in **interactive mode by default** to help you learn step-by-step:
 - Server initialization in different modes
 - File inspection and validation
 - Branch listing and data reading
 - Statistics computation
 - Histogram creation (extended mode)
 
+Each step includes explanations and waits for you to press Enter before continuing.
+
 **Usage:**
 ```bash
 # First, create sample data
 python examples/create_sample_data.py
 
-# Then run the example
+# Run in interactive mode (default - great for learning!)
 python examples/basic_usage.py
+
+# Run in quiet mode (no prompts - for automation)
+python examples/basic_usage.py --quiet
 ```
 
 ### Sample Data Generation
