@@ -244,7 +244,7 @@ class DiscoveryTools:
     def list_branches(
         self,
         path: str,
-        tree: str,
+        tree_name: str,
         pattern: str | None = None,
         limit: int = 100,
         include_stats: bool = False,
@@ -254,7 +254,7 @@ class DiscoveryTools:
 
         Args:
             path: File path
-            tree: Tree name
+            tree_name: Tree name
             pattern: Glob pattern to filter branches
             limit: Maximum branches to return
             include_stats: Compute statistics (slower)
@@ -271,7 +271,7 @@ class DiscoveryTools:
             }
 
         try:
-            tree_obj = self.file_manager.get_tree(validated_path, tree)
+            tree_obj = self.file_manager.get_tree(validated_path, tree_name)
         except KeyError as e:
             available_trees = [t["name"] for t in self.file_manager.list_trees(validated_path)]
             return {
@@ -287,7 +287,7 @@ class DiscoveryTools:
         reader = TreeReader(self.config, self.file_manager)
 
         try:
-            branch_info = reader.get_branch_info(str(validated_path), tree, pattern)
+            branch_info = reader.get_branch_info(str(validated_path), tree_name, pattern)
         except Exception as e:
             return {
                 "error": "read_error",
@@ -304,7 +304,7 @@ class DiscoveryTools:
                 branch_names = [b["name"] for b in branch_info]
                 stats = reader.compute_branch_stats(
                     str(validated_path),
-                    tree,
+                    tree_name,
                     branch_names,
                 )
                 # Add stats to branch info
@@ -324,7 +324,7 @@ class DiscoveryTools:
 
         return {
             "data": {
-                "tree": tree,
+                "tree": tree_name,
                 "total_entries": tree_obj.num_entries,
                 "total_branches": total_branches,
                 "branches": branch_info,
