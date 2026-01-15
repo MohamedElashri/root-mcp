@@ -489,7 +489,7 @@ Get server information including current mode and capabilities.
 ```json
 {
   "server_name": "root-mcp",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "current_mode": "extended",
   "extended_components_loaded": true,
   "available_modes": ["core", "extended"],

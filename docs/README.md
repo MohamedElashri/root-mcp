@@ -115,6 +115,6 @@ See the [Configuration Guide](guides/configuration.md) for details.
 
 ## Version Information
 
-This documentation is for ROOT-MCP v0.1.2+
+This documentation is for ROOT-MCP v0.1.3+
 
 For older versions, see the [changelog](../CHANGELOG.md).

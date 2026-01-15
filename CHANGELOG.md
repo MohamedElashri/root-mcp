@@ -4,7 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.1.3] - 2026-01-15
 
+### Added
+- **Dual-Mode Architecture**: Introduced core and extended modes for flexible resource usage
+  - Core mode: Lightweight file operations and basic statistics (minimal dependencies)
+  - Extended mode: Full physics analysis with fitting, kinematics, and correlations
+- **Runtime Mode Switching**: Switch between core and extended modes without server restart via `switch_mode` tool
+- **New Tool**: `get_server_info` - Get server capabilities and current mode information
+- **New Tool**: `validate_file` - Check ROOT file integrity and readability
+- **New Tool**: `export_data` - Export branch data to JSON, CSV, or Parquet formats
+- **Modular Analysis Components**: Separated analysis operations into dedicated modules
+  - `HistogramOperations`: Advanced 1D/2D histogram creation
+  - `KinematicsOperations`: Particle physics calculations (invariant mass, transverse mass, delta R)
+  - `CorrelationAnalysis`: Statistical correlation analysis (Pearson, Spearman, mutual information)
+- **Lazy Loading**: Extended components only loaded when needed for memory efficiency
+
+### Changed
+- **Restructured Codebase**: Organized into `core/`, `extended/`, and `common/` directories
+- **Configuration System**: Updated to support mode-aware settings with `core` and `extended` sections
+- **Server Implementation**: Rewritten with conditional tool registration based on current mode
+- **Dependency Management**: All dependencies included by default, mode controlled via configuration
+- **Import Paths**: Updated all imports to use new module structure
 
 ## [0.1.2] - 2025-12-18
 
