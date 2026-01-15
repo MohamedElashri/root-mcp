@@ -22,6 +22,7 @@ class ServerConfig(BaseModel):
 
     name: str = "root-mcp"
     version: str = Field(default_factory=_package_version)
+    mode: str = Field("extended", pattern="^(core|extended)$")
 
 
 class LimitsConfig(BaseModel):
@@ -130,6 +131,21 @@ class PlottingConfig(BaseModel):
     allowed_formats: list[str] = Field(default_factory=lambda: ["png", "pdf", "svg"])
 
 
+class CoreConfig(BaseModel):
+    """Core mode configuration."""
+
+    cache: CacheConfig = Field(default_factory=CacheConfig)
+    limits: LimitsConfig = Field(default_factory=LimitsConfig)
+
+
+class ExtendedConfig(BaseModel):
+    """Extended mode configuration."""
+
+    histogram: HistogramConfig = Field(default_factory=HistogramConfig)
+    plotting: PlottingConfig = Field(default_factory=PlottingConfig)
+    fitting_max_iterations: int = Field(10_000, gt=0)
+
+
 class AnalysisConfig(BaseModel):
     """Analysis operation settings."""
 
@@ -149,6 +165,8 @@ class Config(BaseModel):
     """Root configuration for ROOT-MCP server."""
 
     server: ServerConfig = Field(default_factory=ServerConfig)
+    core: CoreConfig = Field(default_factory=CoreConfig)
+    extended: ExtendedConfig = Field(default_factory=ExtendedConfig)
     limits: LimitsConfig = Field(default_factory=LimitsConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
     resources: list[ResourceConfig] = Field(default_factory=list)

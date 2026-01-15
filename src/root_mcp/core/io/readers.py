@@ -10,7 +10,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from root_mcp.config import Config
-    from root_mcp.io.file_manager import FileManager
+    from root_mcp.core.io.file_manager import FileManager
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ class TreeReader:
 
         if defines:
             # Extract dependencies from all define expressions
-            from root_mcp.analysis.operations import _extract_branches_from_expression
+            from root_mcp.extended.analysis.operations import _extract_branches_from_expression
 
             for def_name, def_expr in defines.items():
                 # Get branches used in this definition
@@ -105,7 +105,7 @@ class TreeReader:
                 branches_to_read.update(selection_branches)
         elif selection:
             # Just selection, no defines
-            from root_mcp.analysis.operations import _extract_branches_from_expression
+            from root_mcp.extended.analysis.operations import _extract_branches_from_expression
 
             selection_branches = _extract_branches_from_expression(
                 selection, list(available_branches)
@@ -143,7 +143,7 @@ class TreeReader:
 
         # Process derived branches if defines are provided
         if defines:
-            from root_mcp.analysis.operations import AnalysisOperations
+            from root_mcp.extended.analysis.operations import AnalysisOperations
 
             analysis_ops = AnalysisOperations(self.config, self.file_manager)
             arrays = analysis_ops._process_defines(arrays, defines)
@@ -151,7 +151,7 @@ class TreeReader:
         # Apply selection after computing derived branches (if applicable)
         if selection:
             try:
-                from root_mcp.analysis.operations import _evaluate_selection_any
+                from root_mcp.extended.analysis.operations import _evaluate_selection_any
 
                 mask = _evaluate_selection_any(arrays, selection)
                 arrays = arrays[mask]
@@ -392,6 +392,52 @@ class TreeReader:
         import fnmatch
 
         return fnmatch.fnmatch(text, pattern)
+
+    def stream_branches(
+        self,
+        path: str,
+        tree_name: str,
+        branches: list[str],
+        chunk_size: int = 10_000,
+        selection: str | None = None,
+    ):
+        """
+        Stream branch data in chunks for large files.
+
+        Args:
+            path: File path
+            tree_name: Tree name
+            branches: Branches to read
+            chunk_size: Number of entries per chunk
+            selection: Optional cut expression
+
+        Yields:
+            Chunks of data as awkward arrays
+        """
+        tree = self.file_manager.get_tree(path, tree_name)
+        total_entries = tree.num_entries
+
+        logger.info(
+            f"Streaming {len(branches)} branches from {tree_name} "
+            f"({total_entries} entries, chunk_size={chunk_size})"
+        )
+
+        # Stream in chunks
+        for entry_start in range(0, total_entries, chunk_size):
+            entry_stop = min(entry_start + chunk_size, total_entries)
+
+            try:
+                arrays = tree.arrays(
+                    filter_name=branches,
+                    cut=selection,
+                    entry_start=entry_start,
+                    entry_stop=entry_stop,
+                    library="ak",
+                )
+                yield arrays
+            except Exception as e:
+                logger.error(f"Failed to read chunk {entry_start}:{entry_stop}: {e}")
+                raise
 
     @staticmethod
     def _find_similar_branches(target: str, available: list[str]) -> list[str]:

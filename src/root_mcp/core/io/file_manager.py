@@ -309,7 +309,7 @@ class FileManager:
             # Try to provide helpful error message
             available_trees = [t["name"] for t in self.list_trees(path)]
             raise KeyError(
-                f"Tree '{tree_name}' not found in {path}. " f"Available trees: {available_trees}"
+                f"Tree '{tree_name}' not found in {path}. Available trees: {available_trees}"
             ) from e
 
         return tree
@@ -331,3 +331,197 @@ class FileManager:
             "max_size": self.config.cache.file_cache_size,
             "open_files": len(self._open_files),
         }
+
+    def validate_file(self, path: str | Path) -> dict[str, Any]:
+        """
+        Validate ROOT file integrity and readability.
+
+        Args:
+            path: File path
+
+        Returns:
+            Dictionary with validation results
+        """
+        path_obj = Path(path)
+        validation: dict[str, Any] = {
+            "path": str(path),
+            "valid": False,
+            "readable": False,
+            "errors": [],
+            "warnings": [],
+            "metadata": {},
+        }
+
+        # Check if file exists
+        if not path_obj.exists():
+            validation["errors"].append("File does not exist")
+            return validation
+
+        # Check file size
+        try:
+            size = path_obj.stat().st_size
+            validation["metadata"]["size_bytes"] = size
+            if size == 0:
+                validation["errors"].append("File is empty")
+                return validation
+        except OSError as e:
+            validation["errors"].append(f"Cannot access file: {e}")
+            return validation
+
+        # Try to open file
+        try:
+            file_obj = self.open(path)
+            validation["readable"] = True
+        except Exception as e:
+            validation["errors"].append(f"Cannot open file: {e}")
+            return validation
+
+        # Check for readable objects
+        try:
+            keys = list(file_obj.keys())
+            validation["metadata"]["num_objects"] = len(keys)
+
+            if len(keys) == 0:
+                validation["warnings"].append("File contains no objects")
+        except Exception as e:
+            validation["errors"].append(f"Cannot read file keys: {e}")
+            return validation
+
+        # Try to read trees
+        try:
+            trees = self.list_trees(path)
+            validation["metadata"]["num_trees"] = len(trees)
+            validation["metadata"]["trees"] = [t["name"] for t in trees]
+
+            # Check if trees are readable
+            for tree_info in trees:
+                try:
+                    tree = file_obj[tree_info["path"]]
+                    # Try to read first entry
+                    if tree.num_entries > 0:
+                        _ = tree.arrays(entry_stop=1, library="ak")
+                except Exception as e:
+                    validation["warnings"].append(
+                        f"Tree '{tree_info['name']}' may be corrupted: {e}"
+                    )
+        except Exception as e:
+            validation["warnings"].append(f"Cannot validate trees: {e}")
+
+        # Check compression
+        try:
+            if hasattr(file_obj, "compression"):
+                validation["metadata"]["compression"] = str(file_obj.compression)
+        except Exception:
+            pass
+
+        # File is valid if readable and no critical errors
+        validation["valid"] = validation["readable"] and len(validation["errors"]) == 0
+
+        return validation
+
+    def get_tree_info(self, path: str | Path, tree_name: str) -> dict[str, Any]:
+        """
+        Get comprehensive metadata about a TTree.
+
+        Args:
+            path: File path
+            tree_name: Tree name
+
+        Returns:
+            Dictionary with comprehensive tree metadata
+        """
+        tree = self.get_tree(path, tree_name)
+
+        info = {
+            "name": tree_name,
+            "entries": tree.num_entries,
+            "branches": len(tree.keys()),
+            "branch_names": list(tree.keys()),
+        }
+
+        # Get total size and compression info
+        try:
+            if hasattr(tree, "compression"):
+                info["compression"] = str(tree.compression)
+        except Exception:
+            pass
+
+        # Get basket information if available
+        try:
+            total_compressed = 0
+            total_uncompressed = 0
+
+            for branch_name in tree.keys():
+                branch = tree[branch_name]
+                if hasattr(branch, "compressed_bytes"):
+                    total_compressed += branch.compressed_bytes
+                if hasattr(branch, "uncompressed_bytes"):
+                    total_uncompressed += branch.uncompressed_bytes
+
+            if total_compressed > 0 and total_uncompressed > 0:
+                info["total_compressed_bytes"] = total_compressed
+                info["total_uncompressed_bytes"] = total_uncompressed
+                info["compression_ratio"] = total_uncompressed / total_compressed
+        except Exception:
+            pass
+
+        return info
+
+    def get_branch_schema(
+        self, path: str | Path, tree_name: str, branch_name: str | None = None
+    ) -> dict[str, Any]:
+        """
+        Get detailed schema information for branches.
+
+        Args:
+            path: File path
+            tree_name: Tree name
+            branch_name: Optional specific branch (None = all branches)
+
+        Returns:
+            Dictionary with branch schema information
+        """
+        tree = self.get_tree(path, tree_name)
+
+        if branch_name:
+            branches = [branch_name]
+        else:
+            branches = list(tree.keys())
+
+        schema = {}
+        for name in branches:
+            try:
+                branch = tree[name]
+
+                # Get type information
+                typename = str(branch.typename) if hasattr(branch, "typename") else "unknown"
+
+                # Determine if jagged
+                is_jagged = "[]" in typename or "vector" in typename.lower()
+
+                # Get interpretation (awkward type)
+                interpretation = None
+                if hasattr(branch, "interpretation"):
+                    try:
+                        interpretation = str(branch.interpretation)
+                    except Exception:
+                        pass
+
+                schema[name] = {
+                    "type": typename,
+                    "is_jagged": is_jagged,
+                    "interpretation": interpretation,
+                    "title": str(branch.title) if hasattr(branch, "title") else "",
+                }
+
+                # Get size information
+                if hasattr(branch, "compressed_bytes"):
+                    schema[name]["compressed_bytes"] = branch.compressed_bytes
+                if hasattr(branch, "uncompressed_bytes"):
+                    schema[name]["uncompressed_bytes"] = branch.uncompressed_bytes
+
+            except Exception as e:
+                logger.warning(f"Failed to get schema for branch {name}: {e}")
+                schema[name] = {"error": str(e)}
+
+        return schema

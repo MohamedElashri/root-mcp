@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from root_mcp.config import Config
-    from root_mcp.io.file_manager import FileManager
-    from root_mcp.io.validators import PathValidator
+    from root_mcp.core.io.file_manager import FileManager
+    from root_mcp.core.io.validators import PathValidator
 
 logger = logging.getLogger(__name__)
 
@@ -282,7 +282,7 @@ class DiscoveryTools:
             }
 
         # Get branch info
-        from root_mcp.io.readers import TreeReader
+        from root_mcp.core.io.readers import TreeReader
 
         reader = TreeReader(self.config, self.file_manager)
 

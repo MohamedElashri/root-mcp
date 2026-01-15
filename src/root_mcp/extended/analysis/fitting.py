@@ -9,7 +9,7 @@ from typing import Any, Callable, TypedDict, cast
 import numpy as np
 from scipy.optimize import curve_fit
 
-from root_mcp.analysis.expression import SafeExprEvaluator, translate_leaf_expr
+from root_mcp.extended.analysis.expression import SafeExprEvaluator, translate_leaf_expr
 
 logger = logging.getLogger(__name__)
 
@@ -372,5 +372,215 @@ def fit_histogram(
         "ndof": ndof,
         "fitted_values": y_fit.tolist(),
         "model": str(model),
+        "fixed_parameters": list(fixed_indices.keys()),
+    }
+
+
+# 2D Fitting Functions
+def gaussian_2d(
+    xy: tuple[np.ndarray, np.ndarray],
+    amp: float,
+    mu_x: float,
+    mu_y: float,
+    sigma_x: float,
+    sigma_y: float,
+    rho: float = 0.0,
+) -> np.ndarray:
+    """
+    2D Gaussian function with correlation.
+
+    Args:
+        xy: Tuple of (x, y) coordinate arrays
+        amp: Amplitude
+        mu_x: Mean in x
+        mu_y: Mean in y
+        sigma_x: Standard deviation in x
+        sigma_y: Standard deviation in y
+        rho: Correlation coefficient (-1 to 1)
+
+    Returns:
+        Function values at (x, y) points
+    """
+    x, y = xy
+    dx = x - mu_x
+    dy = y - mu_y
+
+    # Exponent
+    exponent = (
+        -0.5
+        / (1 - rho**2)
+        * ((dx / sigma_x) ** 2 + (dy / sigma_y) ** 2 - 2 * rho * dx * dy / (sigma_x * sigma_y))
+    )
+
+    return amp * np.exp(exponent)
+
+
+def polynomial_2d(
+    xy: tuple[np.ndarray, np.ndarray],
+    *coeffs: float,
+) -> np.ndarray:
+    """
+    2D polynomial function.
+
+    Args:
+        xy: Tuple of (x, y) coordinate arrays
+        coeffs: Polynomial coefficients [c00, c10, c01, c20, c11, c02, ...]
+
+    Returns:
+        Function values at (x, y) points
+    """
+    x, y = xy
+    result = np.zeros_like(x)
+
+    # Determine polynomial degree from number of coefficients
+    # For degree d: (d+1)(d+2)/2 coefficients
+    n_coeffs = len(coeffs)
+    degree = int((-3 + np.sqrt(9 + 8 * (n_coeffs - 1))) / 2)
+
+    idx = 0
+    for d in range(degree + 1):
+        for i in range(d + 1):
+            j = d - i
+            if idx < n_coeffs:
+                result += coeffs[idx] * (x**i) * (y**j)
+                idx += 1
+
+    return result
+
+
+MODEL_REGISTRY_2D: dict[str, ModelInfo] = {
+    "gaussian_2d": {
+        "func": gaussian_2d,
+        "n_params": 6,
+        "param_names": ["amp", "mu_x", "mu_y", "sigma_x", "sigma_y", "rho"],
+    },
+    "polynomial_2d": {
+        "func": polynomial_2d,
+        "n_params": 6,  # Quadratic default
+        "param_names": ["c00", "c10", "c01", "c20", "c11", "c02"],
+    },
+}
+
+
+def fit_histogram_2d(
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    z_errors: np.ndarray | None = None,
+    model: str = "gaussian_2d",
+    initial_params: list[float] | None = None,
+    fixed_params: dict[str, float] | None = None,
+    bounds: tuple[list[float], list[float]] | None = None,
+) -> dict[str, Any]:
+    """
+    Fit a 2D histogram with a model function.
+
+    Args:
+        x: X-coordinate array (flattened)
+        y: Y-coordinate array (flattened)
+        z: Z-values (bin contents, flattened)
+        z_errors: Errors on z-values
+        model: Model name from MODEL_REGISTRY_2D
+        initial_params: Initial parameter guesses
+        fixed_params: Dictionary of {param_name: value} for fixed parameters
+        bounds: Tuple of (lower_bounds, upper_bounds)
+
+    Returns:
+        Dictionary with fit results
+    """
+    if model not in MODEL_REGISTRY_2D:
+        raise ValueError(f"Unknown 2D model: {model}. Available: {list(MODEL_REGISTRY_2D.keys())}")
+
+    model_info = MODEL_REGISTRY_2D[model]
+    fit_func = model_info["func"]
+    param_names = model_info["param_names"]
+    num_params = model_info["n_params"]
+
+    # Handle errors
+    if z_errors is None:
+        z_errors = np.sqrt(np.maximum(z, 1))  # Poisson errors
+
+    # Avoid zero errors
+    z_errors = np.maximum(z_errors, 1e-10)
+
+    # Handle fixed parameters
+    fixed_params = fixed_params or {}
+    fixed_indices = {param_names.index(k): v for k, v in fixed_params.items()}
+    free_indices = [i for i in range(num_params) if i not in fixed_indices]
+
+    # Initial parameters
+    if initial_params is None:
+        # Auto-generate initial guesses
+        if model == "gaussian_2d":
+            initial_params = [
+                np.max(z),  # amp
+                np.mean(x),  # mu_x
+                np.mean(y),  # mu_y
+                np.std(x),  # sigma_x
+                np.std(y),  # sigma_y
+                0.0,  # rho
+            ]
+        else:
+            initial_params = [1.0] * num_params
+
+    # Create wrapper for fixed parameters
+    def fit_func_wrapper(xy: tuple[np.ndarray, np.ndarray], *free_params: float) -> np.ndarray:
+        full_params = [0.0] * num_params
+        for i, free_idx in enumerate(free_indices):
+            full_params[free_idx] = free_params[i]
+        for idx, val in fixed_indices.items():
+            full_params[idx] = val
+        return fit_func(xy, *full_params)
+
+    # Extract free initial parameters
+    p0_free = [initial_params[i] for i in free_indices]
+
+    # Handle bounds
+    fit_bounds = (-np.inf, np.inf)
+    if bounds is not None:
+        lower_free = [bounds[0][i] for i in free_indices]
+        upper_free = [bounds[1][i] for i in free_indices]
+        fit_bounds = (lower_free, upper_free)
+
+    # Perform fit
+    try:
+        popt_free, pcov_free = curve_fit(
+            fit_func_wrapper,
+            (x, y),
+            z,
+            p0=p0_free,
+            sigma=z_errors,
+            absolute_sigma=True,
+            bounds=fit_bounds,
+            maxfev=10000,
+        )
+    except Exception as e:
+        raise RuntimeError(f"2D fit failed: {e}")
+
+    # Reconstruct full parameters
+    popt_full = [0.0] * num_params
+    pcov_full = np.zeros((num_params, num_params))
+
+    for i, free_idx in enumerate(free_indices):
+        popt_full[free_idx] = popt_free[i]
+        for j, free_jdx in enumerate(free_indices):
+            pcov_full[free_idx, free_jdx] = pcov_free[i, j]
+
+    for idx, val in fixed_indices.items():
+        popt_full[idx] = val
+
+    # Calculate statistics
+    z_fit = fit_func((x, y), *popt_full)
+    chi2 = np.sum(((z - z_fit) / z_errors) ** 2)
+    ndof = len(z) - len(free_indices)
+
+    return {
+        "parameters": popt_full,
+        "parameter_names": param_names,
+        "errors": np.sqrt(np.diag(pcov_full)).tolist(),
+        "chi2": float(chi2),
+        "ndof": int(ndof),
+        "fitted_values": z_fit.tolist(),
+        "model": model,
         "fixed_parameters": list(fixed_indices.keys()),
     }

@@ -209,3 +209,59 @@ class PathValidator:
             raise SecurityError(f"Output path must be under {export_base}: {path}") from e
 
         return resolved
+
+    def validate_write_operation(
+        self,
+        input_path: str,
+        output_path: str,
+        allow_overwrite: bool = False,
+    ) -> tuple[Path, Path]:
+        """
+        Validate a write operation to ensure security constraints.
+
+        This method enforces critical security rules:
+        1. Input and output paths must be different
+        2. Output path must be in allowed output directory
+        3. Cannot overwrite existing files unless explicitly allowed
+
+        Args:
+            input_path: Source file path
+            output_path: Destination file path
+            allow_overwrite: Whether to allow overwriting existing files
+
+        Returns:
+            Tuple of (validated_input_path, validated_output_path)
+
+        Raises:
+            SecurityError: If security constraints are violated
+        """
+        # Validate input path
+        validated_input = self.validate_path(input_path)
+
+        # Validate output path
+        validated_output = self.validate_output_path(output_path)
+
+        # CRITICAL: Ensure input and output are different
+        if validated_input.resolve() == validated_output.resolve():
+            raise SecurityError(
+                "Cannot write to input file. Input and output paths must be different. "
+                f"Input: {validated_input}, Output: {validated_output}"
+            )
+
+        # Check if output exists
+        if validated_output.exists() and not allow_overwrite:
+            raise SecurityError(
+                f"Output file already exists: {validated_output}. "
+                "Use allow_overwrite=True to overwrite."
+            )
+
+        # Log the operation for audit trail
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"Write operation validated: {validated_input} -> {validated_output} "
+            f"(overwrite={allow_overwrite})"
+        )
+
+        return validated_input, validated_output

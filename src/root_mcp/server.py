@@ -1,4 +1,4 @@
-"""ROOT-MCP Server - Main entry point."""
+"""ROOT-MCP Server - Mode-aware implementation with lazy loading."""
 
 from __future__ import annotations
 
@@ -11,10 +11,9 @@ from mcp.types import Resource, Tool, TextContent
 from mcp.server.stdio import stdio_server
 
 from root_mcp.config import Config, load_config
-from root_mcp.io import FileManager, PathValidator
-from root_mcp.io.readers import TreeReader, HistogramReader
-from root_mcp.analysis import AnalysisOperations
-from root_mcp.tools import DiscoveryTools, DataAccessTools, AnalysisTools
+from root_mcp.core.io import FileManager, PathValidator, TreeReader, HistogramReader, DataExporter
+from root_mcp.core.operations import BasicStatistics
+from root_mcp.core.tools import DiscoveryTools, DataAccessTools
 
 # Setup logging
 logging.basicConfig(
@@ -25,44 +24,171 @@ logger = logging.getLogger(__name__)
 
 
 class ROOTMCPServer:
-    """Main ROOT-MCP server class."""
+    """Mode-aware ROOT-MCP server with lazy loading."""
 
     def __init__(self, config: Config):
         """
-        Initialize ROOT-MCP server.
+        Initialize ROOT-MCP server in specified mode.
 
         Args:
             config: Server configuration
         """
         self.config = config
         self.server = Server(config.server.name)
+        self.current_mode = config.server.mode
 
-        # Initialize components
-        logger.info("Initializing ROOT-MCP server components...")
-        self.file_manager = FileManager(config)
-        self.path_validator = PathValidator(config)
-        self.tree_reader = TreeReader(config, self.file_manager)
-        self.histogram_reader = HistogramReader(config, self.file_manager)
-        self.analysis_ops = AnalysisOperations(config, self.file_manager)
+        # Initialize core components (always available)
+        logger.info(f"Initializing ROOT-MCP server in {self.current_mode} mode...")
+        self._initialize_core_components()
 
-        # Initialize tool handlers
-        self.discovery_tools = DiscoveryTools(config, self.file_manager, self.path_validator)
-        self.data_access_tools = DataAccessTools(
-            config, self.file_manager, self.path_validator, self.tree_reader
-        )
-        self.analysis_tools = AnalysisTools(
-            config,
-            self.file_manager,
-            self.path_validator,
-            self.analysis_ops,
-            self.tree_reader,
-        )
+        # Initialize extended components if in extended mode
+        self._extended_components_loaded = False
+        if self.current_mode == "extended":
+            self._initialize_extended_components()
 
         # Register handlers
         self._register_resources()
         self._register_tools()
 
-        logger.info("ROOT-MCP server initialized successfully")
+        logger.info(f"ROOT-MCP server initialized successfully in {self.current_mode} mode")
+
+    def _initialize_core_components(self) -> None:
+        """Initialize core components (always available)."""
+        self.file_manager = FileManager(self.config)
+        self.path_validator = PathValidator(self.config)
+        self.tree_reader = TreeReader(self.config, self.file_manager)
+        self.histogram_reader = HistogramReader(self.config, self.file_manager)
+        self.data_exporter = DataExporter(self.config)
+        self.basic_stats = BasicStatistics(self.config, self.file_manager)
+
+        # Core tool handlers
+        self.discovery_tools = DiscoveryTools(self.config, self.file_manager, self.path_validator)
+        self.data_access_tools = DataAccessTools(
+            config=self.config,
+            file_manager=self.file_manager,
+            path_validator=self.path_validator,
+            tree_reader=self.tree_reader,
+        )
+
+        logger.info("Core components initialized")
+
+    def _initialize_extended_components(self) -> None:
+        """Initialize extended analysis components (lazy loaded)."""
+        if self._extended_components_loaded:
+            return
+
+        try:
+            # Import extended modules
+            from root_mcp.extended.analysis import (
+                AnalysisOperations,
+                HistogramOperations,
+                KinematicsOperations,
+                CorrelationAnalysis,
+            )
+            from root_mcp.extended.tools import AnalysisTools
+
+            # Initialize extended components
+            self.analysis_ops = AnalysisOperations(self.config, self.file_manager)
+            self.histogram_ops = HistogramOperations(self.config, self.file_manager)
+            self.kinematics_ops = KinematicsOperations(self.config, self.file_manager)
+            self.correlation_analysis = CorrelationAnalysis(self.config, self.file_manager)
+
+            # Extended tool handlers
+            self.analysis_tools = AnalysisTools(
+                config=self.config,
+                file_manager=self.file_manager,
+                path_validator=self.path_validator,
+                analysis_ops=self.analysis_ops,
+                tree_reader=self.tree_reader,
+            )
+
+            self._extended_components_loaded = True
+            logger.info("Extended components initialized")
+
+        except ImportError as e:
+            logger.error(f"Failed to load extended components: {e}")
+            logger.warning(
+                "Extended mode requires scipy and matplotlib. Falling back to core mode."
+            )
+            self.current_mode = "core"
+            self._extended_components_loaded = False
+
+    def _unload_extended_components(self) -> None:
+        """Unload extended components to free memory."""
+        if not self._extended_components_loaded:
+            return
+
+        # Remove references to extended components
+        if hasattr(self, "analysis_ops"):
+            del self.analysis_ops
+        if hasattr(self, "histogram_ops"):
+            del self.histogram_ops
+        if hasattr(self, "kinematics_ops"):
+            del self.kinematics_ops
+        if hasattr(self, "correlation_analysis"):
+            del self.correlation_analysis
+        if hasattr(self, "analysis_tools"):
+            del self.analysis_tools
+
+        self._extended_components_loaded = False
+        logger.info("Extended components unloaded")
+
+    def switch_mode(self, new_mode: str) -> dict[str, Any]:
+        """
+        Switch between core and extended modes at runtime.
+
+        Args:
+            new_mode: Target mode ('core' or 'extended')
+
+        Returns:
+            Status dictionary
+        """
+        if new_mode not in ["core", "extended"]:
+            raise ValueError(f"Invalid mode: {new_mode}. Must be 'core' or 'extended'")
+
+        if new_mode == self.current_mode:
+            return {
+                "status": "no_change",
+                "current_mode": self.current_mode,
+                "message": f"Already in {new_mode} mode",
+            }
+
+        old_mode = self.current_mode
+
+        if new_mode == "extended":
+            # Switch to extended mode
+            try:
+                self._initialize_extended_components()
+                self.current_mode = "extended"
+                self.config.server.mode = "extended"
+
+                return {
+                    "status": "success",
+                    "previous_mode": old_mode,
+                    "current_mode": self.current_mode,
+                    "message": f"Switched from {old_mode} to {new_mode} mode",
+                    "extended_features_available": True,
+                }
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "current_mode": self.current_mode,
+                    "message": f"Failed to switch to extended mode: {e}",
+                }
+
+        else:  # new_mode == "core"
+            # Switch to core mode
+            self._unload_extended_components()
+            self.current_mode = "core"
+            self.config.server.mode = "core"
+
+            return {
+                "status": "success",
+                "previous_mode": old_mode,
+                "current_mode": self.current_mode,
+                "message": f"Switched from {old_mode} to {new_mode} mode",
+                "extended_features_available": False,
+            }
 
     def _register_resources(self) -> None:
         """Register MCP resources (file roots)."""
@@ -82,521 +208,329 @@ class ROOTMCPServer:
                 )
             return resources
 
-    def _register_tools(self) -> None:
-        """Register all MCP tools."""
+    def _get_core_tools(self) -> list[Tool]:
+        """Get core mode tools."""
+        return [
+            # Discovery tools
+            Tool(
+                name="list_files",
+                description="List ROOT files in a resource",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "resource": {"type": "string", "description": "Resource name"},
+                        "pattern": {"type": "string", "description": "Optional glob pattern"},
+                    },
+                    "required": ["resource"],
+                },
+            ),
+            Tool(
+                name="inspect_file",
+                description="Inspect ROOT file structure and contents",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path"},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            Tool(
+                name="list_branches",
+                description="List branches in a TTree",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path"},
+                        "tree_name": {"type": "string", "description": "Tree name"},
+                        "pattern": {"type": "string", "description": "Optional glob pattern"},
+                    },
+                    "required": ["path", "tree_name"],
+                },
+            ),
+            Tool(
+                name="validate_file",
+                description="Validate ROOT file integrity",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path"},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            # Data access tools
+            Tool(
+                name="read_branches",
+                description="Read branch data from a TTree",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path"},
+                        "tree_name": {"type": "string", "description": "Tree name"},
+                        "branches": {"type": "array", "items": {"type": "string"}},
+                        "entry_start": {"type": "integer", "description": "Start entry"},
+                        "entry_stop": {"type": "integer", "description": "Stop entry"},
+                        "selection": {"type": "string", "description": "Optional cut expression"},
+                    },
+                    "required": ["path", "tree_name", "branches"],
+                },
+            ),
+            Tool(
+                name="get_branch_stats",
+                description="Get statistics for branches",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path"},
+                        "tree_name": {"type": "string", "description": "Tree name"},
+                        "branches": {"type": "array", "items": {"type": "string"}},
+                        "selection": {"type": "string", "description": "Optional cut expression"},
+                    },
+                    "required": ["path", "tree_name", "branches"],
+                },
+            ),
+            Tool(
+                name="export_data",
+                description="Export branch data to JSON, CSV, or Parquet",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path"},
+                        "tree_name": {"type": "string", "description": "Tree name"},
+                        "branches": {"type": "array", "items": {"type": "string"}},
+                        "output_path": {"type": "string", "description": "Output file path"},
+                        "format": {"type": "string", "enum": ["json", "csv", "parquet"]},
+                        "selection": {"type": "string", "description": "Optional cut expression"},
+                        "compress": {"type": "boolean", "description": "Compress output"},
+                    },
+                    "required": ["path", "tree_name", "branches", "output_path", "format"],
+                },
+            ),
+            # Mode switching
+            Tool(
+                name="switch_mode",
+                description="Switch between core and extended modes",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "mode": {"type": "string", "enum": ["core", "extended"]},
+                    },
+                    "required": ["mode"],
+                },
+            ),
+            Tool(
+                name="get_server_info",
+                description="Get server mode and capabilities",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+        ]
 
-        # Discovery tools
+    def _get_extended_tools(self) -> list[Tool]:
+        """Get extended mode tools (in addition to core tools)."""
+        return [
+            Tool(
+                name="compute_histogram",
+                description="Compute 1D histogram with fitting support",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "tree_name": {"type": "string"},
+                        "branch": {"type": "string"},
+                        "bins": {"type": "integer"},
+                        "range": {"type": "array", "items": {"type": "number"}},
+                        "selection": {"type": "string"},
+                        "weights": {"type": "string"},
+                    },
+                    "required": ["path", "tree_name", "branch", "bins"],
+                },
+            ),
+            Tool(
+                name="compute_histogram_2d",
+                description="Compute 2D histogram",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "tree_name": {"type": "string"},
+                        "branch_x": {"type": "string"},
+                        "branch_y": {"type": "string"},
+                        "bins_x": {"type": "integer"},
+                        "bins_y": {"type": "integer"},
+                    },
+                    "required": ["path", "tree_name", "branch_x", "branch_y", "bins_x", "bins_y"],
+                },
+            ),
+            Tool(
+                name="fit_histogram",
+                description="Fit histogram with model function",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "tree_name": {"type": "string"},
+                        "branch": {"type": "string"},
+                        "bins": {"type": "integer"},
+                        "model": {"type": "string"},
+                    },
+                    "required": ["path", "tree_name", "branch", "bins", "model"],
+                },
+            ),
+            Tool(
+                name="compute_invariant_mass",
+                description="Compute invariant mass from 4-vectors",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "tree_name": {"type": "string"},
+                        "pt_branches": {"type": "array", "items": {"type": "string"}},
+                        "eta_branches": {"type": "array", "items": {"type": "string"}},
+                        "phi_branches": {"type": "array", "items": {"type": "string"}},
+                        "mass_branches": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": [
+                        "path",
+                        "tree_name",
+                        "pt_branches",
+                        "eta_branches",
+                        "phi_branches",
+                    ],
+                },
+            ),
+            Tool(
+                name="compute_correlation",
+                description="Compute correlation between branches",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "tree_name": {"type": "string"},
+                        "branch_x": {"type": "string"},
+                        "branch_y": {"type": "string"},
+                        "method": {"type": "string", "enum": ["pearson", "spearman"]},
+                    },
+                    "required": ["path", "tree_name", "branch_x", "branch_y"],
+                },
+            ),
+            Tool(
+                name="generate_plot",
+                description="Generate plot from histogram or data",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "tree_name": {"type": "string"},
+                        "branch": {"type": "string"},
+                        "output_path": {"type": "string"},
+                    },
+                    "required": ["path", "tree_name", "branch", "output_path"],
+                },
+            ),
+        ]
+
+    def _register_tools(self) -> None:
+        """Register all MCP tools based on current mode."""
+
         @self.server.list_tools()
         async def list_tools() -> list[Tool]:
-            """List all available tools."""
-            tools = [
-                Tool(
-                    name="list_files",
-                    description="List ROOT files in a resource. Returns file paths, sizes, and metadata.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "resource": {
-                                "type": "string",
-                                "description": "Resource ID (optional, uses default if omitted)",
-                            },
-                            "pattern": {
-                                "type": "string",
-                                "description": "Glob pattern to filter files (e.g., 'run_*.root')",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum number of files to return (default 100)",
-                                "default": 100,
-                            },
-                        },
-                    },
-                ),
-                Tool(
-                    name="inspect_file",
-                    description="Inspect a ROOT file's structure. Returns trees, histograms, and directories.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "File path or resource URI",
-                            },
-                            "include_histograms": {
-                                "type": "boolean",
-                                "description": "Include histogram metadata",
-                                "default": True,
-                            },
-                            "include_trees": {
-                                "type": "boolean",
-                                "description": "Include TTree metadata",
-                                "default": True,
-                            },
-                        },
-                        "required": ["path"],
-                    },
-                ),
-                Tool(
-                    name="list_branches",
-                    description="List branches in a TTree with type information and optional statistics.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string", "description": "File path"},
-                            "tree": {"type": "string", "description": "Tree name"},
-                            "pattern": {
-                                "type": "string",
-                                "description": "Glob pattern to filter branches (e.g., 'muon_*')",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum branches to return",
-                                "default": 100,
-                            },
-                            "include_stats": {
-                                "type": "boolean",
-                                "description": "Compute min/max/mean (slower)",
-                                "default": False,
-                            },
-                        },
-                        "required": ["path", "tree"],
-                    },
-                ),
-                Tool(
-                    name="read_branches",
-                    description="Read branch data from a TTree with optional filtering and pagination. Supports derived branches through the defines parameter.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string"},
-                            "tree": {"type": "string"},
-                            "branches": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of branch names to read (can include physical branches or derived branches defined in 'defines')",
-                            },
-                            "selection": {
-                                "type": "string",
-                                "description": "ROOT-style cut expression (e.g., 'pt > 20 && abs(eta) < 2.4')",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum entries to return",
-                            },
-                            "offset": {
-                                "type": "integer",
-                                "description": "Number of entries to skip",
-                                "default": 0,
-                            },
-                            "flatten": {
-                                "type": "boolean",
-                                "description": "Flatten jagged arrays",
-                                "default": False,
-                            },
-                            "defines": {
-                                "type": "object",
-                                "description": "Dictionary of derived variable definitions {name: expression}. Expressions can use existing branches and mathematical functions.",
-                                "additionalProperties": {"type": "string"},
-                            },
-                        },
-                        "required": ["path", "tree", "branches"],
-                    },
-                ),
-                Tool(
-                    name="sample_tree",
-                    description="Get a quick sample from a TTree (first N or random N entries).",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string"},
-                            "tree": {"type": "string"},
-                            "size": {
-                                "type": "integer",
-                                "description": "Sample size",
-                                "default": 100,
-                            },
-                            "method": {
-                                "type": "string",
-                                "enum": ["first", "random"],
-                                "description": "Sampling method",
-                                "default": "first",
-                            },
-                            "branches": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Branches to include (all if omitted)",
-                            },
-                            "seed": {
-                                "type": "integer",
-                                "description": "Random seed for reproducibility",
-                            },
-                        },
-                        "required": ["path", "tree"],
-                    },
-                ),
-                Tool(
-                    name="get_branch_stats",
-                    description="Compute summary statistics (min, max, mean, std) for branches.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string"},
-                            "tree": {"type": "string"},
-                            "branches": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                            },
-                            "selection": {
-                                "type": "string",
-                                "description": "Optional cut expression",
-                            },
-                        },
-                        "required": ["path", "tree", "branches"],
-                    },
-                ),
-                Tool(
-                    name="compute_histogram",
-                    description="Compute a 1D histogram with optional selection and weights.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string"},
-                            "tree": {"type": "string"},
-                            "branch": {"type": "string"},
-                            "bins": {"type": "integer"},
-                            "range": {
-                                "type": "array",
-                                "items": {"type": "number"},
-                                "minItems": 2,
-                                "maxItems": 2,
-                                "description": "[min, max] (auto-detected if omitted)",
-                            },
-                            "selection": {
-                                "type": "string",
-                                "description": "Cut expression",
-                            },
-                            "weights": {
-                                "type": "string",
-                                "description": "Branch name for weights",
-                            },
-                            "defines": {
-                                "type": "object",
-                                "description": "Dictionary of derived variable definitions {name: expression}",
-                                "additionalProperties": {"type": "string"},
-                            },
-                        },
-                        "required": ["path", "tree", "branch", "bins"],
-                    },
-                ),
-                Tool(
-                    name="compute_histogram_2d",
-                    description="Compute a 2D histogram for correlation studies.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string"},
-                            "tree": {"type": "string"},
-                            "x_branch": {"type": "string"},
-                            "y_branch": {"type": "string"},
-                            "x_bins": {"type": "integer"},
-                            "y_bins": {"type": "integer"},
-                            "x_range": {
-                                "type": "array",
-                                "items": {"type": "number"},
-                                "minItems": 2,
-                                "maxItems": 2,
-                            },
-                            "y_range": {
-                                "type": "array",
-                                "items": {"type": "number"},
-                                "minItems": 2,
-                                "maxItems": 2,
-                            },
-                            "selection": {"type": "string"},
-                            "defines": {
-                                "type": "object",
-                                "description": "Dictionary of derived variable definitions {name: expression}",
-                                "additionalProperties": {"type": "string"},
-                            },
-                        },
-                        "required": ["path", "tree", "x_branch", "y_branch", "x_bins", "y_bins"],
-                    },
-                ),
-                Tool(
-                    name="apply_selection",
-                    description="Count how many entries pass a selection without reading data.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string"},
-                            "tree": {"type": "string"},
-                            "selection": {
-                                "type": "string",
-                                "description": "Cut expression",
-                            },
-                            "defines": {
-                                "type": "object",
-                                "description": "Dictionary of derived variable definitions {name: expression}",
-                                "additionalProperties": {"type": "string"},
-                            },
-                        },
-                        "required": ["path", "tree", "selection"],
-                    },
-                ),
-                Tool(
-                    name="fit_histogram",
-                    description="Fit a histogram to a model (gaussian, exponential, polynomial, crystal_ball) or a composite of them.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "data": {
-                                "type": "object",
-                                "description": "Histogram data from compute_histogram",
-                            },
-                            "model": {
-                                "description": "Model to fit. Can be a string (single model) or list of models (composite).",
-                                "anyOf": [
-                                    {
-                                        "type": "string",
-                                        "enum": [
-                                            "gaussian",
-                                            "exponential",
-                                            "polynomial",
-                                            "crystal_ball",
-                                        ],
-                                        "description": "Single model name",
-                                    },
-                                    {
-                                        "type": "array",
-                                        "items": {
-                                            "anyOf": [
-                                                {"type": "string"},
-                                                {
-                                                    "type": "object",
-                                                    "properties": {
-                                                        "model": {"type": "string"},
-                                                        "prefix": {"type": "string"},
-                                                    },
-                                                },
-                                            ]
-                                        },
-                                        "description": "Composite model (list of names or configs)",
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "expr": {"type": "string"},
-                                            "params": {
-                                                "type": "array",
-                                                "items": {"type": "string"},
-                                            },
-                                        },
-                                        "required": ["expr", "params"],
-                                        "description": "Custom model expression",
-                                    },
-                                ],
-                            },
-                            "initial_guess": {
-                                "type": "array",
-                                "items": {"type": "number"},
-                                "description": "Initial guess for parameters",
-                            },
-                            "bounds": {
-                                "type": "array",
-                                "items": {
-                                    "type": "array",
-                                    "items": {"type": "number"},
-                                    "minItems": 2,
-                                    "maxItems": 2,
-                                },
-                                "description": "Bounds [min, max] for each parameter",
-                            },
-                            "fixed_parameters": {
-                                "type": "object",
-                                "additionalProperties": {"type": "number"},
-                                "description": "Map of parameter name or index to fixed value",
-                            },
-                        },
-                        "required": ["data", "model"],
-                    },
-                ),
-                Tool(
-                    name="generate_plot",
-                    description="Generate a plot (base64 image) from analysis data.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "data": {
-                                "type": "object",
-                                "description": "Analysis data (e.g. histogram)",
-                            },
-                            "plot_type": {
-                                "type": "string",
-                                "enum": ["histogram"],
-                                "default": "histogram",
-                            },
-                            "fit_data": {
-                                "type": "object",
-                                "description": "Optional fit results to overlay",
-                            },
-                            "options": {
-                                "type": "object",
-                                "description": "Plotting options",
-                                "properties": {
-                                    "title": {"type": "string"},
-                                    "xlabel": {"type": "string"},
-                                    "ylabel": {"type": "string"},
-                                    "unit": {
-                                        "type": "string",
-                                        "description": "Unit string for axes (e.g. GeV)",
-                                    },
-                                    "log_x": {"type": "boolean"},
-                                    "log_y": {"type": "boolean"},
-                                    "grid": {"type": "boolean"},
-                                    "color": {"type": "string"},
-                                },
-                            },
-                        },
-                        "required": ["data"],
-                    },
-                ),
-                Tool(
-                    name="compute_kinematics",
-                    description="Compute kinematic quantities (invariant masses, ΔR, Δφ, etc.) from particle four-momenta. "
-                    "Essential for physics analysis including Dalitz plots, angular correlations, and mass distributions.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "File path",
-                            },
-                            "tree": {
-                                "type": "string",
-                                "description": "Tree name",
-                            },
-                            "computations": {
-                                "type": "array",
-                                "description": "List of kinematic calculations to perform",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {
-                                            "type": "string",
-                                            "description": "Name for the computed quantity (e.g., 'm12', 'delta_r_12')",
-                                        },
-                                        "type": {
-                                            "type": "string",
-                                            "enum": [
-                                                "invariant_mass",
-                                                "invariant_mass_squared",
-                                                "transverse_mass",
-                                                "delta_r",
-                                                "delta_phi",
-                                            ],
-                                            "description": "Type of kinematic calculation",
-                                        },
-                                        "particles": {
-                                            "type": "array",
-                                            "items": {"type": "string"},
-                                            "description": "List of particle name prefixes (e.g., ['K', 'pi_1', 'pi_2']). "
-                                            "For mass calculations: 2+ particles. For delta_r/delta_phi: exactly 2 particles.",
-                                        },
-                                        "components": {
-                                            "type": "array",
-                                            "items": {"type": "string"},
-                                            "description": "Component suffixes for four-momenta (default: ['PX', 'PY', 'PZ', 'PE'])",
-                                        },
-                                        "eta_suffix": {
-                                            "type": "string",
-                                            "description": "Suffix for pseudorapidity (default: 'ETA', used for delta_r)",
-                                        },
-                                        "phi_suffix": {
-                                            "type": "string",
-                                            "description": "Suffix for azimuthal angle (default: 'PHI', used for delta_r and delta_phi)",
-                                        },
-                                    },
-                                    "required": ["name", "type", "particles"],
-                                },
-                            },
-                            "selection": {
-                                "type": "string",
-                                "description": "Optional cut expression to apply before computation",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum number of entries to process",
-                            },
-                        },
-                        "required": ["path", "tree", "computations"],
-                    },
-                ),
-                Tool(
-                    name="export_branches",
-                    description="Export branch data to JSON, CSV, or Parquet format.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string"},
-                            "tree": {"type": "string"},
-                            "branches": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                            },
-                            "output_path": {"type": "string"},
-                            "output_format": {
-                                "type": "string",
-                                "enum": ["json", "csv", "parquet"],
-                            },
-                            "selection": {"type": "string"},
-                            "limit": {"type": "integer"},
-                        },
-                        "required": ["path", "tree", "branches", "output_path", "output_format"],
-                    },
-                ),
-            ]
+            """List available tools based on current mode."""
+            tools = self._get_core_tools()
+
+            if self.current_mode == "extended" and self._extended_components_loaded:
+                tools.extend(self._get_extended_tools())
+
             return tools
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
-            """Handle tool calls."""
-            logger.info(f"Tool called: {name} with args: {arguments}")
-
-            # Route to appropriate handler
-            result: dict[str, Any] = {}
+            """Handle tool calls with mode awareness."""
+            import json
 
             try:
-                if name == "list_files":
+                # Mode management tools
+                if name == "switch_mode":
+                    result = self.switch_mode(arguments["mode"])
+                elif name == "get_server_info":
+                    result = {
+                        "server_name": self.config.server.name,
+                        "version": self.config.server.version,
+                        "current_mode": self.current_mode,
+                        "extended_components_loaded": self._extended_components_loaded,
+                        "available_modes": ["core", "extended"],
+                    }
+
+                # Core tools (always available)
+                elif name == "list_files":
                     result = self.discovery_tools.list_files(**arguments)
                 elif name == "inspect_file":
                     result = self.discovery_tools.inspect_file(**arguments)
                 elif name == "list_branches":
                     result = self.discovery_tools.list_branches(**arguments)
+                elif name == "validate_file":
+                    result = self.file_manager.validate_file(arguments["path"])
                 elif name == "read_branches":
                     result = self.data_access_tools.read_branches(**arguments)
-                elif name == "sample_tree":
-                    result = self.data_access_tools.sample_tree(**arguments)
                 elif name == "get_branch_stats":
-                    result = self.data_access_tools.get_branch_stats(**arguments)
-                elif name == "compute_histogram":
-                    result = self.analysis_tools.compute_histogram(**arguments)
-                elif name == "compute_histogram_2d":
-                    result = self.analysis_tools.compute_histogram_2d(**arguments)
-                elif name == "apply_selection":
-                    result = self.analysis_tools.apply_selection(**arguments)
-                elif name == "fit_histogram":
-                    result = self.analysis_tools.fit_histogram(**arguments)
-                elif name == "generate_plot":
-                    result = self.analysis_tools.generate_plot(**arguments)
-                elif name == "compute_kinematics":
-                    result = self.analysis_tools.compute_kinematics(**arguments)
-                elif name == "export_branches":
-                    result = self.analysis_tools.export_branches(**arguments)
+                    result = self.basic_stats.compute_stats(
+                        arguments["path"],
+                        arguments["tree_name"],
+                        arguments["branches"],
+                        arguments.get("selection"),
+                    )
+                elif name == "export_data":
+                    # Read data directly for export
+                    tree = self.file_manager.get_tree(arguments["path"], arguments["tree_name"])
+                    arrays = tree.arrays(
+                        filter_name=arguments["branches"],
+                        cut=arguments.get("selection"),
+                        library="ak",
+                    )
+                    # Export
+                    result = self.data_exporter.export(
+                        arrays,
+                        arguments["output_path"],
+                        arguments["format"],
+                        compress=arguments.get("compress", False),
+                    )
+
+                # Extended tools (only in extended mode)
+                elif name in [
+                    "compute_histogram",
+                    "compute_histogram_2d",
+                    "fit_histogram",
+                    "compute_invariant_mass",
+                    "compute_correlation",
+                    "generate_plot",
+                ]:
+                    if self.current_mode != "extended" or not self._extended_components_loaded:
+                        result = {
+                            "error": "mode_error",
+                            "message": f"Tool '{name}' requires extended mode. Current mode: {self.current_mode}",
+                            "hint": "Use switch_mode tool to enable extended mode",
+                        }
+                    else:
+                        # Delegate to appropriate handler
+                        if name == "compute_histogram":
+                            result = self.histogram_ops.compute_histogram_1d(**arguments)
+                        elif name == "compute_histogram_2d":
+                            result = self.histogram_ops.compute_histogram_2d(**arguments)
+                        elif name == "fit_histogram":
+                            result = self.analysis_tools.fit_histogram(**arguments)
+                        elif name == "compute_invariant_mass":
+                            result = self.kinematics_ops.compute_invariant_mass(**arguments)
+                        elif name == "compute_correlation":
+                            result = self.correlation_analysis.compute_correlation(**arguments)
+                        elif name == "generate_plot":
+                            result = self.analysis_tools.generate_plot(**arguments)
+
                 else:
                     result = {
                         "error": "unknown_tool",
                         "message": f"Unknown tool: {name}",
                     }
+
             except Exception as e:
                 logger.error(f"Tool {name} failed: {e}", exc_info=True)
                 result = {
@@ -604,14 +538,12 @@ class ROOTMCPServer:
                     "message": f"Internal error: {e}",
                 }
 
-            # Format result as JSON
-            import json
-
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     async def run(self) -> None:
         """Run the MCP server."""
         logger.info(f"Starting {self.config.server.name} v{self.config.server.version}")
+        logger.info(f"Mode: {self.current_mode}")
         logger.info(f"Resources configured: {len(self.config.resources)}")
 
         async with stdio_server() as (read_stream, write_stream):
@@ -624,14 +556,12 @@ class ROOTMCPServer:
 
 def main() -> None:
     """Main entry point."""
-    # Load configuration
     try:
         config = load_config()
     except Exception as e:
         logger.error(f"Failed to load configuration: {e}")
         sys.exit(1)
 
-    # Create and run server
     server = ROOTMCPServer(config)
 
     try:

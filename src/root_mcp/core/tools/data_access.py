@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from root_mcp.config import Config
-    from root_mcp.io.file_manager import FileManager
-    from root_mcp.io.validators import PathValidator
-    from root_mcp.io.readers import TreeReader
+    from root_mcp.core.io.file_manager import FileManager
+    from root_mcp.core.io.validators import PathValidator
+    from root_mcp.core.io.readers import TreeReader
 
 logger = logging.getLogger(__name__)
 

@@ -5,15 +5,15 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from root_mcp.analysis.fitting import fit_histogram
-from root_mcp.analysis.plotting import generate_plot
+from root_mcp.extended.analysis.fitting import fit_histogram
+from root_mcp.extended.analysis.plotting import generate_plot
 
 if TYPE_CHECKING:
     from root_mcp.config import Config
-    from root_mcp.io.file_manager import FileManager
-    from root_mcp.io.validators import PathValidator
-    from root_mcp.analysis.operations import AnalysisOperations
-    from root_mcp.io.readers import TreeReader
+    from root_mcp.core.io.file_manager import FileManager
+    from root_mcp.core.io.validators import PathValidator
+    from root_mcp.extended.analysis.operations import AnalysisOperations
+    from root_mcp.core.io.readers import TreeReader
 
 logger = logging.getLogger(__name__)
 

@@ -1,618 +1,362 @@
-# ROOT-MCP Server Architecture
+# ROOT-MCP Architecture
 
-## Executive Summary
+## Overview
 
-The ROOT-MCP server provides AI models with safe, high-level access to CERN ROOT files through the Model Context Protocol. It enables declarative, tool-based interaction with ROOT data structures (TFile, TDirectory, TTree, TBranch, histograms) without requiring users to write low-level PyROOT or C++ code.
+ROOT-MCP is a production-grade Model Context Protocol (MCP) server that enables AI assistants to interact with CERN `ROOT` files. It features a **dual-mode architecture** that balances simplicity and power, allowing users to choose between lightweight file operations and comprehensive physics analysis capabilities.
 
-## 1. Goals and Use Cases
+## Design Philosophy
 
-### Primary Goals
+1. **Configuration-Driven**: Mode selection and behavior controlled through `config.yaml`
+2. **Lazy Loading**: Components loaded only when needed for memory efficiency
+3. **Runtime Flexibility**: Switch between modes without server restart
+4. **Security First**: All file operations validated through security checks
+5. **Pure Python**: Uses `uproot` for crash-resistant `ROOT` file access
 
-1. **Safe Data Access**: Provide crash-resistant access to ROOT files, avoiding segfaults and undefined behavior common with C++ ROOT bindings
-2. **LLM-Friendly Interface**: Expose declarative tools that AI models can compose to perform complex analyses
-3. **Performance at Scale**: Handle multi-GB files and remote storage (XRootD) efficiently with streaming and pagination
-4. **Analysis Flexibility**: Support interactive exploration and repeatable physics workflows
+## Dual-Mode Architecture
 
-### User Stories
+### Core Mode
+**Purpose**: Lightweight file operations and basic statistics
+**Dependencies**: `uproot`, `awkward`, `numpy`, `pandas`, `mcp`
+**Use Cases**: File inspection, data reading, basic statistics, data export
 
-**US-1: Interactive Exploration**
-> "An AI assistant helps a physicist explore a new ROOT file: list its structure, inspect a few branches, understand the data schema, then extract a subset for analysis."
+### Extended Mode
+**Purpose**: Full physics analysis capabilities
+**Dependencies**: Core dependencies + `scipy`, `matplotlib`
+**Use Cases**: Histogram fitting, kinematics calculations, correlations, plotting
 
-**US-2: Physics Analysis**
-> "An AI answers: 'What is the distribution of transverse momentum for muons in this TTree, with pT > 20 GeV and |η| < 2.4?' using only MCP tool calls."
+### Mode Selection
 
-**US-3: Data Discovery**
-> "A researcher asks: 'Which ROOT files contain electron candidates with E_T > 100 GeV?' The AI searches across registered datasets and returns matching files with statistics."
+Controlled via `config.yaml`:
+```yaml
+server:
+  mode: "extended"  # or "core"
+```
 
-**US-4: Comparative Analysis**
-> "Compare the invariant mass distributions between two different datasets (signal vs background) and identify differences."
+Runtime switching available via `switch_mode` tool without restart.
 
-**US-5: Derived Outputs**
-> "Extract a filtered subset of data from a 50 GB ROOT file, compute derived quantities, and export to Parquet for ML training."
-
-## 2. Technology Stack
-
-### Core Dependencies
-
-- **Python 3.10+**: Runtime environment
-- **uproot 5.x**: Pure Python ROOT I/O library (avoids C++ crashes)
-- **awkward 2.x**: Columnar data handling for jagged arrays
-- **numpy/pandas**: Numerical operations and data manipulation
-- **MCP Python SDK**: Protocol implementation
-- **pydantic**: Schema validation and configuration
-- **aiofiles**: Async file I/O
-- **fsspec**: Unified filesystem interface (local, XRootD, S3)
-
-### Why uproot over PyROOT?
-
-1. **Safety**: Pure Python implementation eliminates segfaults from C++ bindings
-2. **Performance**: Optimized columnar reading, lazy loading
-3. **Portability**: No ROOT installation required
-4. **Modern APIs**: Integrates naturally with Python data ecosystem
-5. **Remote I/O**: Built-in support for XRootD, HTTP, S3
-
-### Constraints and Limitations
-
-- **Write Operations**: No native ROOT write support; exports use JSON/CSV/Parquet formats
-- **Object Types**: Focus on TTrees and histograms (TH1, TH2); other ROOT objects may have limited support
-- **Version Compatibility**: uproot supports ROOT files v4+ (covers most HEP use cases since ROOT 5.x)
-- **Complex Expressions**: Selection expressions use custom parser, not full RDataFrame syntax
-- **No Plugin System**: All functionality is built-in; no plugin architecture currently implemented
-
-## 3. High-Level Architecture
+## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    MCP Client (AI Model)                │
+│                    AI Assistant (Claude)                │
 └────────────────────┬────────────────────────────────────┘
                      │ MCP Protocol (JSON-RPC)
 ┌────────────────────┴────────────────────────────────────┐
-│                  MCP Adapter Layer                      │
-│  ┌──────────────┬──────────────┬────────────────────┐  │
-│  │ Tool Handler │ Resource API │ Prompts/Metadata  │  │
-│  │ (routing &   │ (file roots) │ (guidance for AI) │  │
-│  │ validation)  │              │                    │  │
-│  └──────┬───────┴──────┬───────┴─────────┬──────────┘  │
-└─────────┼──────────────┼─────────────────┼─────────────┘
-          │              │                 │
-┌─────────┴──────────────┴─────────────────┴─────────────┐
-│                  Logic Layer                            │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ Analysis Operations                                │ │
-│  │ - inspect_file()       - read_branches()          │ │
-│  │ - list_branches()      - compute_histogram()      │ │
-│  │ - get_branch_stats()   - apply_selection()        │ │
-│  │ - fit_histogram()      - generate_plot()          │ │
-│  └────────────────────────────────────────────────────┘ │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ Query Planner & Optimizer                          │ │
-│  │ - Expression parsing   - Chunk size optimization  │ │
-│  │ - Column pruning       - Predicate pushdown       │ │
-│  └────────────────────────────────────────────────────┘ │
-└─────────────────────────┬───────────────────────────────┘
-                          │
-┌─────────────────────────┴───────────────────────────────┐
-│                  Core I/O Layer                         │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ File Manager                                       │ │
-│  │ - Open/close ROOT files (cached handles)          │ │
-│  │ - Protocol support: file://, root://, http://     │ │
-│  │ - Connection pooling for remote files             │ │
-│  └────────────────────────────────────────────────────┘ │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ Object Reader                                      │ │
-│  │ - TTree streaming (chunked iteration)             │ │
-│  │ - TBranch lazy loading                            │ │
-│  │ - Histogram reading (TH1, TH2, TH3, THn)          │ │
-│  │ - TGraph, TProfile support                        │ │
-│  └────────────────────────────────────────────────────┘ │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ Safety & Resource Management                       │ │
-│  │ - Memory limits per operation                     │ │
-│  │ - Timeout enforcement                             │ │
-│  │ - Input validation & sanitization                 │ │
-│  └────────────────────────────────────────────────────┘ │
-└─────────────────────────┬───────────────────────────────┘
-                          │
-┌─────────────────────────┴───────────────────────────────┐
-│         Storage Backends                                │
-│  [Local Files]  [XRootD]  [HTTP]  [S3/Object Storage]  │
+│                  ROOT-MCP Server                        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │            Mode-Aware Dispatcher                 │  │
+│  │  • Tool routing based on current mode            │  │
+│  │  • Dynamic component loading/unloading           │  │
+│  │  • Mode validation and switching                 │  │
+│  └────────────────┬─────────────────────────────────┘  │
+│                   │                                     │
+│  ┌────────────────┴─────────────────────────────────┐  │
+│  │         Core Components (Always Loaded)          │  │
+│  │  ┌────────────────────────────────────────────┐  │  │
+│  │  │ I/O Layer                                  │  │  │
+│  │  │  • FileManager: File caching & lifecycle  │  │  │
+│  │  │  • TreeReader: TTree data reading         │  │  │
+│  │  │  • HistogramReader: Histogram reading     │  │  │
+│  │  │  • PathValidator: Security checks         │  │  │
+│  │  │  • DataExporter: JSON/CSV/Parquet export  │  │  │
+│  │  └────────────────────────────────────────────┘  │  │
+│  │  ┌────────────────────────────────────────────┐  │  │
+│  │  │ Operations Layer                           │  │  │
+│  │  │  • BasicStatistics: min/max/mean/std      │  │  │
+│  │  │  • Basic histograms (no fitting)          │  │  │
+│  │  └────────────────────────────────────────────┘  │  │
+│  │  ┌────────────────────────────────────────────┐  │  │
+│  │  │ Core Tools                                 │  │  │
+│  │  │  • DiscoveryTools: File/tree inspection   │  │  │
+│  │  │  • DataAccessTools: Branch reading        │  │  │
+│  │  └────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────┘  │
+│                   │                                     │
+│  ┌────────────────┴─────────────────────────────────┐  │
+│  │    Extended Components (Lazy Loaded)             │  │
+│  │  ┌────────────────────────────────────────────┐  │  │
+│  │  │ Analysis Layer                             │  │  │
+│  │  │  • HistogramOperations: 1D/2D/Profile     │  │  │
+│  │  │  • KinematicsOperations: 4-vectors, mass  │  │  │
+│  │  │  • CorrelationAnalysis: Stats correlations│  │  │
+│  │  │  • Fitting: 1D/2D model fitting           │  │  │
+│  │  │  • Plotting: Visualization generation     │  │  │
+│  │  └────────────────────────────────────────────┘  │  │
+│  │  ┌────────────────────────────────────────────┐  │  │
+│  │  │ Extended Tools                             │  │  │
+│  │  │  • AnalysisTools: High-level analysis     │  │  │
+│  │  └────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────┘  │
+│                   │                                     │
+│  ┌────────────────┴─────────────────────────────────┐  │
+│  │         Common Utilities                         │  │
+│  │  • LRUCache: Generic caching                    │  │
+│  │  • Error types: Typed exceptions                │  │
+│  │  • Utils: Path handling, formatting             │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+                     │
+┌────────────────────┴────────────────────────────────────┐
+│                  Storage Layer                          │
+│  • Local files (file://)                               │
+│  • Remote files (root://, http://, https://)           │
+│  • XRootD protocol support (optional)                  │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities
+## Directory Structure
 
-#### MCP Adapter Layer
-- **Tool Handlers**: Route MCP tool requests to logic layer, validate inputs, serialize outputs
-- **Resource API**: Expose file roots and available datasets to AI models
-- **Prompts**: Provide system prompts and tool usage guidance
-- **Error Translation**: Convert internal exceptions to LLM-friendly error messages
-
-#### Logic Layer
-- **Analysis Operations**: High-level physics operations (histogramming, cuts, projections)
-- **Query Planner**: Optimize data access patterns (column pruning, predicate pushdown)
-- **Business Logic**: HEP domain knowledge (units, conventions, common patterns)
-
-#### Core I/O Layer
-- **File Manager**: Handle file lifecycle, caching, connection pooling
-- **Object Reader**: Safe, efficient reading of ROOT objects
-- **Resource Management**: Enforce memory/time/bandwidth limits
-- **Safety Guards**: Validate all inputs, catch errors, prevent crashes
-
-## 4. MCP Tool Design
-
-### Design Principles
-
-1. **Composability**: Tools should be atomic operations that can be chained
-2. **Predictability**: Consistent input/output schemas across tools
-3. **Self-Documenting**: Rich descriptions and examples in tool schemas
-4. **Error-Guiding**: Errors should help LLMs refine their next call
-5. **Safety-First**: All operations bounded, validated, and timeout-protected
-
-### Tool Categories
-
-#### Discovery Tools (Read-Only, Fast)
-- `list_files`: Enumerate accessible ROOT files with glob pattern support
-- `inspect_file`: Get high-level metadata (trees, histograms, directories)
-- `list_branches`: List branches with type information and optional statistics
-
-#### Data Access Tools (Read, Potentially Slow)
-- `read_branches`: Extract branch data with filtering, pagination, and derived variables (defines)
-- `sample_tree`: Get a small random/sequential sample for quick inspection
-- `get_branch_stats`: Compute summary statistics (min, max, mean, std) for branches
-
-#### Analysis Tools (Compute, Potentially Slow)
-- `compute_histogram`: 1D histogram with selection, weights, and derived variables
-- `compute_histogram_2d`: 2D histogram for correlation studies and Dalitz plots
-- `apply_selection`: Count entries passing a cut without reading data
-- `compute_kinematics`: Compute kinematic quantities (invariant masses, ΔR, Δφ) from four-momenta
-- `fit_histogram`: Fit data to models (Gaussian, exponential, polynomial, Crystal Ball, custom)
-- `generate_plot`: Generate base64-encoded PNG visualizations with optional fit overlays
-
-#### Export Tools (Write, Restricted)
-- `export_branches`: Extract filtered data to JSON/CSV/Parquet format
-
-### Tool Specifications
-
-Each tool is specified with:
-- **Name**: Clear, verb-based identifier
-- **Description**: 2-3 sentence summary for LLMs
-- **Input Schema**: Pydantic model with validation
-- **Output Schema**: Structured response format
-- **Examples**: 2-3 realistic usage scenarios
-- **Error Conditions**: Common failures and how to resolve
-- **Performance Hints**: Expected runtime, memory usage
-- **Safety Limits**: Max rows, max memory, timeout
-
-## 5. Safety, Robustness, and Performance
-
-### Memory Safety
-
-**Crash Prevention**
-- Use uproot (pure Python, no C++ crashes)
-- Validate all file paths and object names before access
-- Wrap all I/O operations in try-except with specific error handling
-- Use context managers for file handles (automatic cleanup)
-
-**Memory Management**
-```python
-# Chunked iteration prevents OOM on large TTrees
-for chunk in tree.iterate(step_size=10_000, filter_name=branches):
-    process_chunk(chunk)  # Process 10k entries at a time
-    if memory_used() > MAX_MEMORY:
-        yield partial_results()
-        break
+```
+src/root_mcp/
+├── core/                    # Core mode components
+│   ├── io/                  # File I/O operations
+│   │   ├── file_manager.py  # File caching and lifecycle
+│   │   ├── readers.py       # TTree and histogram readers
+│   │   ├── validators.py    # Security validation
+│   │   └── exporters.py     # Data export (JSON/CSV/Parquet)
+│   ├── operations/          # Basic operations
+│   │   └── basic_stats.py   # Statistics without scipy
+│   └── tools/               # Core MCP tools
+│       ├── discovery.py     # File/tree inspection
+│       └── data_access.py   # Branch reading
+├── extended/                # Extended mode components
+│   ├── analysis/            # Advanced analysis
+│   │   ├── histograms.py    # 1D/2D/Profile histograms
+│   │   ├── kinematics.py    # 4-vector calculations
+│   │   ├── correlations.py  # Statistical correlations
+│   │   ├── fitting.py       # Model fitting (1D/2D)
+│   │   ├── plotting.py      # Visualization
+│   │   ├── operations.py    # High-level operations
+│   │   └── expression.py    # Expression evaluation
+│   └── tools/               # Extended MCP tools
+│       └── analysis.py      # Analysis tool handlers
+├── common/                  # Shared utilities
+│   ├── cache.py            # LRU cache implementation
+│   ├── errors.py           # Error types
+│   └── utils.py            # Utility functions
+├── config.py               # Configuration management
+└── server.py               # Mode-aware MCP server
 ```
 
-**Resource Limits (Configurable)**
-- `max_rows_per_call`: 1,000,000 (default, enforced in data access tools)
-- `max_export_rows`: 1,000,000 (default, enforced in export operations)
-- `max_bins_1d`: 10,000 (default, for 1D histograms)
-- `max_bins_2d`: 1,000 (default, for 2D histograms)
+## Component Details
 
+### Core Components
 
-### Performance Optimizations
+#### FileManager
+- **Purpose**: Centralized file handle management
+- **Features**:
+  - LRU cache for open file handles (configurable size)
+  - Protocol support: file://, root://, http://, https://
+  - Connection pooling for remote files
+  - Automatic cleanup and resource management
+- **Security**: All paths validated through PathValidator
 
-**1. Lazy Loading**
-```python
-# Only read requested branches, not entire tree
-tree.arrays(["pt", "eta"], library="ak", how="zip")
-```
+#### TreeReader
+- **Purpose**: High-level TTree data access
+- **Features**:
+  - Columnar reading with awkward arrays
+  - Streaming support for large files (chunked reading)
+  - Selection expressions (cuts)
+  - Branch sampling and statistics
+- **Performance**: Lazy loading, column pruning
 
-**2. Predicate Pushdown**
-```python
-# Apply cuts during reading (uproot optimization)
-tree.arrays(filter_name=branches, cut="pt > 20")
-```
+#### PathValidator
+- **Purpose**: Security validation for all file operations
+- **Features**:
+  - Allowed root directory enforcement
+  - Path traversal prevention
+  - Protocol validation
+  - Write operation validation (input ≠ output)
+  - Audit logging for write operations
 
-**3. Chunk Streaming**
-```python
-# For large results, stream chunks back to client
-async def read_large_dataset():
-    for i, chunk in enumerate(tree.iterate(step_size=50_000)):
-        yield {
-            "chunk": i,
-            "data": chunk.to_list(),
-            "more": has_more_chunks()
-        }
-```
+#### DataExporter
+- **Purpose**: Export data to standard formats
+- **Formats**: JSON, CSV, Parquet
+- **Features**: Compression support, streaming for large datasets
 
-**4. Connection Pooling**
-```python
-# Reuse remote file connections
-class FileCache:
-    def __init__(self, max_size=50):
-        self._cache = LRU(max_size)
+#### BasicStatistics
+- **Purpose**: Statistics without scipy dependency
+- **Operations**: min, max, mean, std, median, percentiles
+- **Features**: Basic 1D histograms (no fitting)
 
-    def get(self, path):
-        if path not in self._cache:
-            self._cache[path] = uproot.open(path)
-        return self._cache[path]
-```
+### Extended Components
 
-**5. Metadata Caching**
-```python
-# Cache file structure (trees, branches) for fast repeat access
-@lru_cache(maxsize=200)
-def get_tree_metadata(file_path, tree_name):
-    with uproot.open(file_path) as f:
-        tree = f[tree_name]
-        return {
-            "num_entries": tree.num_entries,
-            "branches": tree.keys(),
-            "types": tree.typenames()
-        }
-```
+#### HistogramOperations
+- **Purpose**: Advanced histogram creation
+- **Features**:
+  - 1D histograms with error propagation
+  - 2D histograms with proper weighting
+  - Profile histograms (mean of Y vs X)
+  - Configurable bin limits
 
-### Error Handling Strategy
+#### KinematicsOperations
+- **Purpose**: Particle physics calculations
+- **Features**:
+  - Invariant mass from 4-vectors
+  - Transverse mass (W→lν analyses)
+  - Delta R separation
+  - Dalitz plot variables
+  - Lorentz boost to CM frame
 
-**Error Categories**
-1. **Validation Errors**: Invalid parameters → 400-style errors with guidance
-2. **Not Found**: Missing file/tree/branch → 404-style with suggestions
-3. **Resource Limits**: Timeout/OOM → 429-style with retry hints
-4. **I/O Errors**: Network failure, corrupt file → 500-style with diagnostics
-5. **Computation Errors**: Invalid expression → 400-style with syntax help
+#### CorrelationAnalysis
+- **Purpose**: Statistical correlation analysis
+- **Features**:
+  - Pearson correlation
+  - Spearman rank correlation
+  - Correlation/covariance matrices
+  - Mutual information
+  - Significance testing
 
-**LLM-Friendly Error Messages**
-```python
-# Bad (technical)
-"KeyError: 'muon_pt' not found in TTree"
+#### Fitting
+- **Purpose**: Model fitting to histograms
+- **Models**: Gaussian, exponential, polynomial, Crystal Ball, 2D Gaussian
+- **Features**:
+  - Fixed parameter support
+  - Bounds constraints
+  - Chi-square calculation
+  - Error propagation
 
-# Good (actionable)
-{
-    "error": "branch_not_found",
-    "message": "Branch 'muon_pt' does not exist in tree 'events'",
-    "suggestion": "Available branches: ['pt', 'eta', 'phi', 'charge']. Did you mean 'pt'?",
-    "retry_with": {"branch": "pt"}
-}
-```
+## Tool Categories
 
-### Timeout and Cancellation
+### Core Tools (Always Available)
 
-```python
-async def read_with_timeout(tree, branches, timeout_sec):
-    """Read with enforced timeout."""
-    async with asyncio.timeout(timeout_sec):
-        result = await asyncio.to_thread(
-            tree.arrays,
-            filter_name=branches,
-            library="ak"
-        )
-    return result
-```
+| Tool | Description | Mode |
+|------|-------------|------|
+| `list_files` | List ROOT files in resource | Core |
+| `inspect_file` | Get file structure and metadata | Core |
+| `list_branches` | List branches in TTree | Core |
+| `validate_file` | Check file integrity | Core |
+| `read_branches` | Read branch data | Core |
+| `get_branch_stats` | Compute basic statistics | Core |
+| `export_data` | Export to JSON/CSV/Parquet | Core |
+| `switch_mode` | Switch between core/extended | Core |
+| `get_server_info` | Get server capabilities | Core |
 
-## 6. File Discovery and Security
+### Extended Tools (Extended Mode Only)
 
-### MCP Resources (Roots)
+| Tool | Description | Requires |
+|------|-------------|----------|
+| `compute_histogram` | Create 1D histogram with fitting | Extended |
+| `compute_histogram_2d` | Create 2D histogram | Extended |
+| `fit_histogram` | Fit model to histogram | Extended |
+| `compute_invariant_mass` | Calculate invariant mass | Extended |
+| `compute_correlation` | Correlation analysis | Extended |
+| `generate_plot` | Create visualization | Extended |
 
-Resources define accessible file collections:
+## Configuration
 
-```python
-# Configuration example
+### Structure
+
+```yaml
+# Server settings
+server:
+  name: "root-mcp"
+  version: "0.1.2"
+  mode: "extended"  # "core" or "extended"
+
+# Core configuration (always loaded)
+core:
+  cache:
+    enabled: true
+    file_cache_size: 50
+  limits:
+    max_rows_per_call: 1_000_000
+    max_export_rows: 10_000_000
+
+# Extended configuration (only in extended mode)
+extended:
+  histogram:
+    max_bins_1d: 10_000
+    max_bins_2d: 1_000
+  plotting:
+    figure_width: 10.0
+    figure_height: 6.0
+    dpi: 100
+  fitting_max_iterations: 10_000
+
+# Data resources
 resources:
-  - name: "local_data"
-    uri: "file:///data/root_files"
-    description: "Local ROOT files from run 2024A"
+  - name: "my_data"
+    uri: "file:///path/to/data"
     allowed_patterns: ["*.root"]
-    max_file_size_gb: 10
 
-  - name: "xrootd_atlas"
-    uri: "root://eosuser.cern.ch//eos/atlas/data"
-    description: "ATLAS data on EOS"
-    allowed_patterns: ["user.*/*.root"]
-    requires_auth: true
+# Security
+security:
+  allowed_roots:
+    - "/path/to/data"
+  allowed_protocols: ["file", "root", "http", "https"]
 
-  - name: "public_datasets"
-    uri: "https://opendata.cern.ch/record/12345/files"
-    description: "Open data portal samples"
-    allowed_patterns: ["*.root"]
+# Output
+output:
+  export_base_path: "/path/to/exports"
+  allowed_formats: ["json", "csv", "parquet"]
 ```
 
-### Security Model
+## Security Model
 
-**Path Validation**
-```python
-def validate_path(path: str, config: Config) -> Path:
-    """Ensure path is within allowed roots."""
-    resolved = Path(path).resolve()
+### Path Validation
+1. **Allowed Roots**: All file paths must be under configured allowed roots
+2. **Protocol Validation**: Only allowed protocols can be used
+3. **Path Traversal Prevention**: `..` and symlinks validated
+4. **Write Protection**: Input and output paths must differ
 
-    for root in config.allowed_roots:
-        root_path = Path(root).resolve()
-        try:
-            resolved.relative_to(root_path)
-            return resolved  # Path is under allowed root
-        except ValueError:
-            continue
+### Resource Limits
+1. **Row Limits**: Maximum rows per read operation
+2. **Export Limits**: Maximum rows for export operations
+3. **Bin Limits**: Maximum histogram bins (1D/2D)
+4. **Cache Limits**: Maximum open file handles
 
-    raise SecurityError(
-        f"Path '{path}' is not under any allowed root. "
-        f"Allowed roots: {config.allowed_roots}"
-    )
-```
+### Audit Trail
+- All write operations logged
+- Mode switches logged
+- Failed validation attempts logged
 
-**Resource Quotas**
-```python
-class UserQuota:
-    max_concurrent_operations: int = 5
-    max_memory_mb: int = 2048
-    max_bandwidth_mbps: int = 100
-    rate_limit_per_minute: int = 60
-```
+## Performance Considerations
 
-**Authentication Hooks**
-```python
-# For remote storage requiring credentials
-class XRootDAuthenticator:
-    def get_credentials(self, uri: str) -> dict:
-        # Read from env vars, credential files, or OAuth
-        return {
-            "token": os.getenv("XROOTD_TOKEN"),
-            "cert": Path.home() / ".globus" / "usercert.pem"
-        }
-```
+### Memory Management
+- **Lazy Loading**: Extended components loaded only when needed
+- **File Caching**: LRU cache for file handles (configurable)
+- **Streaming**: Chunked reading for large files
+- **Column Pruning**: Read only requested branches
 
-### File Reference Format
+### Optimization Strategies
+1. **Predicate Pushdown**: Apply selections during read
+2. **Chunk Size Tuning**: Configurable chunk sizes for streaming
+3. **Connection Pooling**: Reuse connections for remote files
+4. **Compression**: Support for compressed exports
 
-Tools accept files in multiple formats:
-- **Absolute path**: `/data/run_12345.root`
-- **Resource-relative**: `local_data://run_12345.root`
-- **Dataset alias**: `@atlas_2024/signal` (configured mapping)
-- **XRootD URI**: `root://server.cern.ch//path/to/file.root`
+## Error Handling
 
-## 7. LLM Interaction Patterns
+### Error Types
+- `ROOTMCPError`: Base exception
+- `SecurityError`: Security constraint violations
+- `ValidationError`: Input validation failures
+- `FileOperationError`: File I/O errors
+- `AnalysisError`: Analysis operation failures
 
-### Multi-Step Discovery Pattern
+### Graceful Degradation
+- Extended mode falls back to core if dependencies missing
+- Clear error messages with hints for resolution
+- Mode-specific error handling
 
-```
-[Step 1: Discover Available Files]
-LLM → list_files(resource="local_data")
-← ["run_12345.root", "run_12346.root"]
+## Future Considerations
 
-[Step 2: Inspect File Structure]
-LLM → inspect_file(path="local_data://run_12345.root")
-← {
-    "trees": ["events", "metadata"],
-    "histograms": ["cutflow"],
-    "size_mb": 450,
-    "num_entries": {"events": 1_000_000}
-}
+### Potential Enhancements
+1. **Caching Layer**: Redis/memcached for distributed caching
+2. **Parallel Processing**: Multi-file parallel operations
+3. **Query Optimization**: Advanced query planning
+4. **Additional Formats**: ROOT file writing (new files only)
+5. **Plugin System**: Extensible analysis modules
 
-[Step 3: Understand Tree Schema]
-LLM → list_branches(path="...", tree="events", limit=20)
-← {
-    "branches": [
-        {"name": "muon_pt", "type": "float32[]", "description": "Muon pT (GeV)"},
-        {"name": "muon_eta", "type": "float32[]"},
-        ...
-    ],
-    "total_branches": 150,
-    "suggestion": "Use pattern='muon_*' to see all muon variables"
-}
+### Non-Goals
+- Full RDataFrame compatibility
+- C++ ROOT binding support
+- Modification of existing ROOT files
+- GUI/web interface
 
-[Step 4: Sample Data]
-LLM → read_branches(
-    path="...",
-    tree="events",
-    branches=["muon_pt", "muon_eta"],
-    limit=10
-)
-← {
-    "data": [
-        {"muon_pt": [25.3, 18.9], "muon_eta": [-0.5, 1.2]},
-        {"muon_pt": [102.1], "muon_eta": [0.1]},
-        ...
-    ],
-    "entries_returned": 10,
-    "entries_scanned": 10,
-    "hint": "Data has variable-length arrays (jagged). Use flatten=true for flat output."
-}
+## References
 
-[Step 5: Apply Physics Cut and Histogram]
-LLM → compute_histogram(
-    path="...",
-    tree="events",
-    branch="muon_pt",
-    bins=50,
-    range=[0, 200],
-    selection="muon_pt > 20 && abs(muon_eta) < 2.4"
-)
-← {
-    "bin_edges": [0, 4, 8, ..., 200],
-    "bin_counts": [0, 5, 120, ..., 3],
-    "entries_selected": 45_000,
-    "entries_total": 1_000_000,
-    "selection": "muon_pt > 20 && abs(muon_eta) < 2.4"
-}
-```
-
-### Error Recovery Pattern
-
-```
-LLM → read_branches(path="...", tree="events", branches=["missing_var"])
-← {
-    "error": "branch_not_found",
-    "message": "Branch 'missing_var' not found in tree 'events'",
-    "available_branches": ["muon_pt", "muon_eta", ...],
-    "suggestion": "List branches with list_branches() or use pattern matching"
-}
-
-[LLM corrects request]
-LLM → list_branches(path="...", tree="events", pattern="*miss*")
-← {
-    "branches": ["missing_et", "missing_et_phi"],
-    "hint": "Found 2 branches matching '*miss*'"
-}
-```
-
-### Response Metadata for Guidance
-
-Every response includes:
-```python
-{
-    "data": { ... },  # Primary result
-    "metadata": {
-        "operation": "read_branches",
-        "execution_time_ms": 450,
-        "entries_scanned": 100_000,
-        "memory_used_mb": 45,
-        "truncated": false
-    },
-    "next_actions": [
-        "Compute histogram with compute_histogram()",
-        "Apply selection with selection='pt > 30'",
-        "Export data with export_branches(format='parquet')"
-    ]
-}
-```
-
-## 8. Current Extensibility
-
-### Built-in Extension Mechanisms
-
-While a full plugin system is not currently implemented, the codebase is designed with modularity in mind:
-
-**1. Analysis Operations Layer**
-New analysis operations can be added to `analysis/operations.py`:
-```python
-def compute_new_quantity(
-    self,
-    path: str,
-    tree_name: str,
-    # ... parameters
-) -> dict[str, Any]:
-    """Add new physics computation."""
-    # Implementation
-```
-
-**2. Tool Registration**
-New tools are registered in `server.py` by:
-1. Adding a method to the appropriate tools class (DiscoveryTools, DataAccessTools, AnalysisTools)
-2. Adding a Tool definition in the `list_tools()` function
-3. Adding a handler case in `call_tool()` function
-
-**3. Export Formats**
-Supported formats (JSON, CSV, Parquet) are implemented in `operations.py`. New formats can be added to the `export_to_formats()` method.
-
-**4. File Protocols**
-Supported via uproot/fsspec:
-- Local files: `file://` or absolute paths
-- XRootD: `root://server.cern.ch/path`
-- HTTP(S): `https://example.com/file.root`
-- S3: (via fsspec with s3fs installed)
-
-### Derived Variables System
-
-The `defines` parameter provides on-the-fly computation:
-```python
-defines = {
-    "pt": "sqrt(px**2 + py**2)",
-    "eta": "arcsinh(pz / sqrt(px**2 + py**2))",
-    "mass": "sqrt(E**2 - px**2 - py**2 - pz**2)"
-}
-```
-
-This allows users to compute derived quantities without modifying the codebase.
-
-## 9. Deployment Considerations
-
-### Production Checklist
-
-- [ ] **Logging**: Structured logging (JSON) with request IDs, timing, errors
-- [ ] **Monitoring**: Prometheus metrics (request rate, latency, errors, memory)
-- [ ] **Health Checks**: `/health` endpoint for orchestration
-- [ ] **Configuration**: Environment-based config with validation
-- [ ] **Secrets Management**: Secure credential handling (Vault, AWS Secrets Manager)
-- [ ] **Rate Limiting**: Per-user quotas and global rate limits
-- [ ] **Graceful Shutdown**: Close file handles, finish in-flight requests
-- [ ] **Documentation**: OpenAPI/AsyncAPI spec generation from tool schemas
-
-### Container Deployment
-
-```dockerfile
-FROM python:3.11-slim
-
-# Install uproot and dependencies
-RUN pip install uproot awkward numpy pandas mcp pydantic
-
-COPY src/ /app/src/
-COPY config.yaml /app/config.yaml
-
-WORKDIR /app
-EXPOSE 8000
-
-CMD ["python", "-m", "root_mcp.server"]
-```
-
-### Performance Targets
-
-- **File Inspection**: < 100ms for cached metadata
-- **Branch List**: < 500ms for files with <1000 branches
-- **Small Reads** (<10k rows): < 1s
-- **Histograms**: < 5s for 1M entries, simple selection
-- **Large Reads** (100k-1M rows): < 30s with streaming
-
-## 10. Future Enhancements
-
-### Planned Features
-
-1. **Parallel Query Execution**: Distribute histogram computation across multiple workers
-2. **Caching Layer**: Redis/Memcached for frequent queries and file metadata
-3. **Advanced Fitting**: More models, simultaneous fits, error propagation
-4. **Systematic Variations**: Tools for uncertainty propagation in HEP analyses
-5. **Visualization Enhancements**: More plot types (scatter, profile, 2D fits), interactive plots
-6. **Additional Kinematic Tools**: Lorentz boosts, helicity angles, phase space calculations
-7. **Dalitz Plot Overlays**: Kinematic boundaries, phase space density, resonance bands
-
-### Research Directions
-
-- **Query Optimization**: ML-based query planning from LLM intent
-- **Natural Language Selections**: Parse "high momentum muons" → `pt > 50`
-- **Autonomous Analysis**: Multi-step agent workflows for standard analyses
-- **Smart Binning**: Automatic histogram binning based on data distribution
-
----
-
-## 11. Recent Additions
-
-### Kinematic Computation Tool (v1.1)
-
-Added `compute_kinematics` tool for physics analysis:
-- **Invariant masses**: Calculate m and m² for particle combinations (essential for Dalitz plots)
-- **Transverse masses**: For W/Z boson reconstruction
-- **Angular separations**: ΔR and Δφ for particle correlations
-- **Vectorized operations**: Efficient NumPy-based calculations
-- **Flexible particle naming**: Configurable component suffixes
-
-This tool bridges the gap between raw four-momentum data and physics observables, enabling:
-- Dalitz plot construction
-- Resonance studies
-- Angular correlation analyses
-- Missing energy analyses
-
-See [Kinematic Computation Guide](guides/compute_kinematics.md) for detailed documentation.
-
----
-
-**Document Version**: 1.1
-**Last Updated**: 2025-12-18
-**Authors**: Mohamed Elashri
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [uproot Documentation](https://uproot.readthedocs.io/)
+- [awkward Documentation](https://awkward-array.org/)
+- [CERN ROOT](https://root.cern/)

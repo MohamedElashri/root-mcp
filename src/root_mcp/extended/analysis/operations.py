@@ -12,9 +12,13 @@ import numpy as np
 
 if TYPE_CHECKING:
     from root_mcp.config import Config
-    from root_mcp.io.file_manager import FileManager
+    from root_mcp.core.io.file_manager import FileManager
 
-from root_mcp.analysis.expression import SafeExprEvaluator, translate_leaf_expr, strip_outer_parens
+from root_mcp.extended.analysis.expression import (
+    SafeExprEvaluator,
+    translate_leaf_expr,
+    strip_outer_parens,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -18,29 +18,59 @@ By exposing a set of specialized tools via the [Model Context Protocol (MCP)](ht
 
 ---
 
+## Architecture
+
+ROOT-MCP features a **dual-mode architecture**:
+
+- **Core Mode**: File I/O, data reading, and basic statistics
+- **Extended Mode**: Full analysis capabilities including fitting, kinematics, and correlations
+
+The mode is controlled via configuration, and the server automatically loads only the components you need. Runtime mode switching is also available.
+
 ## Quick Start
 
 ### 1. Install
 
 ```bash
 pip install root-mcp
-# Optional: pip install "root-mcp[xrootd]" for remote file support
+```
+
+Optional: For remote file access via XRootD protocol:
+```bash
+pip install "root-mcp[xrootd]"
 ```
 
 ### 2. Configure
 
-Create a `config.yaml` to tell the server where your data is:
+Create a `config.yaml` and set your preferred mode:
 
 ```yaml
+# Server settings
+server:
+  name: "root-mcp"
+  mode: "extended"  # Options: "core" or "extended"
+
+# Data resources
 resources:
   - name: "my_analysis"
     uri: "file:///Users/me/data"
     allowed_patterns: ["*.root"]
 
+# Security
 security:
   allowed_roots:
     - "/Users/me/data"
+
+# Output directory for exports
+output:
+  export_base_path: "/Users/me/exports"
 ```
+
+**Mode Selection:**
+- `mode: "core"` - Lightweight mode for file operations and basic statistics
+- `mode: "extended"` - Full analysis features (histograms, fitting, kinematics, correlations)
+
+You can switch modes at runtime using the `switch_mode` tool without restarting the server.
 
 ### 3. Run with Claude Desktop
 
