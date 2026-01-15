@@ -7,6 +7,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ## [0.1.4] - 2026-01-15
 
 ### Fixed
+- **Histogram Broadcasting Error**: Fixed "operands could not be broadcast together" error in `compute_histogram` by adding `bin_centers` to the return structure (previously only returned `bin_edges`)
 - **Critical Bug Fix**: Fixed parameter handling issues in multiple tools when called via MCP client:
   - **tree_name parameter**: The following functions had parameter `tree` but the MCP tool schema defined it as `tree_name`:
     - `list_branches` in `DiscoveryTools`
