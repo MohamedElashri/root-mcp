@@ -51,57 +51,61 @@ def generate_plot(
     try:
         if plot_type == "histogram":
             plot_metadata = _plot_histogram(ax, data, fit_data, options, config)
+
+            # Customize 1D histogram plot
+            branch_name = data.get("metadata", {}).get("branch", "Value")
+            unit = options.get("unit", "")
+
+            # X Label
+            xlabel = options.get("xlabel", branch_name)
+            if unit:
+                xlabel += f" [{unit}]"
+            ax.set_xlabel(xlabel)
+
+            # Y Label
+            ylabel = options.get("ylabel")
+            if not ylabel:
+                # Auto-generate Y label
+                bin_width = plot_metadata.get("bin_width")
+                if bin_width:
+                    # Format properly (e.g. 0.5 or 10)
+                    width_str = f"{bin_width:.3g}"
+                    if unit:
+                        ylabel = f"Entries / {width_str} {unit}"
+                    else:
+                        ylabel = f"Entries / {width_str}"
+                else:
+                    ylabel = "Entries"
+            ax.set_ylabel(ylabel)
+
+            ax.set_title(options.get("title", f"{branch_name} Distribution"))
+
+            # Styling
+            if options.get("log_y"):
+                ax.set_yscale("log")
+            if options.get("log_x"):
+                ax.set_xscale("log")
+
+            # Get grid alpha from config
+            if config and hasattr(config, "analysis") and hasattr(config.analysis, "plotting"):
+                plot_cfg = config.analysis.plotting
+                grid_alpha = plot_cfg.grid_alpha
+                grid_enabled = plot_cfg.grid_enabled
+            else:
+                grid_alpha = 0.3
+                grid_enabled = True
+
+            grid_style = options.get("grid", grid_enabled)
+            if grid_style:
+                ax.grid(True, alpha=grid_alpha, which="both" if options.get("log_y") else "major")
+
+            ax.legend()
+
+        elif plot_type == "histogram_2d":
+            _plot_histogram_2d(fig, ax, data, options, config)
+
         else:
             raise ValueError(f"Unsupported plot type: {plot_type}")
-
-        # Customize plot
-        branch_name = data.get("metadata", {}).get("branch", "Value")
-        unit = options.get("unit", "")
-
-        # X Label
-        xlabel = options.get("xlabel", branch_name)
-        if unit:
-            xlabel += f" [{unit}]"
-        ax.set_xlabel(xlabel)
-
-        # Y Label
-        ylabel = options.get("ylabel")
-        if not ylabel:
-            # Auto-generate Y label
-            bin_width = plot_metadata.get("bin_width")
-            if bin_width:
-                # Format properly (e.g. 0.5 or 10)
-                width_str = f"{bin_width:.3g}"
-                if unit:
-                    ylabel = f"Entries / {width_str} {unit}"
-                else:
-                    ylabel = f"Entries / {width_str}"
-            else:
-                ylabel = "Entries"
-        ax.set_ylabel(ylabel)
-
-        ax.set_title(options.get("title", f"{branch_name} Distribution"))
-
-        # Styling
-        if options.get("log_y"):
-            ax.set_yscale("log")
-        if options.get("log_x"):
-            ax.set_xscale("log")
-
-        # Get grid alpha from config
-        if config and hasattr(config, "analysis") and hasattr(config.analysis, "plotting"):
-            plot_cfg = config.analysis.plotting
-            grid_alpha = plot_cfg.grid_alpha
-            grid_enabled = plot_cfg.grid_enabled
-        else:
-            grid_alpha = 0.3
-            grid_enabled = True
-
-        grid_style = options.get("grid", grid_enabled)
-        if grid_style:
-            ax.grid(True, alpha=grid_alpha, which="both" if options.get("log_y") else "major")
-
-        ax.legend()
 
         # Get DPI from config
         if config and hasattr(config, "analysis") and hasattr(config.analysis, "plotting"):
@@ -208,3 +212,49 @@ def _plot_histogram(
             )
 
     return {"bin_width": width}
+
+
+def _plot_histogram_2d(
+    fig: plt.Figure,
+    ax: plt.Axes,
+    data: dict[str, Any],
+    options: dict[str, Any],
+    config: Any | None = None,
+) -> None:
+    """Helper to plot 2D histogram."""
+    # Handle both formats
+    if "data" in data and "bin_edges_x" not in data:
+        hist_data = data["data"]
+    else:
+        hist_data = data
+
+    edges_x = np.array(hist_data["bin_edges_x"])
+    edges_y = np.array(hist_data["bin_edges_y"])
+    counts = np.array(hist_data["bin_counts"])
+
+    # Get options
+    colormap = options.get("colormap", "viridis")
+    log_z = options.get("log_z", False)
+    title = options.get("title", "2D Histogram")
+    xlabel = options.get("xlabel", "X")
+    ylabel = options.get("ylabel", "Y")
+
+    # Apply log scale to counts if requested
+    plot_counts = counts.T  # Transpose for correct orientation
+    if log_z:
+        plot_counts = np.where(plot_counts > 0, np.log10(plot_counts), 0)
+
+    # Create 2D histogram plot
+    im = ax.pcolormesh(edges_x, edges_y, plot_counts, cmap=colormap, shading="auto")
+
+    # Add colorbar
+    cbar = fig.colorbar(im, ax=ax)
+    if log_z:
+        cbar.set_label("log10(Entries)")
+    else:
+        cbar.set_label("Entries")
+
+    # Set labels and title
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
