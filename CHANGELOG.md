@@ -15,6 +15,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
     - `compute_histogram_2d` in `AnalysisTools`
   - **entry_start/entry_stop parameters**: Added support for `entry_start` and `entry_stop` parameters in `read_branches` to match MCP schema (converts to `offset` and `limit` internally)
   - **defines parameter**: Added automatic JSON parsing when `defines` parameter is passed as a string instead of a dictionary object (MCP client serialization issue)
+  - **Server routing**: Fixed `compute_histogram` and `compute_histogram_2d` to route through `AnalysisTools` wrapper instead of calling `HistogramOperations` directly, enabling proper `defines` parameter support
 
 
 ## [0.1.3] - 2026-01-15

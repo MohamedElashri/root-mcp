@@ -513,9 +513,9 @@ class ROOTMCPServer:
                     else:
                         # Delegate to appropriate handler
                         if name == "compute_histogram":
-                            result = self.histogram_ops.compute_histogram_1d(**arguments)
+                            result = self.analysis_tools.compute_histogram(**arguments)
                         elif name == "compute_histogram_2d":
-                            result = self.histogram_ops.compute_histogram_2d(**arguments)
+                            result = self.analysis_tools.compute_histogram_2d(**arguments)
                         elif name == "fit_histogram":
                             result = self.analysis_tools.fit_histogram(**arguments)
                         elif name == "compute_invariant_mass":
