@@ -223,14 +223,17 @@ def _plot_histogram_2d(
 ) -> None:
     """Helper to plot 2D histogram."""
     # Handle both formats
-    if "data" in data and "bin_edges_x" not in data:
+    if "data" in data:
         hist_data = data["data"]
     else:
         hist_data = data
 
-    edges_x = np.array(hist_data["bin_edges_x"])
-    edges_y = np.array(hist_data["bin_edges_y"])
-    counts = np.array(hist_data["bin_counts"])
+    # Handle different field naming conventions
+    # HistogramOperations uses: bin_edges_x, bin_edges_y, bin_counts
+    # AnalysisOperations uses: x_edges, y_edges, counts
+    edges_x = np.array(hist_data.get("bin_edges_x") or hist_data.get("x_edges"))
+    edges_y = np.array(hist_data.get("bin_edges_y") or hist_data.get("y_edges"))
+    counts = np.array(hist_data.get("bin_counts") or hist_data.get("counts"))
 
     # Get options
     colormap = options.get("colormap", "viridis")
