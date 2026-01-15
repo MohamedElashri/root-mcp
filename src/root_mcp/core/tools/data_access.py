@@ -69,6 +69,18 @@ class DataAccessTools:
         Returns:
             Branch data and metadata
         """
+        # Handle defines parameter if passed as JSON string
+        if defines is not None and isinstance(defines, str):
+            import json
+
+            try:
+                defines = json.loads(defines)
+            except json.JSONDecodeError as e:
+                return {
+                    "error": "invalid_parameter",
+                    "message": f"Invalid JSON in defines parameter: {e}",
+                }
+
         # Handle entry_start/entry_stop vs offset/limit
         if entry_start is not None:
             offset = entry_start

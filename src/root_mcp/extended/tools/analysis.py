@@ -72,6 +72,18 @@ class AnalysisTools:
         Returns:
             Histogram data and metadata
         """
+        # Handle defines parameter if passed as JSON string
+        if defines is not None and isinstance(defines, str):
+            import json
+
+            try:
+                defines = json.loads(defines)
+            except json.JSONDecodeError as e:
+                return {
+                    "error": "invalid_parameter",
+                    "message": f"Invalid JSON in defines parameter: {e}",
+                }
+
         # Validate path
         try:
             validated_path = self.path_validator.validate_path(path)
@@ -157,6 +169,18 @@ class AnalysisTools:
         Returns:
             2D histogram data and metadata
         """
+        # Handle defines parameter if passed as JSON string
+        if defines is not None and isinstance(defines, str):
+            import json
+
+            try:
+                defines = json.loads(defines)
+            except json.JSONDecodeError as e:
+                return {
+                    "error": "invalid_parameter",
+                    "message": f"Invalid JSON in defines parameter: {e}",
+                }
+
         # Validate path
         try:
             validated_path = self.path_validator.validate_path(path)

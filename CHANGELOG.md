@@ -7,15 +7,15 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ## [0.1.4] - 2026-01-15
 
 ### Fixed
-- **Critical Bug Fix**: Fixed parameter name mismatches in multiple tools causing "unexpected keyword argument" errors when called via MCP client:
+- **Critical Bug Fix**: Fixed parameter handling issues in multiple tools when called via MCP client:
   - **tree_name parameter**: The following functions had parameter `tree` but the MCP tool schema defined it as `tree_name`:
     - `list_branches` in `DiscoveryTools`
     - `read_branches` in `DataAccessTools`
     - `compute_histogram` in `AnalysisTools`
     - `compute_histogram_2d` in `AnalysisTools`
   - **entry_start/entry_stop parameters**: Added support for `entry_start` and `entry_stop` parameters in `read_branches` to match MCP schema (converts to `offset` and `limit` internally)
+  - **defines parameter**: Added automatic JSON parsing when `defines` parameter is passed as a string instead of a dictionary object (MCP client serialization issue)
 
-  All MCP-exposed tools now have consistent parameter names matching their tool schemas.
 
 ## [0.1.3] - 2026-01-15
 
