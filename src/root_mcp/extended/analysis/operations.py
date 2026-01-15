@@ -199,6 +199,9 @@ class AnalysisOperations:
             weights=weights_np,
         )
 
+        # Compute bin centers
+        centers = (edges[:-1] + edges[1:]) / 2
+
         # Compute errors (sqrt(N) for unweighted, proper for weighted)
         if weights_np is None:
             errors = np.sqrt(counts)
@@ -224,6 +227,7 @@ class AnalysisOperations:
         return {
             "data": {
                 "bin_edges": edges.tolist(),
+                "bin_centers": centers.tolist(),
                 "bin_counts": counts.tolist(),
                 "bin_errors": errors.tolist(),
                 "underflow": int(underflow),
@@ -349,10 +353,16 @@ class AnalysisOperations:
             range=[x_range, y_range],
         )
 
+        # Compute bin centers
+        x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+        y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+
         return {
             "data": {
                 "x_edges": x_edges.tolist(),
+                "x_centers": x_centers.tolist(),
                 "y_edges": y_edges.tolist(),
+                "y_centers": y_centers.tolist(),
                 "counts": counts.tolist(),
                 "entries": len(x_np),
             },
