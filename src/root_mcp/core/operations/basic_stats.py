@@ -57,17 +57,46 @@ class BasicStatistics:
         """
         tree = self.file_manager.get_tree(path, tree_name)
 
-        # Apply defines if provided
-        if defines:
-            for name, expr in defines.items():
-                tree = tree.Define(name, expr)
+        # Determine which branches to read from the tree
+        branches_to_read = set()
 
-        # Read data
-        arrays = tree.arrays(
-            filter_name=branches,
-            cut=selection,
-            library="ak",
-        )
+        # If we have defines, we need to read branches used in the expressions
+        if defines:
+            available_branches = set(tree.keys())
+
+            for expr in defines.values():
+                branches_to_read.update(self._extract_branches(expr, list(available_branches)))
+
+            # Add requested branches that exist in the tree (not defined variables)
+            for branch in branches:
+                if branch not in defines and branch in available_branches:
+                    branches_to_read.add(branch)
+        else:
+            # No defines, just read the requested branches
+            branches_to_read = set(branches)
+
+        # Read data (without selection first if we have defines)
+        if defines:
+            # Read without cut, apply selection after defines
+            arrays = tree.arrays(
+                filter_name=list(branches_to_read),
+                library="ak",
+            )
+
+            # Process defines by evaluating expressions
+            arrays = self._process_defines(arrays, defines)
+
+            # Apply selection after defines (so we can cut on defined variables)
+            if selection:
+                mask = self._evaluate_selection(arrays, selection)
+                arrays = arrays[mask]
+        else:
+            # No defines, can apply cut directly
+            arrays = tree.arrays(
+                filter_name=list(branches_to_read),
+                cut=selection,
+                library="ak",
+            )
 
         stats = {}
         for branch in branches:
@@ -213,6 +242,185 @@ class BasicStatistics:
                 "selection": selection,
             },
         }
+
+    def _process_defines(self, arrays: ak.Array, defines: dict[str, str]) -> ak.Array:
+        """
+        Process derived variable definitions by evaluating expressions with dependency resolution.
+
+        Args:
+            arrays: Input awkward array with existing fields
+            defines: Dictionary of {name: expression}
+
+        Returns:
+            Awkward array with new fields added
+        """
+        if not defines:
+            return arrays
+
+        # Create namespace with existing fields and numpy functions
+        namespace = {field: arrays[field] for field in arrays.fields}
+        namespace.update(
+            {
+                "sqrt": np.sqrt,
+                "abs": np.abs,
+                "log": np.log,
+                "exp": np.exp,
+                "sin": np.sin,
+                "cos": np.cos,
+                "tan": np.tan,
+                "arcsin": np.arcsin,
+                "arccos": np.arccos,
+                "arctan": np.arctan,
+                "arctan2": np.arctan2,
+            }
+        )
+
+        # Topologically sort defines to respect dependencies
+        sorted_defines = self._topological_sort_defines(defines, set(arrays.fields))
+
+        # Evaluate each define expression in dependency order
+        for name, expr in sorted_defines:
+            try:
+                # Simple eval with restricted namespace
+                result = eval(expr, {"__builtins__": {}}, namespace)
+                # Add the new field to the array
+                arrays = ak.with_field(arrays, result, name)
+                # Also add to namespace for subsequent defines
+                namespace[name] = result
+            except Exception as e:
+                logger.error(f"Failed to evaluate define '{name}': {expr} - {e}")
+                raise ValueError(f"Failed to evaluate define '{name}': {e}")
+
+        return arrays
+
+    def _topological_sort_defines(
+        self, defines: dict[str, str], available_fields: set[str]
+    ) -> list[tuple[str, str]]:
+        """
+        Topologically sort defines to respect dependencies.
+
+        Args:
+            defines: Dictionary of {name: expression}
+            available_fields: Set of fields already available (from tree)
+
+        Returns:
+            List of (name, expression) tuples in dependency order
+        """
+        import re
+
+        # Build dependency graph
+        dependencies = {}
+        for name, expr in defines.items():
+            # Extract identifiers from expression
+            tokens = set(re.findall(r"[A-Za-z_]\w*", expr))
+            # Filter to only defined variables (not built-in functions or already available fields)
+            reserved = {
+                "sqrt",
+                "abs",
+                "log",
+                "exp",
+                "sin",
+                "cos",
+                "tan",
+                "arcsin",
+                "arccos",
+                "arctan",
+                "arctan2",
+                "sinh",
+                "cosh",
+                "tanh",
+                "min",
+                "max",
+                "where",
+                "sum",
+                "any",
+                "all",
+            }
+            deps = [
+                t
+                for t in tokens
+                if t in defines and t not in reserved and t not in available_fields
+            ]
+            dependencies[name] = deps
+
+        # Topological sort using Kahn's algorithm
+        in_degree = {name: 0 for name in defines}
+        for deps in dependencies.values():
+            for dep in deps:
+                if dep in in_degree:
+                    in_degree[dep] += 1
+
+        # Find all nodes with no incoming edges
+        queue = [name for name, degree in in_degree.items() if degree == 0]
+        result = []
+
+        while queue:
+            # Sort queue for deterministic ordering
+            queue.sort()
+            name = queue.pop(0)
+            result.append((name, defines[name]))
+
+            # For each dependent of this node
+            for other_name, deps in dependencies.items():
+                if name in deps and other_name not in [r[0] for r in result]:
+                    in_degree[other_name] -= 1
+                    if in_degree[other_name] == 0:
+                        queue.append(other_name)
+
+        # Check for cycles
+        if len(result) != len(defines):
+            remaining = set(defines.keys()) - {r[0] for r in result}
+            raise ValueError(f"Circular dependency detected in defines: {remaining}")
+
+        return result
+
+    @staticmethod
+    def _extract_branches(expr: str, available_branches: list[str]) -> list[str]:
+        """Extract branch names from an expression."""
+        import re
+
+        available = set(available_branches)
+        tokens = set(re.findall(r"[A-Za-z_]\w*", expr))
+        # Filter out common function names and keywords
+        reserved = {
+            "sqrt",
+            "abs",
+            "log",
+            "exp",
+            "sin",
+            "cos",
+            "tan",
+            "arcsin",
+            "arccos",
+            "arctan",
+            "arctan2",
+        }
+        return [t for t in tokens if t in available and t not in reserved]
+
+    @staticmethod
+    def _evaluate_selection(arrays: ak.Array, selection: str) -> ak.Array:
+        """Evaluate a selection expression and return a boolean mask."""
+        # Create namespace with fields
+        namespace = {field: arrays[field] for field in arrays.fields}
+        namespace.update(
+            {
+                "sqrt": np.sqrt,
+                "abs": np.abs,
+            }
+        )
+
+        # Replace C++ style operators with Python equivalents
+        selection = selection.replace("&&", " and ").replace("||", " or ")
+
+        try:
+            mask = eval(selection, {"__builtins__": {}}, namespace)
+            # Handle jagged arrays - use ak.any for boolean reductions
+            if hasattr(mask, "ndim") and len(ak.to_layout(mask).form.fields) > 0:
+                mask = ak.any(mask, axis=-1)
+            return mask
+        except Exception as e:
+            logger.error(f"Failed to evaluate selection: {selection} - {e}")
+            raise ValueError(f"Failed to evaluate selection: {e}")
 
     @staticmethod
     def _is_jagged(array: ak.Array) -> bool:

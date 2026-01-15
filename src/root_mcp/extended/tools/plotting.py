@@ -39,6 +39,11 @@ class PlottingTools:
         self.path_validator = path_validator
         self.histogram_ops = histogram_ops
 
+        # Import AnalysisOperations for defines support
+        from root_mcp.extended.analysis.operations import AnalysisOperations
+
+        self.analysis_ops = AnalysisOperations(config, file_manager)
+
     def plot_histogram_1d(
         self,
         path: str,
@@ -110,17 +115,31 @@ class PlottingTools:
                     "message": f"Cannot create output directory: {e}",
                 }
 
-        # Compute histogram
+        # Compute histogram (use AnalysisOperations if defines are provided)
         try:
-            hist_result = self.histogram_ops.compute_histogram_1d(
-                path=str(validated_path),
-                tree_name=tree_name,
-                branch=branch,
-                bins=bins,
-                range=range,
-                selection=selection,
-                weights=weights,
-            )
+            if defines:
+                # Use AnalysisOperations which supports defines
+                hist_result = self.analysis_ops.compute_histogram(
+                    path=str(validated_path),
+                    tree_name=tree_name,
+                    branch=branch,
+                    bins=bins,
+                    range=range,
+                    selection=selection,
+                    weights=weights,
+                    defines=defines,
+                )
+            else:
+                # Use HistogramOperations for better performance when no defines
+                hist_result = self.histogram_ops.compute_histogram_1d(
+                    path=str(validated_path),
+                    tree_name=tree_name,
+                    branch=branch,
+                    bins=bins,
+                    range=range,
+                    selection=selection,
+                    weights=weights,
+                )
 
             if "error" in hist_result:
                 return hist_result
@@ -257,20 +276,36 @@ class PlottingTools:
                     "message": f"Cannot create output directory: {e}",
                 }
 
-        # Compute 2D histogram
+        # Compute 2D histogram (use AnalysisOperations if defines are provided)
         try:
-            hist_result = self.histogram_ops.compute_histogram_2d(
-                path=str(validated_path),
-                tree_name=tree_name,
-                branch_x=branch_x,
-                branch_y=branch_y,
-                bins_x=bins_x,
-                bins_y=bins_y,
-                range_x=range_x,
-                range_y=range_y,
-                selection=selection,
-                weights=weights,
-            )
+            if defines:
+                # Use AnalysisOperations which supports defines
+                hist_result = self.analysis_ops.compute_histogram_2d(
+                    path=str(validated_path),
+                    tree_name=tree_name,
+                    x_branch=branch_x,
+                    y_branch=branch_y,
+                    x_bins=bins_x,
+                    y_bins=bins_y,
+                    x_range=range_x,
+                    y_range=range_y,
+                    selection=selection,
+                    defines=defines,
+                )
+            else:
+                # Use HistogramOperations for better performance when no defines
+                hist_result = self.histogram_ops.compute_histogram_2d(
+                    path=str(validated_path),
+                    tree_name=tree_name,
+                    branch_x=branch_x,
+                    branch_y=branch_y,
+                    bins_x=bins_x,
+                    bins_y=bins_y,
+                    range_x=range_x,
+                    range_y=range_y,
+                    selection=selection,
+                    weights=weights,
+                )
 
             if "error" in hist_result:
                 return hist_result

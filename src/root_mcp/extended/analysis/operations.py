@@ -43,7 +43,7 @@ class AnalysisOperations:
 
     def _process_defines(self, arrays: ak.Array, defines: dict[str, str] | None) -> ak.Array:
         """
-        Process derived variable definitions.
+        Process derived variable definitions with dependency resolution.
 
         Args:
             arrays: Input ak.Array
@@ -58,14 +58,12 @@ class AnalysisOperations:
         # Create a mutable dict for evaluation
         names = {field: arrays[field] for field in arrays.fields}
 
-        # We need to respect dependencies, so we ideally sort them topologicaly
-        # For now, we assume user defines things in order or independent
-        # A robust solution would parse all dependencies first
+        # Topologically sort defines to respect dependencies
+        sorted_defines = self._topological_sort_defines(defines, set(arrays.fields))
 
-        for name, expr in defines.items():
+        for name, expr in sorted_defines:
             try:
                 # Evaluate expression
-                # We reuse the safe evaluator logic
                 translated_expr = translate_leaf_expr(expr)
                 tree = ast.parse(translated_expr, mode="eval")
                 result = SafeExprEvaluator(names).visit(tree)
@@ -73,17 +71,93 @@ class AnalysisOperations:
                 # Add to context
                 names[name] = result
 
-                # Ideally add back to array, but ak.Array is immutable in structure
-                # We can simulate it by keeping the 'names' dict as the truth
-                # For downstream consumers expecting an array with fields, we can zip it up
-
             except Exception as e:
                 logger.error(f"Failed to define {name} = {expr}: {e}")
                 raise ValueError(f"Failed to define {name}: {e}")
 
         # Construct new array with all original + new fields
-        # This is expensive if we duplicate data, so we use zip
         return ak.zip(names, depth_limit=1)
+
+    def _topological_sort_defines(
+        self, defines: dict[str, str], available_fields: set[str]
+    ) -> list[tuple[str, str]]:
+        """
+        Topologically sort defines to respect dependencies.
+
+        Args:
+            defines: Dictionary of {name: expression}
+            available_fields: Set of fields already available (from tree)
+
+        Returns:
+            List of (name, expression) tuples in dependency order
+        """
+        import re
+
+        # Build dependency graph
+        dependencies = {}
+        for name, expr in defines.items():
+            # Extract identifiers from expression
+            tokens = set(re.findall(r"[A-Za-z_]\w*", expr))
+            # Filter to only defined variables (not built-in functions or already available fields)
+            reserved = {
+                "sqrt",
+                "abs",
+                "log",
+                "exp",
+                "sin",
+                "cos",
+                "tan",
+                "arcsin",
+                "arccos",
+                "arctan",
+                "arctan2",
+                "sinh",
+                "cosh",
+                "tanh",
+                "min",
+                "max",
+                "where",
+                "sum",
+                "any",
+                "all",
+            }
+            deps = [
+                t
+                for t in tokens
+                if t in defines and t not in reserved and t not in available_fields
+            ]
+            dependencies[name] = deps
+
+        # Topological sort using Kahn's algorithm
+        in_degree = {name: 0 for name in defines}
+        for deps in dependencies.values():
+            for dep in deps:
+                if dep in in_degree:
+                    in_degree[dep] += 1
+
+        # Find all nodes with no incoming edges
+        queue = [name for name, degree in in_degree.items() if degree == 0]
+        result = []
+
+        while queue:
+            # Sort queue for deterministic ordering
+            queue.sort()
+            name = queue.pop(0)
+            result.append((name, defines[name]))
+
+            # For each dependent of this node
+            for other_name, deps in dependencies.items():
+                if name in deps and other_name not in [r[0] for r in result]:
+                    in_degree[other_name] -= 1
+                    if in_degree[other_name] == 0:
+                        queue.append(other_name)
+
+        # Check for cycles
+        if len(result) != len(defines):
+            remaining = set(defines.keys()) - {r[0] for r in result}
+            raise ValueError(f"Circular dependency detected in defines: {remaining}")
+
+        return result
 
     def compute_histogram(
         self,
