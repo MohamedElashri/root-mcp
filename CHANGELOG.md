@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.1.4] - 2026-01-15
+
+### Fixed
+- **Critical Bug Fix**: Fixed parameter name mismatch in `list_branches` tool causing "unexpected keyword argument 'tree_name'" error when called via MCP client. The function parameter was named `tree` but the MCP tool schema defined it as `tree_name`, causing all MCP client requests to fail.
+
 ## [0.1.3] - 2026-01-15
 
 ### Added

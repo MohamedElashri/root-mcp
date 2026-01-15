@@ -20,7 +20,7 @@ Controls server identity and operational mode.
 ```yaml
 server:
   name: "root-mcp"        # Server name (shown to AI)
-  version: "0.1.3"        # Version (auto-detected if omitted)
+  version: "0.1.4"        # Version (auto-detected if omitted)
   mode: "extended"        # "core" or "extended" - see Mode Selection below
 ```
 

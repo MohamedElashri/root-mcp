@@ -251,7 +251,7 @@ src/root_mcp/
 # Server settings
 server:
   name: "root-mcp"
-  version: "0.1.3"
+  version: "0.1.4"
   mode: "extended"  # "core" or "extended"
 
 # Core configuration (always loaded)
