@@ -67,6 +67,10 @@ class BasicStatistics:
             for expr in defines.values():
                 branches_to_read.update(self._extract_branches(expr, list(available_branches)))
 
+            # Add branches used in selection expression
+            if selection:
+                branches_to_read.update(self._extract_branches(selection, list(available_branches)))
+
             # Add requested branches that exist in the tree (not defined variables)
             for branch in branches:
                 if branch not in defines and branch in available_branches:
