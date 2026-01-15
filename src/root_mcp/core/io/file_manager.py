@@ -162,6 +162,7 @@ class FileManager:
             "compression": str(file_obj.compression) if hasattr(file_obj, "compression") else None,
             "keys": list(file_obj.keys()),
             "classnames": file_obj.classnames() if hasattr(file_obj, "classnames") else {},
+            "trees": self.list_trees(path),
         }
 
         # Get file size if local

@@ -66,12 +66,13 @@ class BasicStatistics:
         for branch in branches:
             data = arrays[branch]
 
-            # Flatten jagged arrays
+            # Flatten jagged arrays completely
             if self._is_jagged(data):
-                data = ak.flatten(data)
+                data = ak.flatten(data, axis=None)
 
             # Convert to numpy for stats
-            data_np = ak.to_numpy(data)
+            # Use np.asarray which handles awkward arrays better
+            data_np = np.asarray(data)
 
             # Filter out NaN and inf values
             data_np = data_np[np.isfinite(data_np)]
@@ -211,13 +212,9 @@ class BasicStatistics:
         """Check if array is jagged (variable-length)."""
         try:
             layout = ak.to_layout(array)
-            # Unwrap option/masked types
-            while hasattr(layout, "content"):
-                layout = layout.content
-
+            # Check the top-level layout type
             name = type(layout).__name__
-            if name == "RegularArray":
-                return False
-            return "ListArray" in name or "ListOffsetArray" in name
+            # ListOffsetArray and ListArray indicate jagged/variable-length arrays
+            return "ListArray" in name or "ListOffset" in name
         except Exception:
             return False

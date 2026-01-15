@@ -83,16 +83,16 @@ class HistogramOperations:
         # Get data
         data = arrays[branch]
         if self._is_jagged(data):
-            data = ak.flatten(data)
-        data_np = ak.to_numpy(data)
+            data = ak.flatten(data, axis=None)
+        data_np = np.asarray(data)
 
         # Get weights if specified
         weights_np = None
         if weights:
             weights_data = arrays[weights]
             if self._is_jagged(weights_data):
-                weights_data = ak.flatten(weights_data)
-            weights_np = ak.to_numpy(weights_data)
+                weights_data = ak.flatten(weights_data, axis=None)
+            weights_np = np.asarray(weights_data)
 
         # Determine range
         if range is None:
@@ -194,20 +194,20 @@ class HistogramOperations:
         data_y = arrays[branch_y]
 
         if self._is_jagged(data_x):
-            data_x = ak.flatten(data_x)
+            data_x = ak.flatten(data_x, axis=None)
         if self._is_jagged(data_y):
-            data_y = ak.flatten(data_y)
+            data_y = ak.flatten(data_y, axis=None)
 
-        data_x_np = ak.to_numpy(data_x)
-        data_y_np = ak.to_numpy(data_y)
+        data_x_np = np.asarray(data_x)
+        data_y_np = np.asarray(data_y)
 
         # Get weights if specified
         weights_np = None
         if weights:
             weights_data = arrays[weights]
             if self._is_jagged(weights_data):
-                weights_data = ak.flatten(weights_data)
-            weights_np = ak.to_numpy(weights_data)
+                weights_data = ak.flatten(weights_data, axis=None)
+            weights_np = np.asarray(weights_data)
 
         # Determine ranges
         if range_x is None:
@@ -367,12 +367,9 @@ class HistogramOperations:
         """Check if array is jagged (variable-length)."""
         try:
             layout = ak.to_layout(array)
-            while hasattr(layout, "content"):
-                layout = layout.content
-
+            # Check the top-level layout type
             name = type(layout).__name__
-            if name == "RegularArray":
-                return False
-            return "ListArray" in name or "ListOffsetArray" in name
+            # ListOffsetArray and ListArray indicate jagged/variable-length arrays
+            return "ListArray" in name or "ListOffset" in name
         except Exception:
             return False

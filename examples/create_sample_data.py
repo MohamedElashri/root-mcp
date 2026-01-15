@@ -186,27 +186,25 @@ def create_histogram_file(output_path: str) -> None:
     # Generate data for histograms
     np.random.seed(42)
 
-    # Create 1D histogram data
-    pt_data = np.random.exponential(30, size=100_000) + 10
-    eta_data = np.random.normal(0, 1.5, size=100_000)
-
-    # Histogram bins
+    # Create 1D histogram data - use explicit bin edges
     pt_bins = 100
-    pt_range = (0, 200)
-    eta_bins = 50
-    eta_range = (-5, 5)
+    pt_edges = np.linspace(0, 200, pt_bins + 1)
+    pt_data = np.random.exponential(30, size=100_000) + 10
+    pt_counts = np.histogram(pt_data, bins=pt_edges)[0].astype(np.float64)
 
-    # Compute histograms
-    pt_counts, pt_edges = np.histogram(pt_data, bins=pt_bins, range=pt_range)
-    eta_counts, eta_edges = np.histogram(eta_data, bins=eta_bins, range=eta_range)
+    eta_bins = 50
+    eta_edges = np.linspace(-5, 5, eta_bins + 1)
+    eta_data = np.random.normal(0, 1.5, size=100_000)
+    eta_counts = np.histogram(eta_data, bins=eta_edges)[0].astype(np.float64)
 
     # 2D histogram
-    counts_2d, eta_edges_2d, phi_edges_2d = np.histogram2d(
-        np.random.normal(0, 1.5, size=50_000),
-        np.random.uniform(-np.pi, np.pi, size=50_000),
-        bins=[50, 50],
-        range=[[-5, 5], [-np.pi, np.pi]],
-    )
+    eta_edges_2d = np.linspace(-5, 5, 51)
+    phi_edges_2d = np.linspace(-np.pi, np.pi, 51)
+    eta_2d_data = np.random.normal(0, 1.5, size=50_000)
+    phi_2d_data = np.random.uniform(-np.pi, np.pi, size=50_000)
+    counts_2d = np.histogram2d(eta_2d_data, phi_2d_data, bins=[eta_edges_2d, phi_edges_2d])[
+        0
+    ].astype(np.float64)
 
     output_path_obj = Path(output_path)
     output_path_obj.parent.mkdir(parents=True, exist_ok=True)
