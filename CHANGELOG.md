@@ -17,6 +17,17 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   - **defines parameter**: Added automatic JSON parsing when `defines` parameter is passed as a string instead of a dictionary object (MCP client serialization issue)
   - **Server routing**: Fixed `compute_histogram` and `compute_histogram_2d` to route through `AnalysisTools` wrapper instead of calling `HistogramOperations` directly, enabling proper `defines` parameter support
 
+### Added
+- **Plotting Tools**: Added dedicated plotting tools that create and save plots directly:
+  - `plot_histogram_1d`: Create 1D histogram plots with full customization (title, labels, log scale, style)
+  - `plot_histogram_2d`: Create 2D histogram plots (e.g., Dalitz plots, correlation plots)
+  - Both tools support `defines` parameter for server-side variable computation
+  - Plots are saved to specified output paths (PNG, PDF, SVG formats supported)
+  - Includes publication-ready styling options
+
+### Removed
+- **generate_plot tool**: Replaced with proper plotting tools that work directly with ROOT data instead of requiring pre-computed data objects
+
 
 ## [0.1.3] - 2026-01-15
 

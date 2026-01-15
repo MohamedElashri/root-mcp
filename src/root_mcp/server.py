@@ -85,7 +85,7 @@ class ROOTMCPServer:
                 KinematicsOperations,
                 CorrelationAnalysis,
             )
-            from root_mcp.extended.tools import AnalysisTools
+            from root_mcp.extended.tools import AnalysisTools, PlottingTools
 
             # Initialize extended components
             self.analysis_ops = AnalysisOperations(self.config, self.file_manager)
@@ -100,6 +100,13 @@ class ROOTMCPServer:
                 path_validator=self.path_validator,
                 analysis_ops=self.analysis_ops,
                 tree_reader=self.tree_reader,
+            )
+
+            self.plotting_tools = PlottingTools(
+                config=self.config,
+                file_manager=self.file_manager,
+                path_validator=self.path_validator,
+                histogram_ops=self.histogram_ops,
             )
 
             self._extended_components_loaded = True
@@ -415,17 +422,91 @@ class ROOTMCPServer:
                 },
             ),
             Tool(
-                name="generate_plot",
-                description="Generate plot from histogram or data",
+                name="plot_histogram_1d",
+                description="Create and save a 1D histogram plot with optional defines support",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string"},
-                        "tree_name": {"type": "string"},
-                        "branch": {"type": "string"},
-                        "output_path": {"type": "string"},
+                        "path": {"type": "string", "description": "File path"},
+                        "tree_name": {"type": "string", "description": "Tree name"},
+                        "branch": {"type": "string", "description": "Branch to histogram"},
+                        "bins": {"type": "integer", "description": "Number of bins"},
+                        "range": {
+                            "type": "array",
+                            "items": {"type": "number"},
+                            "description": "Histogram range [min, max]",
+                        },
+                        "selection": {"type": "string", "description": "Optional cut expression"},
+                        "weights": {"type": "string", "description": "Optional weight branch"},
+                        "defines": {
+                            "type": ["object", "string"],
+                            "description": "Derived variable definitions",
+                        },
+                        "output_path": {
+                            "type": "string",
+                            "description": "Output file path (e.g., /tmp/plot.png)",
+                        },
+                        "title": {"type": "string", "description": "Plot title"},
+                        "xlabel": {"type": "string", "description": "X-axis label"},
+                        "ylabel": {"type": "string", "description": "Y-axis label"},
+                        "log_y": {"type": "boolean", "description": "Use log scale for y-axis"},
+                        "style": {
+                            "type": "string",
+                            "enum": ["default", "publication", "presentation"],
+                            "description": "Plot style",
+                        },
                     },
-                    "required": ["path", "tree_name", "branch", "output_path"],
+                    "required": ["path", "tree_name", "branch", "bins", "output_path"],
+                },
+            ),
+            Tool(
+                name="plot_histogram_2d",
+                description="Create and save a 2D histogram plot (e.g., Dalitz plot)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path"},
+                        "tree_name": {"type": "string", "description": "Tree name"},
+                        "branch_x": {"type": "string", "description": "X-axis branch"},
+                        "branch_y": {"type": "string", "description": "Y-axis branch"},
+                        "bins_x": {"type": "integer", "description": "Number of bins in X"},
+                        "bins_y": {"type": "integer", "description": "Number of bins in Y"},
+                        "range_x": {
+                            "type": "array",
+                            "items": {"type": "number"},
+                            "description": "X-axis range [min, max]",
+                        },
+                        "range_y": {
+                            "type": "array",
+                            "items": {"type": "number"},
+                            "description": "Y-axis range [min, max]",
+                        },
+                        "selection": {"type": "string", "description": "Optional cut expression"},
+                        "weights": {"type": "string", "description": "Optional weight branch"},
+                        "defines": {
+                            "type": ["object", "string"],
+                            "description": "Derived variable definitions",
+                        },
+                        "output_path": {"type": "string", "description": "Output file path"},
+                        "title": {"type": "string", "description": "Plot title"},
+                        "xlabel": {"type": "string", "description": "X-axis label"},
+                        "ylabel": {"type": "string", "description": "Y-axis label"},
+                        "colormap": {"type": "string", "description": "Matplotlib colormap name"},
+                        "log_z": {"type": "boolean", "description": "Use log scale for color"},
+                        "style": {
+                            "type": "string",
+                            "enum": ["default", "publication", "presentation"],
+                        },
+                    },
+                    "required": [
+                        "path",
+                        "tree_name",
+                        "branch_x",
+                        "branch_y",
+                        "bins_x",
+                        "bins_y",
+                        "output_path",
+                    ],
                 },
             ),
         ]
@@ -502,7 +583,8 @@ class ROOTMCPServer:
                     "fit_histogram",
                     "compute_invariant_mass",
                     "compute_correlation",
-                    "generate_plot",
+                    "plot_histogram_1d",
+                    "plot_histogram_2d",
                 ]:
                     if self.current_mode != "extended" or not self._extended_components_loaded:
                         result = {
@@ -522,8 +604,10 @@ class ROOTMCPServer:
                             result = self.kinematics_ops.compute_invariant_mass(**arguments)
                         elif name == "compute_correlation":
                             result = self.correlation_analysis.compute_correlation(**arguments)
-                        elif name == "generate_plot":
-                            result = self.analysis_tools.generate_plot(**arguments)
+                        elif name == "plot_histogram_1d":
+                            result = self.plotting_tools.plot_histogram_1d(**arguments)
+                        elif name == "plot_histogram_2d":
+                            result = self.plotting_tools.plot_histogram_2d(**arguments)
 
                 else:
                     result = {

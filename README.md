@@ -1,4 +1,4 @@
-# ROOT-MCP: AI-Powered HEP Analysis
+# ROOT-MCP: LLM Powered HEP Analysis
 
 [![CI](https://github.com/MohamedElashri/root-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedElashri/root-mcp/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/root-mcp.svg)](https://pypi.org/project/root-mcp/)
