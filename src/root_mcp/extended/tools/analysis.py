@@ -48,7 +48,7 @@ class AnalysisTools:
     def compute_histogram(
         self,
         path: str,
-        tree: str,
+        tree_name: str,
         branch: str,
         bins: int,
         range: tuple[float, float] | None = None,
@@ -61,7 +61,7 @@ class AnalysisTools:
 
         Args:
             path: File path
-            tree: Tree name
+            tree_name: Tree name
             branch: Branch to histogram
             bins: Number of bins
             range: (min, max) for histogram
@@ -85,7 +85,7 @@ class AnalysisTools:
         try:
             result = self.analysis_ops.compute_histogram(
                 path=str(validated_path),
-                tree_name=tree,
+                tree_name=tree_name,
                 branch=branch,
                 bins=bins,
                 range=range,
@@ -129,7 +129,7 @@ class AnalysisTools:
     def compute_histogram_2d(
         self,
         path: str,
-        tree: str,
+        tree_name: str,
         x_branch: str,
         y_branch: str,
         x_bins: int,
@@ -144,7 +144,7 @@ class AnalysisTools:
 
         Args:
             path: File path
-            tree: Tree name
+            tree_name: Tree name
             x_branch: X-axis branch
             y_branch: Y-axis branch
             x_bins: Number of bins in x
@@ -170,7 +170,7 @@ class AnalysisTools:
         try:
             result = self.analysis_ops.compute_histogram_2d(
                 path=str(validated_path),
-                tree_name=tree,
+                tree_name=tree_name,
                 x_branch=x_branch,
                 y_branch=y_branch,
                 x_bins=x_bins,

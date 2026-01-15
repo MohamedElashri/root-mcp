@@ -41,11 +41,13 @@ class DataAccessTools:
     def read_branches(
         self,
         path: str,
-        tree: str,
+        tree_name: str,
         branches: list[str],
         selection: str | None = None,
         limit: int | None = None,
         offset: int = 0,
+        entry_start: int | None = None,
+        entry_stop: int | None = None,
         flatten: bool = False,
         defines: dict[str, str] | None = None,
     ) -> dict[str, Any]:
@@ -54,17 +56,25 @@ class DataAccessTools:
 
         Args:
             path: File path
-            tree: Tree name
+            tree_name: Tree name
             branches: List of branch names (can include derived branches from defines)
             selection: Optional cut expression
-            limit: Maximum entries to return
-            offset: Number of entries to skip
+            limit: Maximum entries to return (alternative to entry_stop)
+            offset: Number of entries to skip (alternative to entry_start)
+            entry_start: Start entry index (alternative to offset)
+            entry_stop: Stop entry index (alternative to limit)
             flatten: Flatten jagged arrays
             defines: Optional derived variable definitions {name: expression}
 
         Returns:
             Branch data and metadata
         """
+        # Handle entry_start/entry_stop vs offset/limit
+        if entry_start is not None:
+            offset = entry_start
+        if entry_stop is not None:
+            limit = entry_stop - offset
+
         # Validate path
         try:
             validated_path = self.path_validator.validate_path(path)
@@ -91,7 +101,7 @@ class DataAccessTools:
         try:
             result = self.tree_reader.read_branches(
                 path=str(validated_path),
-                tree_name=tree,
+                tree_name=tree_name,
                 branches=branches,
                 selection=selection,
                 limit=limit,
