@@ -24,6 +24,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   - Both tools support `defines` parameter for server-side variable computation
   - Plots are saved to specified output paths (PNG, PDF, SVG formats supported)
   - Includes publication-ready styling options
+- **defines support for get_branch_stats**: Added `defines` parameter to `get_branch_stats` tool, enabling statistics computation on derived variables (e.g., compute stats for invariant mass without reading all momentum components)
 
 ### Removed
 - **generate_plot tool**: Replaced with proper plotting tools that work directly with ROOT data instead of requiring pre-computed data objects

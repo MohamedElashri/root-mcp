@@ -285,7 +285,7 @@ class ROOTMCPServer:
             ),
             Tool(
                 name="get_branch_stats",
-                description="Get statistics for branches",
+                description="Get statistics for branches (supports derived variables via defines)",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -293,6 +293,10 @@ class ROOTMCPServer:
                         "tree_name": {"type": "string", "description": "Tree name"},
                         "branches": {"type": "array", "items": {"type": "string"}},
                         "selection": {"type": "string", "description": "Optional cut expression"},
+                        "defines": {
+                            "type": ["object", "string"],
+                            "description": "Derived variable definitions",
+                        },
                     },
                     "required": ["path", "tree_name", "branches"],
                 },
@@ -554,11 +558,26 @@ class ROOTMCPServer:
                 elif name == "read_branches":
                     result = self.data_access_tools.read_branches(**arguments)
                 elif name == "get_branch_stats":
+                    # Handle defines parameter if passed as JSON string
+                    defines = arguments.get("defines")
+                    if defines is not None and isinstance(defines, str):
+                        import json
+
+                        try:
+                            defines = json.loads(defines)
+                        except json.JSONDecodeError:
+                            result = {
+                                "error": "invalid_parameter",
+                                "message": "Invalid JSON in defines parameter",
+                            }
+                            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
                     result = self.basic_stats.compute_stats(
                         arguments["path"],
                         arguments["tree_name"],
                         arguments["branches"],
                         arguments.get("selection"),
+                        defines,
                     )
                 elif name == "export_data":
                     # Read data directly for export

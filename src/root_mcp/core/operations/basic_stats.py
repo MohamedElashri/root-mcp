@@ -40,6 +40,7 @@ class BasicStatistics:
         tree_name: str,
         branches: list[str],
         selection: str | None = None,
+        defines: dict[str, str] | None = None,
     ) -> dict[str, dict[str, float]]:
         """
         Compute basic statistics for branches.
@@ -49,11 +50,17 @@ class BasicStatistics:
             tree_name: Tree name
             branches: List of branch names
             selection: Optional cut expression
+            defines: Optional derived variable definitions
 
         Returns:
             Dictionary mapping branch names to statistics
         """
         tree = self.file_manager.get_tree(path, tree_name)
+
+        # Apply defines if provided
+        if defines:
+            for name, expr in defines.items():
+                tree = tree.Define(name, expr)
 
         # Read data
         arrays = tree.arrays(
