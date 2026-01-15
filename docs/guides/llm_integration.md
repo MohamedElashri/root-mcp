@@ -1,6 +1,125 @@
 # LLM Integration Guide
 
-`ROOT-MCP` is designed primarily to give Large Language Models (LLMs) like Claude capabilities to interact with High Energy Physics (HEP) data. This guide explains how to effectively use `ROOT-MCP` in an agentic workflow.
+`ROOT-MCP` is designed primarily to give LLMs like Claude and Gemini Models through clients capabilities to interact with HEP data. This guide explains how to effectively use `ROOT-MCP` in an agentic workflow.
+
+## Setup with Different LLM Clients
+
+### Claude Desktop
+
+Add to your Claude Desktop configuration file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "env": {
+        "ROOT_MCP_CONFIG": "/path/to/your/config.yaml"
+      }
+    }
+  }
+}
+```
+
+### Gemini CLI
+
+Gemini CLI supports MCP servers through settings files. You can configure ROOT-MCP either globally or per-project.
+
+#### Global Configuration (All Sessions)
+
+Add to `~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "python",
+      "args": ["-m", "root_mcp.server"],
+      "env": {
+        "ROOT_MCP_CONFIG": "/path/to/your/config.yaml"
+      }
+    }
+  }
+}
+```
+
+This makes ROOT-MCP available in every Gemini CLI session.
+
+#### Project-Specific Configuration
+
+Add to `/path/to/your/project/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "python",
+      "args": ["-m", "root_mcp.server"],
+      "env": {
+        "ROOT_MCP_CONFIG": "./config.yaml"
+      }
+    }
+  }
+}
+```
+
+This makes ROOT-MCP available only in Gemini CLI sessions created under that project folder.
+
+**Recommended Configuration (Virtual Environment):**
+
+For production use, we recommend explicitly specifying all paths for better control and debugging:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/path/to/venv/bin/python",
+      "args": [
+        "-m",
+        "root_mcp.server",
+        "--config",
+        "/path/to/config.yaml"
+      ],
+      "env": {
+        "ROOT_DATA_PATH": "/path/to/data"
+      }
+    }
+  }
+}
+```
+
+This format:
+- Uses the virtual environment's Python interpreter explicitly
+- Passes the config file as a command-line argument (more explicit than environment variable)
+- Sets `ROOT_DATA_PATH` for easy data directory access
+- Makes debugging easier by showing all paths clearly
+
+**Simpler Alternative:**
+
+If you prefer environment variables:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/path/to/venv/bin/python",
+      "args": ["-m", "root_mcp.server"],
+      "env": {
+        "ROOT_MCP_CONFIG": "/path/to/config.yaml"
+      }
+    }
+  }
+}
+```
+
+**Verification:**
+
+After configuration, restart Gemini CLI and verify ROOT-MCP tools are available by asking:
+```
+What MCP tools are available?
+```
+
+---
 
 ## The Analyst Agent Pattern
 
