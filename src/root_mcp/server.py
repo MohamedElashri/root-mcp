@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import logging
 import sys
@@ -15,10 +16,11 @@ from root_mcp.core.io import FileManager, PathValidator, TreeReader, HistogramRe
 from root_mcp.core.operations import BasicStatistics
 from root_mcp.core.tools import DiscoveryTools, DataAccessTools
 
-# Setup logging
+# Setup logging - must use stderr to avoid interfering with stdio MCP protocol
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stderr,
 )
 logger = logging.getLogger(__name__)
 
@@ -294,8 +296,8 @@ class ROOTMCPServer:
                         "branches": {"type": "array", "items": {"type": "string"}},
                         "selection": {"type": "string", "description": "Optional cut expression"},
                         "defines": {
-                            "type": ["object", "string"],
-                            "description": "Derived variable definitions",
+                            "type": "object",
+                            "description": "Derived variable definitions (dict of name: expression)",
                         },
                     },
                     "required": ["path", "tree_name", "branches"],
@@ -443,8 +445,8 @@ class ROOTMCPServer:
                         "selection": {"type": "string", "description": "Optional cut expression"},
                         "weights": {"type": "string", "description": "Optional weight branch"},
                         "defines": {
-                            "type": ["object", "string"],
-                            "description": "Derived variable definitions",
+                            "type": "object",
+                            "description": "Derived variable definitions (dict of name: expression)",
                         },
                         "output_path": {
                             "type": "string",
@@ -488,8 +490,8 @@ class ROOTMCPServer:
                         "selection": {"type": "string", "description": "Optional cut expression"},
                         "weights": {"type": "string", "description": "Optional weight branch"},
                         "defines": {
-                            "type": ["object", "string"],
-                            "description": "Derived variable definitions",
+                            "type": "object",
+                            "description": "Derived variable definitions (dict of name: expression)",
                         },
                         "output_path": {"type": "string", "description": "Output file path"},
                         "title": {"type": "string", "description": "Plot title"},
@@ -659,8 +661,16 @@ class ROOTMCPServer:
 
 def main() -> None:
     """Main entry point."""
+    parser = argparse.ArgumentParser(description="ROOT-MCP Server")
+    parser.add_argument(
+        "--config",
+        type=str,
+        help="Path to configuration file (overrides ROOT_MCP_CONFIG env var)",
+    )
+    args = parser.parse_args()
+
     try:
-        config = load_config()
+        config = load_config(args.config)
     except Exception as e:
         logger.error(f"Failed to load configuration: {e}")
         sys.exit(1)
