@@ -17,12 +17,15 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   - **entry_start/entry_stop parameters**: Added support for `entry_start` and `entry_stop` parameters in `read_branches` to match MCP schema (converts to `offset` and `limit` internally)
   - **defines parameter**: Added automatic JSON parsing when `defines` parameter is passed as a string instead of a dictionary object (MCP client serialization issue)
   - **Server routing**: Fixed `compute_histogram` and `compute_histogram_2d` to route through `AnalysisTools` wrapper instead of calling `HistogramOperations` directly, enabling proper `defines` parameter support
+  - **Tool Parameter Compliance**: Updated `fit_histogram` schema to correctly accept composite models (lists) and file-related arguments (`path`, `tree_name`, etc.) for on-the-fly computation.
+  - **Plot Output**: Fixed critical issue where `plot_histogram_1d` and `plot_histogram_2d` failed to write image files to disk despite reporting success.
 
 ### Added
 - **Plotting Tools**: Added dedicated plotting tools that create and save plots directly:
   - `plot_histogram_1d`: Create 1D histogram plots with full customization (title, labels, log scale, style)
   - `plot_histogram_2d`: Create 2D histogram plots (e.g., Dalitz plots, correlation plots)
   - Both tools support `defines` parameter for server-side variable computation
+  - **Pre-calculated Data**: Supports plotting memory-resident data (e.g. calculated asymmetry maps) via `data` argument, bypassing ROOT file requirements
   - Plots are saved to specified output paths (PNG, PDF, SVG formats supported)
   - Includes publication-ready styling options
 - **defines support for get_branch_stats**: Added `defines` parameter to `get_branch_stats` tool, enabling statistics computation on derived variables (e.g., compute stats for invariant mass without reading all momentum components)
