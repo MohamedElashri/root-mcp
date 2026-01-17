@@ -183,6 +183,26 @@ output:
 - Must differ from input file path
 - All exports logged for audit trail
 
+### Project-Local Output
+
+To save plots and exports within your project directory (e.g., `./plots`), update your configuration:
+
+1.  Create the directory in your project root: `mkdir -p plots`
+2.  Add the directory to `security.allowed_roots`
+3.  Set `output.export_base_path` to this directory
+
+```yaml
+security:
+  allowed_roots:
+    - "/path/to/project/data"
+    - "/path/to/project/plots"  # Must be explicitly allowed
+
+output:
+  export_base_path: "/path/to/project/plots"
+```
+
+**Note**: When using tools that accept output paths, you can use relative paths (e.g., `plots/output.png`) if the server is running from the project root. However, absolute paths are recommended for configuration settings.
+
 ### Feature Flags
 
 Enable/disable experimental features.
