@@ -259,6 +259,8 @@ Read branch data from TTree with optional filtering and derived branches.
 | `selection` | `string` | No | Cut expression (e.g., `'pt > 20'`) |
 | `limit` | `integer` | No | Maximum entries to return |
 | `offset` | `integer` | No | Number of entries to skip |
+| `entry_start` | `integer` | No | Start entry (alternative to offset) |
+| `entry_stop` | `integer` | No | Stop entry (alternative to limit) |
 | `flatten` | `boolean` | No | Flatten jagged arrays |
 | `defines` | `object` | No | Derived variables `{name: expr}` |
 
@@ -331,6 +333,7 @@ Compute basic statistics for branches.
 | `tree` | `string` | Yes | TTree name |
 | `branches` | `string[]` | Yes | Branch names |
 | `selection` | `string` | No | Optional cut expression |
+| `defines` | `object` | No | Derived variables `{name: expr}` |
 
 **Example**:
 
@@ -536,7 +539,8 @@ Create 1D histogram with optional fitting support.
 | `range` | `[min, max]` | No | Range (auto if omitted) |
 | `selection` | `string` | No | Cut expression |
 | `weights` | `string` | No | Weight branch name |
-| `fit_model` | `string` | No | Model: `"gaussian"`, `"exponential"`, `"polynomial"`, `"crystal_ball"` |
+| `defines` | `object` | No | Derived variables `{name: expr}` |
+| `fit_model` | `string` | No | Model (see fit_histogram) |
 | `fit_range` | `[min, max]` | No | Fit range |
 
 **Example**:
@@ -607,6 +611,7 @@ Create 2D histogram for correlation studies.
 | `range_x` | `[min, max]` | No | X range |
 | `range_y` | `[min, max]` | No | Y range |
 | `selection` | `string` | No | Cut expression |
+| `defines` | `object` | No | Derived variables `{name: expr}` |
 
 **Example**:
 
@@ -798,103 +803,7 @@ Calculate invariant mass from particle 4-vectors.
     "entries": 5432
   },
   "metadata": {
-    "n_particles": 2,
-    "selection": "muon1_pt > 20 && muon2_pt > 20"
-  }
-}
-```
-
----
-
-### `compute_transverse_mass`
-
-Calculate transverse mass (for W→lν analyses).
-
-**Mode**: Extended only
-
-**Arguments**:
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `path` | `string` | Yes | ROOT file path |
-| `tree` | `string` | Yes | TTree name |
-| `lepton_pt` | `string` | Yes | Lepton pT branch |
-| `lepton_phi` | `string` | Yes | Lepton φ branch |
-| `met` | `string` | Yes | Missing ET branch |
-| `met_phi` | `string` | Yes | Missing ET φ branch |
-| `selection` | `string` | No | Cut expression |
-
-**Example**:
-
-```json
-{
-  "tool": "compute_transverse_mass",
-  "arguments": {
-    "path": "/data/sample.root",
-    "tree": "events",
-    "lepton_pt": "electron_pt",
-    "lepton_phi": "electron_phi",
-    "met": "met",
-    "met_phi": "met_phi",
-    "selection": "electron_pt > 30 && met > 30"
-  }
-}
-```
-
-**Response**:
-
-```json
-{
-  "data": {
-    "transverse_mass": [75.3, 82.1, 79.8, ...],
-    "entries": 3421
-  }
-}
-```
-
----
-
-### `compute_delta_r`
-
-Calculate ΔR angular separation between particles.
-
-**Mode**: Extended only
-
-**Arguments**:
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `path` | `string` | Yes | ROOT file path |
-| `tree` | `string` | Yes | TTree name |
-| `eta_1` | `string` | Yes | First particle η |
-| `phi_1` | `string` | Yes | First particle φ |
-| `eta_2` | `string` | Yes | Second particle η |
-| `phi_2` | `string` | Yes | Second particle φ |
-| `selection` | `string` | No | Cut expression |
-
-**Example**:
-
-```json
-{
-  "tool": "compute_delta_r",
-  "arguments": {
-    "path": "/data/sample.root",
-    "tree": "events",
-    "eta_1": "jet1_eta",
-    "phi_1": "jet1_phi",
-    "eta_2": "jet2_eta",
-    "phi_2": "jet2_phi"
-  }
-}
-```
-
-**Response**:
-
-```json
-{
-  "data": {
-    "delta_r": [0.8, 1.2, 2.5, ...],
-    "entries": 10000
+    "entries_processed": 5432
   }
 }
 ```
@@ -1028,12 +937,98 @@ Generate a 2D histogram plot. Can compute from file OR plot pre-calculated data.
 
 **Response**:
 
+```
+
+---
+
+### `plot_histogram_1d`
+
+Generate a 1D histogram plot.
+
+**Mode**: Extended only
+
+**Arguments**:
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `output_path` | `string` | Yes | Output file path (e.g. "/tmp/plot.png") |
+| `data` | `object` | No | Pre-calculated histogram data |
+| `path` | `string` | No | ROOT file path (if data omitted) |
+| `tree` | `string` | No | TTree name (if data omitted) |
+| `branch` | `string` | No | Branch name (if data omitted) |
+| `bins` | `integer` | No | Number of bins |
+| `range` | `[min, max]` | No | Range |
+| `selection` | `string` | No | Cut expression |
+| `weights` | `string` | No | Weight branch name |
+| `defines` | `object` | No | Derived variables |
+| `title` | `string` | No | Plot title |
+| `xlabel` | `string` | No | X-axis label |
+| `ylabel` | `string` | No | Y-axis label |
+| `log_y` | `boolean` | No | Log scale Y axis |
+| `style` | `string` | No | Plot style ("default", "publication", "presentation") |
+
+**Example (From Data)**:
+
+```json
+{
+  "tool": "plot_histogram_1d",
+  "arguments": {
+    "data": { ... },
+    "output_path": "/tmp/mass_plot.png",
+    "title": "Mass Distribution"
+  }
+}
+```
+
+---
+
+### `plot_histogram_2d`
+
+Generate a 2D histogram plot.
+
+**Mode**: Extended only
+
+**Arguments**:
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `output_path` | `string` | Yes | Output file path |
+| `data` | `object` | No | Pre-calculated 2D data |
+| `path` | `string` | No | ROOT file path (if data omitted) |
+| `tree` | `string` | No | TTree name (if data omitted) |
+| `branch_x` | `string` | No | X Branch |
+| `branch_y` | `string` | No | Y Branch |
+| `bins_x` | `integer` | No | X bins |
+| `bins_y` | `integer` | No | Y bins |
+| `range_x` | `[min, max]` | No | X Range |
+| `range_y` | `[min, max]` | No | Y Range |
+| `selection` | `string` | No | Cut expression |
+| `defines` | `object` | No | Derived variables |
+| `colormap` | `string` | No | Matplotlib colormap (e.g. "viridis") |
+| `log_z` | `boolean` | No | Log scale color |
+| `style` | `string` | No | Plot style |
+
+**Example (From Data)**:
+
+```json
+{
+  "tool": "plot_histogram_2d",
+  "arguments": {
+    "data": { ... },
+    "output_path": "/tmp/correlation.png",
+    "colormap": "inferno"
+  }
+}
+```
+
+**Response**:
+
 ```json
 {
   "data": {
-    "output_path": "/exports/correlation.png",
+    "plot_path": "/tmp/correlation.png",
     "format": "png",
-    "size_bytes": 123456
+    "statistics": { ... }
   }
 }
 ```

@@ -10,8 +10,8 @@
 By exposing a set of specialized tools via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), it turns Claude (and other MCP-compliant agents) into capable physics research assistants that can:
 - **Inspect** ROOT file structures (Trees, Branches, Histograms)
 - **Analyze** data distributions (Compute Histograms, Statistics)
-- **Compute** kinematic quantities (invariant masses, angular correlations for Dalitz plots)
-- **Visualize** results directly in the chat
+- **Compute** kinematic quantities (Invariant Mass)
+- **Visualize** results (Plot 1D/2D histograms directly)
 - **Filter** data using physics cuts ("selections")
 
 > **Why this matters**: Instead of asking an LLM to "write a script" that you have to debug and run, you can ask the LLM to *"Check the muon pT distribution in this file"* and it will **just do it**.

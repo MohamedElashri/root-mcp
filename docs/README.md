@@ -16,8 +16,7 @@ Welcome to the comprehensive documentation for **ROOT-MCP**, the Model Context P
 - **[Mode Selection Guide](guides/modes.md)**: Core vs Extended mode explained
 
 ### Using ROOT-MCP
-- **[LLM Integration Guide](guides/llm_integration.md)**: Working with AI assistants like Claude
-- **[Kinematics Calculations](guides/compute_kinematics.md)**: Physics analysis examples
+- **[LLM Integration Guide](guides/llm_integration.md)**: Working with AI assistants like Claude (includes Kinematics examples)
 
 ## API Reference
 
@@ -45,8 +44,7 @@ docs/
 ├── guides/
 │   ├── modes.md                 # Mode selection guide
 │   ├── configuration.md         # Configuration reference
-│   ├── llm_integration.md       # AI assistant integration
-│   └── compute_kinematics.md    # Physics analysis examples
+│   ├── llm_integration.md       # AI assistant integration & Advanced examples
 └── api/
     └── tools.md                 # Complete tool reference
 ```

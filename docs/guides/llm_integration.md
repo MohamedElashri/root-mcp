@@ -187,3 +187,39 @@ One of the hardest parts for LLMs is understanding jagged arrays (e.g., multiple
 - **Tip**: Remind the LLM that `nmuon_pt` or `Muon_PT` is a list.
 - **Selection Logic**: `Muon_PT > 50` selects events where *any* muon has pT > 50.
 - **Flattening**: Use `read_branches(flatten=True)` if you want a flat list of all muons from all events, ignoring event boundaries.
+
+## Advanced Analysis Examples
+
+### Kinematics: Invariant Mass Calculation
+
+The `compute_invariant_mass` tool calculates the invariant mass of particle systems from their four-momentum components ($p_T, \eta, \phi, m$). This is essential for reconstructing resonances (e.g., $Z \to \mu^+\mu^-$) and analyzing decay chains.
+
+**Workflow Example**:
+
+1.  **Calculate Mass**: Use `compute_invariant_mass` to calculate the physics quantity.
+2.  **Visualize**: Use `compute_histogram` with the resulting mass data (or `plot_histogram_1d` if available) or export the data.
+
+**Example Tool Call**:
+
+```json
+{
+  "tool": "compute_invariant_mass",
+  "arguments": {
+    "path": "/data/drell_yan.root",
+    "tree": "events",
+    "pt_branches": ["mu1_pt", "mu2_pt"],
+    "eta_branches": ["mu1_eta", "mu2_eta"],
+    "phi_branches": ["mu1_phi", "mu2_phi"],
+    "mass_branches": ["mu1_mass", "mu2_mass"],
+    "selection": "mu1_pt > 20 && mu2_pt > 20"
+  }
+}
+```
+
+> **Note**: Currently, `compute_invariant_mass` returns the raw array of mass values. To plot this, you would typically follow up by asking the agent to "histogram the returned values".
+
+### Common Issues in Kinematics
+
+- **Unit Consistency**: Ensure all branches use the same units (typically GeV or MeV).
+- **Branch Matching**: The order of branches in the lists matters. `pt_branches[0]` corresponds to `eta_branches[0]`.
+- **Missing Energy**: This tool calculates visible mass. For neutrinos (transverse mass), explicit calculation using `defines` in `read_branches` is recommended.
