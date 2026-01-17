@@ -68,6 +68,16 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         "n_params": 2,
         "param_names": ["c1", "c0"],
     },  # Linear default
+    "polynomial_2": {
+        "func": polynomial,
+        "n_params": 3,
+        "param_names": ["c2", "c1", "c0"],
+    },  # Quadratic
+    "polynomial_3": {
+        "func": polynomial,
+        "n_params": 4,
+        "param_names": ["c3", "c2", "c1", "c0"],
+    },  # Cubic
     "crystal_ball": {
         "func": crystal_ball,
         "n_params": 5,
@@ -128,8 +138,9 @@ def _get_default_guess(model: str, x: np.ndarray, y: np.ndarray) -> list[float]:
         return [amp, mean, sigma]
     elif model == "exponential":
         return [np.max(y), (x[-1] - x[0]) / 2]
-    elif model == "polynomial":
-        return [0.0] * 2
+    elif model.startswith("polynomial"):
+        n_params = MODEL_REGISTRY[model]["n_params"]
+        return [0.0] * n_params
     elif model == "crystal_ball":
         mean = np.average(x, weights=y)
         sigma = np.sqrt(np.average((x - mean) ** 2, weights=y))
@@ -229,11 +240,79 @@ def fit_histogram(
         param_names = params
 
     elif isinstance(model, str):
+        # Check for dynamic polynomial (inferred from initial guess)
+        if model == "polynomial" and initial_guess is not None:
+            n = len(initial_guess)
+            fit_func = MODEL_REGISTRY["polynomial"]["func"]
+            # Create param names cN-1 ... c0
+            param_names = [f"c{n - 1 - i}" for i in range(n)]
+
         # Single built-in model
-        if model not in MODEL_REGISTRY:
-            raise ValueError(f"Unknown model: {model}. Available: {list(MODEL_REGISTRY.keys())}")
-        fit_func = MODEL_REGISTRY[model]["func"]
-        param_names = MODEL_REGISTRY[model]["param_names"]
+        elif model in MODEL_REGISTRY:
+            fit_func = MODEL_REGISTRY[model]["func"]
+            param_names = MODEL_REGISTRY[model]["param_names"]
+
+        # Try auto-detect custom formula
+        else:
+            try:
+                # Attempt to extract parameters from expression
+                import re
+
+                expr = model
+                # Use same reserved keywords as operations.py
+                reserved = {
+                    "sqrt",
+                    "abs",
+                    "log",
+                    "exp",
+                    "sin",
+                    "cos",
+                    "tan",
+                    "arcsin",
+                    "arccos",
+                    "arctan",
+                    "arctan2",
+                    "sinh",
+                    "cosh",
+                    "tanh",
+                    "min",
+                    "max",
+                    "where",
+                    "sum",
+                    "any",
+                    "all",
+                    "pi",
+                    "e",
+                }
+
+                # Extract all identifiers
+                tokens = re.findall(r"[A-Za-z_]\w*", expr)
+
+                # Filter for parameters (exclude 'x' and reserved)
+                params_seen = set()
+                params = []
+                for t in tokens:
+                    if t != "x" and t not in reserved and t not in params_seen:
+                        params.append(t)
+                        params_seen.add(t)
+
+                if not params:
+                    # If no params found (e.g. "x**2"), technically valid with 0 params,
+                    # but likely user error or simple func. Use CustomModel.
+                    pass
+
+                # Create custom model
+                fit_instance = CustomModel(expr, params)
+                fit_func = fit_instance
+                param_names = params
+
+            except Exception:
+                # If parsing fails or logic fails, raise original error
+                raise ValueError(
+                    f"Unknown model: '{model}'. For custom formulas, use a dictionary "
+                    f'(e.g., {{"expr": "a*x+b", "params": ["a", "b"]}}). '
+                    f"Available built-ins: {list(MODEL_REGISTRY.keys())}"
+                )
 
     elif isinstance(model, list):
         # Composite Model logic (as before)

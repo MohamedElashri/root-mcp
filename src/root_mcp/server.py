@@ -348,7 +348,16 @@ class ROOTMCPServer:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string"},
+                        "path": {
+                            "anyOf": [
+                                {"type": "string", "description": "File path"},
+                                {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "List of file paths",
+                                },
+                            ]
+                        },
                         "tree_name": {"type": "string"},
                         "branch": {"type": "string"},
                         "bins": {"type": "integer"},
@@ -365,7 +374,16 @@ class ROOTMCPServer:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "File path"},
+                        "path": {
+                            "anyOf": [
+                                {"type": "string", "description": "File path"},
+                                {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "List of file paths",
+                                },
+                            ]
+                        },
                         "tree_name": {"type": "string", "description": "Tree name"},
                         "x_branch": {"type": "string", "description": "X-axis branch"},
                         "y_branch": {"type": "string", "description": "Y-axis branch"},

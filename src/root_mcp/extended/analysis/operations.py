@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import ast
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import awkward as ak
 import numpy as np
@@ -163,7 +163,7 @@ class AnalysisOperations:
 
     def compute_histogram(
         self,
-        path: str,
+        path: str | list[str],
         tree_name: str,
         branch: str,
         bins: int,
@@ -177,11 +177,11 @@ class AnalysisOperations:
         Compute a 1D histogram.
 
         Args:
-            path: File path
+            path: File path or list of file paths
             tree_name: Tree name
             branch: Branch to histogram
             bins: Number of bins
-            range: (min, max) for histogram range (auto if None)
+            range: (min, max) for histogram range (auto if None, based on first file)
             selection: Optional cut expression
             weights: Optional branch for weights
             defines: Optional derived variable definitions
@@ -197,119 +197,176 @@ class AnalysisOperations:
                 f"({self.config.analysis.histogram.max_bins_1d})"
             )
 
-        tree = self.file_manager.get_tree(path, tree_name)
+        paths = [path] if isinstance(path, str) else path
+        if not paths:
+            raise ValueError("No file paths provided")
 
-        # Build list of branches to read
-        # Must include branches used in defines
-        needed_branches = set()
-        if defines:
-            for expr in defines.values():
-                needed_branches.update(_extract_branches_from_expression(expr, list(tree.keys())))
+        # Accumulators
+        total_counts = None
+        total_errors_sq = None
+        global_edges = None
 
-        # If branch is a defined variable, we don't need to read it from tree directly
-        # checks if branch is in tree, if not, assume it is defined
-        is_defined_branch = defines and branch in defines
-        if not is_defined_branch:
-            needed_branches.add(branch)
+        # Statistics accumulators
+        stat_entries = 0
+        stat_sum_w = 0.0
+        stat_sum_x = 0.0
+        stat_sum_x2 = 0.0
+        stat_underflow = 0
+        stat_overflow = 0
 
-        if weights:
-            is_defined_weight = defines and weights in defines
-            if not is_defined_weight:
-                needed_branches.add(weights)
+        # Global range (set on first file if None)
+        active_range = range
 
-        if selection:
-            needed_branches.update(_extract_branches_from_expression(selection, list(tree.keys())))
+        for i, p in enumerate(paths):
+            tree = self.file_manager.get_tree(p, tree_name)
 
-        # Filter available branches
-        available_branches = set(tree.keys())
-        branches_to_read = list(needed_branches.intersection(available_branches))
+            # Build list of branches to read
+            needed_branches = set()
+            if defines:
+                for expr in defines.values():
+                    needed_branches.update(
+                        _extract_branches_from_expression(expr, list(tree.keys()))
+                    )
 
-        logger.info(
-            f"Computing histogram for {branch} with {bins} bins (defines: {list(defines.keys()) if defines else 'None'})"
-        )
+            is_defined_branch = defines and branch in defines
+            if not is_defined_branch:
+                needed_branches.add(branch)
 
-        # Read data
-        arrays = tree.arrays(
-            filter_name=branches_to_read,
-            library="ak",
-        )
+            if weights:
+                is_defined_weight = defines and weights in defines
+                if not is_defined_weight:
+                    needed_branches.add(weights)
 
-        # Process definitions
-        if defines:
-            arrays = self._process_defines(arrays, defines)
+            if selection:
+                needed_branches.update(
+                    _extract_branches_from_expression(selection, list(tree.keys()))
+                )
 
-        # Apply selection AFTER definitions (so we can cut on defined variables)
-        if selection:
-            mask = _evaluate_selection_any(arrays, selection)
-            arrays = arrays[mask]
+            available_branches = set(tree.keys())
+            branches_to_read = list(needed_branches.intersection(available_branches))
 
-        data = arrays[branch]
+            logger.info(f"Computing histogram for {branch} (file {i + 1}/{len(paths)})")
 
-        # Flatten if jagged and requested
-        if flatten and _is_list_like(data):
-            data = ak.flatten(data)
+            # Read data
+            arrays = tree.arrays(
+                filter_name=branches_to_read,
+                library="ak",
+            )
 
-        # Convert to numpy
-        data_np = ak.to_numpy(data)
+            # Process definitions
+            if defines:
+                arrays = self._process_defines(arrays, defines)
 
-        # Get weights if specified
-        weights_np = None
-        if weights:
-            weights_data = arrays[weights]
-            if flatten and _is_list_like(weights_data):
-                weights_data = ak.flatten(weights_data)
-            weights_np = ak.to_numpy(weights_data)
+            # Apply selection
+            if selection:
+                mask = _evaluate_selection_any(arrays, selection)
+                arrays = arrays[mask]
 
-        # Determine range if not provided
-        if range is None:
-            if len(data_np) == 0:
-                range = (0.0, 1.0)
+            data = arrays[branch]
+
+            # Flatten
+            if flatten and _is_list_like(data):
+                data = ak.flatten(data)
+
+            data_np = ak.to_numpy(data)
+
+            # Weights
+            weights_np = None
+            if weights:
+                weights_data = arrays[weights]
+                if flatten and _is_list_like(weights_data):
+                    weights_data = ak.flatten(weights_data)
+                weights_np = ak.to_numpy(weights_data)
+
+            # Determine range from first file if needed
+            if active_range is None:
+                if len(data_np) == 0:
+                    active_range = (0.0, 1.0)
+                else:
+                    active_range = (float(np.min(data_np)), float(np.max(data_np)))
+                if len(paths) > 1:
+                    logger.warning(
+                        f"Range auto-detected from first file: {active_range}. Use this range for consistency."
+                    )
+
+            # Compute stats (exact)
+            n_entries = len(data_np)
+            if n_entries > 0:
+                stat_entries += n_entries
+
+                # Careful with weights for mean/std
+                if weights_np is not None:
+                    w = weights_np
+                    stat_sum_w += float(np.sum(w))
+                    stat_sum_x += float(np.sum(data_np * w))
+                    stat_sum_x2 += float(np.sum((data_np**2) * w))
+                else:
+                    stat_sum_w += float(n_entries)
+                    stat_sum_x += float(np.sum(data_np))
+                    stat_sum_x2 += float(np.sum(data_np**2))
+
+            # Compute histogram
+            counts, edges = np.histogram(
+                data_np,
+                bins=bins,
+                range=active_range,
+                weights=weights_np,
+            )
+
+            # Count under/overflow
+            stat_underflow += np.sum(data_np < active_range[0], dtype=int)
+            stat_overflow += np.sum(data_np > active_range[1], dtype=int)
+
+            # Compute errors squared
+            if weights_np is None:
+                errors_sq = counts
             else:
-                range = (float(np.min(data_np)), float(np.max(data_np)))
+                weights_sq = weights_np**2
+                errors_sq, _ = np.histogram(
+                    data_np, bins=bins, range=active_range, weights=weights_sq
+                )
 
-        # Compute histogram
-        counts, edges = np.histogram(
-            data_np,
-            bins=bins,
-            range=range,
-            weights=weights_np,
-        )
+            # Accumulate
+            if total_counts is None:
+                total_counts = counts
+                total_errors_sq = errors_sq
+                global_edges = edges
+            else:
+                total_counts += counts
+                total_errors_sq += errors_sq
 
-        # Compute bin centers
-        centers = (edges[:-1] + edges[1:]) / 2
+        # Finalize
+        if global_edges is None or total_counts is None or total_errors_sq is None:
+            # Should not happen if paths is not empty
+            raise RuntimeError("Histogram computation failed: no data produced")
 
-        # Compute errors (sqrt(N) for unweighted, proper for weighted)
-        if weights_np is None:
-            errors = np.sqrt(counts)
-        else:
-            # For weighted histograms, error is sqrt(sum of weights squared)
-            weights_sq = weights_np**2
-            errors_sq, _ = np.histogram(data_np, bins=bins, range=range, weights=weights_sq)
-            errors = np.sqrt(errors_sq)
+        edges_final = cast(np.ndarray, global_edges)
+        counts_final = cast(np.ndarray, total_counts)
+        errors_sq_final = cast(np.ndarray, total_errors_sq)
 
-        # Count underflow/overflow
-        underflow = np.sum(data_np < range[0], dtype=int)
-        overflow = np.sum(data_np > range[1], dtype=int)
+        centers = (edges_final[:-1] + edges_final[1:]) / 2
+        final_errors = np.sqrt(errors_sq_final)
 
-        # Statistics
-        total_entries = len(data_np)
-        if total_entries > 0:
-            mean = float(np.mean(data_np))
-            std = float(np.std(data_np))
-        else:
-            mean = 0.0
-            std = 0.0
+        # Compute global mean/std
+        mean = 0.0
+        std = 0.0
+        if stat_sum_w > 0:
+            mean = stat_sum_x / stat_sum_w
+            # Var = E[x^2] - (E[x])^2
+            mean_sq = stat_sum_x2 / stat_sum_w
+            var = mean_sq - mean**2
+            std = np.sqrt(var) if var > 0 else 0.0
 
         return {
             "data": {
-                "bin_edges": edges.tolist(),
+                "bin_edges": edges_final.tolist(),
                 "bin_centers": centers.tolist(),
-                "bin_counts": counts.tolist(),
-                "bin_errors": errors.tolist(),
-                "underflow": int(underflow),
-                "overflow": int(overflow),
-                "entries": total_entries,
-                "sum_weights": float(np.sum(counts)),
+                "bin_counts": counts_final.tolist(),
+                "bin_errors": final_errors.tolist(),
+                "underflow": int(stat_underflow),
+                "overflow": int(stat_overflow),
+                "entries": stat_entries,
+                "sum_weights": stat_sum_w,
                 "mean": mean,
                 "std": std,
             },
@@ -317,16 +374,17 @@ class AnalysisOperations:
                 "operation": "compute_histogram",
                 "branch": branch,
                 "bins": bins,
-                "range": range,
+                "range": active_range,
                 "selection": selection,
                 "weighted": weights is not None,
                 "defines": defines,
+                "files_processed": len(paths),
             },
         }
 
     def compute_histogram_2d(
         self,
-        path: str,
+        path: str | list[str],
         tree_name: str,
         x_branch: str,
         y_branch: str,
@@ -342,7 +400,7 @@ class AnalysisOperations:
         Compute a 2D histogram.
 
         Args:
-            path: File path
+            path: File path or list of paths
             tree_name: Tree name
             x_branch: Branch for x-axis
             y_branch: Branch for y-axis
@@ -362,85 +420,132 @@ class AnalysisOperations:
         if x_bins > max_bins or y_bins > max_bins:
             raise ValueError(f"Number of bins ({x_bins}, {y_bins}) exceeds maximum ({max_bins})")
 
-        tree = self.file_manager.get_tree(path, tree_name)
+        paths = [path] if isinstance(path, str) else path
+        if not paths:
+            raise ValueError("No file paths provided")
 
-        logger.info(f"Computing 2D histogram: {x_branch} vs {y_branch}")
+        logger.info(f"Computing 2D histogram: {x_branch} vs {y_branch} ({len(paths)} files)")
 
-        # Build list of branches to read (reusing logic)
-        needed_branches = set()
-        if defines:
-            for expr in defines.values():
-                needed_branches.update(_extract_branches_from_expression(expr, list(tree.keys())))
+        # Accumulators
+        total_counts = None
+        global_x_edges = None
+        global_y_edges = None
+        total_entries = 0
 
-        is_defined_x = defines and x_branch in defines
-        if not is_defined_x:
-            needed_branches.add(x_branch)
+        active_x_range = x_range
+        active_y_range = y_range
 
-        is_defined_y = defines and y_branch in defines
-        if not is_defined_y:
-            needed_branches.add(y_branch)
+        for i, p in enumerate(paths):
+            tree = self.file_manager.get_tree(p, tree_name)
 
-        if selection:
-            needed_branches.update(_extract_branches_from_expression(selection, list(tree.keys())))
+            # Build list of branches to read (reusing logic)
+            needed_branches = set()
+            if defines:
+                for expr in defines.values():
+                    needed_branches.update(
+                        _extract_branches_from_expression(expr, list(tree.keys()))
+                    )
 
-        available_branches = set(tree.keys())
-        branches_to_read = list(needed_branches.intersection(available_branches))
+            is_defined_x = defines and x_branch in defines
+            if not is_defined_x:
+                needed_branches.add(x_branch)
 
-        # Read data
-        arrays = tree.arrays(
-            filter_name=branches_to_read,
-            library="ak",
-        )
+            is_defined_y = defines and y_branch in defines
+            if not is_defined_y:
+                needed_branches.add(y_branch)
 
-        # Process defines
-        if defines:
-            arrays = self._process_defines(arrays, defines)
+            if selection:
+                needed_branches.update(
+                    _extract_branches_from_expression(selection, list(tree.keys()))
+                )
 
-        # Apply selection
-        if selection:
-            mask = _evaluate_selection_any(arrays, selection)
-            arrays = arrays[mask]
+            available_branches = set(tree.keys())
+            branches_to_read = list(needed_branches.intersection(available_branches))
 
-        x_data = arrays[x_branch]
-        y_data = arrays[y_branch]
+            # Read data
+            arrays = tree.arrays(
+                filter_name=branches_to_read,
+                library="ak",
+            )
 
-        # Flatten if jagged
-        if flatten:
-            if _is_list_like(x_data):
-                x_data = ak.flatten(x_data)
-            if _is_list_like(y_data):
-                y_data = ak.flatten(y_data)
+            # Process defines
+            if defines:
+                arrays = self._process_defines(arrays, defines)
 
-        # Convert to numpy
-        x_np = ak.to_numpy(x_data)
-        y_np = ak.to_numpy(y_data)
+            # Apply selection
+            if selection:
+                mask = _evaluate_selection_any(arrays, selection)
+                arrays = arrays[mask]
 
-        # Determine ranges if not provided
-        if x_range is None:
-            x_range = (float(np.min(x_np)), float(np.max(x_np)))
-        if y_range is None:
-            y_range = (float(np.min(y_np)), float(np.max(y_np)))
+            x_data = arrays[x_branch]
+            y_data = arrays[y_branch]
 
-        # Compute 2D histogram
-        counts, x_edges, y_edges = np.histogram2d(
-            x_np,
-            y_np,
-            bins=[x_bins, y_bins],
-            range=[x_range, y_range],
-        )
+            # Flatten if jagged
+            if flatten:
+                if _is_list_like(x_data):
+                    x_data = ak.flatten(x_data)
+                if _is_list_like(y_data):
+                    y_data = ak.flatten(y_data)
+
+            # Convert to numpy
+            x_np = ak.to_numpy(x_data)
+            y_np = ak.to_numpy(y_data)
+
+            total_entries += len(x_np)
+
+            # Determine ranges if not provided (from first file)
+            if active_x_range is None:
+                if len(x_np) == 0:
+                    active_x_range = (0.0, 1.0)
+                else:
+                    active_x_range = (float(np.min(x_np)), float(np.max(x_np)))
+
+            if active_y_range is None:
+                if len(y_np) == 0:
+                    active_y_range = (0.0, 1.0)
+                else:
+                    active_y_range = (float(np.min(y_np)), float(np.max(y_np)))
+
+            if len(paths) > 1 and i == 0 and (x_range is None or y_range is None):
+                logger.warning(
+                    f"2D Ranges auto-detected from first file. X: {active_x_range}, Y: {active_y_range}"
+                )
+
+            # Compute 2D histogram
+            counts, x_edges, y_edges = np.histogram2d(
+                x_np,
+                y_np,
+                bins=[x_bins, y_bins],
+                range=[active_x_range, active_y_range],
+            )
+
+            if total_counts is None:
+                total_counts = counts
+                global_x_edges = x_edges
+                global_y_edges = y_edges
+            else:
+                total_counts += counts
+
+        if total_counts is None or global_x_edges is None or global_y_edges is None:
+            # Should not happen if paths is not empty
+            raise RuntimeError("Histogram computation failed: no data produced")
+
+        x_edges_final = cast(np.ndarray, global_x_edges)
+        y_edges_final = cast(np.ndarray, global_y_edges)
+        counts_final = cast(np.ndarray, total_counts)
 
         # Compute bin centers
-        x_centers = (x_edges[:-1] + x_edges[1:]) / 2
-        y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+        x_centers = (x_edges_final[:-1] + x_edges_final[1:]) / 2
+        y_centers = (y_edges_final[:-1] + y_edges_final[1:]) / 2
 
         return {
             "data": {
-                "x_edges": x_edges.tolist(),
+                "x_edges": x_edges_final.tolist(),
                 "x_centers": x_centers.tolist(),
-                "y_edges": y_edges.tolist(),
+                "y_edges": y_edges_final.tolist(),
                 "y_centers": y_centers.tolist(),
-                "counts": counts.tolist(),
-                "entries": len(x_np),
+                "counts": counts_final.tolist(),
+                "entries": total_entries,
             },
             "metadata": {
                 "operation": "compute_histogram_2d",
@@ -448,6 +553,7 @@ class AnalysisOperations:
                 "y_branch": y_branch,
                 "selection": selection,
                 "defines": defines,
+                "files_processed": len(paths),
             },
         }
 
