@@ -34,21 +34,6 @@ Welcome to the comprehensive documentation for **ROOT-MCP**, the Model Context P
   - Performance considerations
 - **[Contributing](CONTRIBUTING.md)**: Development guidelines
 
-## Documentation Structure
-
-```
-docs/
-├── README.md                    # This file - documentation hub
-├── ARCHITECTURE.md              # System architecture and design
-├── CONTRIBUTING.md              # Contribution guidelines
-├── guides/
-│   ├── modes.md                 # Mode selection guide
-│   ├── configuration.md         # Configuration reference
-│   ├── llm_integration.md       # AI assistant integration & Advanced examples
-└── api/
-    └── tools.md                 # Complete tool reference
-```
-
 ## Key Concepts
 
 ### Dual-Mode Architecture
