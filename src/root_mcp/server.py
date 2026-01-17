@@ -404,7 +404,40 @@ class ROOTMCPServer:
                         "tree_name": {"type": "string"},
                         "branch": {"type": "string"},
                         "bins": {"type": "integer"},
-                        "model": {"type": "string"},
+                        "model": {
+                            "anyOf": [
+                                {"type": "string"},
+                                {"type": "array", "items": {"type": "string"}},
+                                {"type": "array", "items": {"type": "object"}},
+                                {"type": "object"},
+                            ]
+                        },
+                        "range": {
+                            "type": "array",
+                            "items": {"type": "number"},
+                            "minItems": 2,
+                            "maxItems": 2,
+                        },
+                        "selection": {"type": "string"},
+                        "weights": {"type": "string"},
+                        "defines": {
+                            "type": "object",
+                            "description": "Derived variable definitions",
+                        },
+                        "initial_guess": {"type": "array", "items": {"type": "number"}},
+                        "bounds": {
+                            "type": "array",
+                            "items": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "minItems": 2,
+                                "maxItems": 2,
+                            },
+                        },
+                        "fixed_parameters": {
+                            "type": "object",
+                            "additionalProperties": {"type": "number"},
+                        },
                     },
                     "required": ["path", "tree_name", "branch", "bins", "model"],
                 },

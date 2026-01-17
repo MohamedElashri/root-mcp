@@ -219,29 +219,67 @@ class AnalysisTools:
 
     def fit_histogram(
         self,
-        data: dict[str, Any],
         model: str | list[str | dict[str, Any]] | dict[str, Any],
+        data: dict[str, Any] | None = None,
+        path: str | None = None,
+        tree_name: str | None = None,
+        branch: str | None = None,
+        bins: int | None = None,
+        range: tuple[float, float] | None = None,
+        selection: str | None = None,
+        weights: str | None = None,
+        defines: dict[str, str] | None = None,
         initial_guess: list[float] | None = None,
         bounds: list[list[float]] | None = None,
         fixed_parameters: dict[str | int, float] | None = None,
     ) -> dict[str, Any]:
         """
-        Fit a histogram to a model.
+        Fit a histogram to a model. Can either take existing histogram data or
+        compute it from a file.
 
         Args:
-            data: Histogram data (from compute_histogram)
-            model: Model configuration. Can be:
-                   - Name (e.g. "gaussian")
-                   - List of names (e.g. ["gaussian", "exponential"])
-                   - List of dicts (e.g. [{"model": "gaussian", "prefix": "s_"}])
-                   - Param dict (e.g. {"expr": "A*x", "params": ["A"]})
-            initial_guess: Initial parameters for fit.
+            model: Model configuration
+            data: Optional histogram data (from compute_histogram)
+            path: File path (if data not provided)
+            tree_name: Tree name (if data not provided)
+            branch: Branch to histogram (if data not provided)
+            bins: Number of bins (if data not provided)
+            range: Histogram range (optional)
+            selection: Cut expression (optional)
+            weights: Weight branch (optional)
+            defines: Variable definitions (optional)
+            initial_guess: Initial parameters for fit
             bounds: Parameter bounds
             fixed_parameters: Fixed parameters
 
         Returns:
             Fit results
         """
+        # If data is not provided, compute it
+        if data is None:
+            if not all([path, tree_name, branch, bins]):
+                return {
+                    "error": "missing_parameters",
+                    "message": "Either 'data' or (path, tree_name, branch, bins) must be provided",
+                }
+
+            # Helper to handle potential errors in compute_histogram
+            hist_result = self.compute_histogram(
+                path=path,  # type: ignore
+                tree_name=tree_name,  # type: ignore
+                branch=branch,  # type: ignore
+                bins=bins,  # type: ignore
+                range=range,
+                selection=selection,
+                weights=weights,
+                defines=defines,
+            )
+
+            if "error" in hist_result:
+                return hist_result
+
+            data = hist_result
+
         try:
             return fit_histogram(data, model, initial_guess, bounds, fixed_parameters)
         except Exception as e:
