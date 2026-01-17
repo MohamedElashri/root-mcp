@@ -481,14 +481,30 @@ class ROOTMCPServer:
             ),
             Tool(
                 name="plot_histogram_1d",
-                description="Create and save a 1D histogram plot with optional defines support",
+                description="Create and save a 1D histogram plot. Provide EITHER 'data' (pre-calculated) OR 'path', 'tree_name', 'branch', 'bins' (compute from file).",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "File path"},
-                        "tree_name": {"type": "string", "description": "Tree name"},
-                        "branch": {"type": "string", "description": "Branch to histogram"},
-                        "bins": {"type": "integer", "description": "Number of bins"},
+                        "data": {
+                            "type": "object",
+                            "description": "Pre-calculated histogram data (bin_counts, bin_edges, etc.)",
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "File path (required if data not provided)",
+                        },
+                        "tree_name": {
+                            "type": "string",
+                            "description": "Tree name (required if data not provided)",
+                        },
+                        "branch": {
+                            "type": "string",
+                            "description": "Branch to histogram (required if data not provided)",
+                        },
+                        "bins": {
+                            "type": "integer",
+                            "description": "Number of bins (required if data not provided)",
+                        },
                         "range": {
                             "type": "array",
                             "items": {"type": "number"},
@@ -514,21 +530,43 @@ class ROOTMCPServer:
                             "description": "Plot style",
                         },
                     },
-                    "required": ["path", "tree_name", "branch", "bins", "output_path"],
+                    "required": ["output_path"],
                 },
             ),
             Tool(
                 name="plot_histogram_2d",
-                description="Create and save a 2D histogram plot (e.g., Dalitz plot)",
+                description="Create and save a 2D histogram plot. Provide EITHER 'data' (pre-calculated) OR 'path', 'tree_name', 'branch_x'...' (compute from file).",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "File path"},
-                        "tree_name": {"type": "string", "description": "Tree name"},
-                        "branch_x": {"type": "string", "description": "X-axis branch"},
-                        "branch_y": {"type": "string", "description": "Y-axis branch"},
-                        "bins_x": {"type": "integer", "description": "Number of bins in X"},
-                        "bins_y": {"type": "integer", "description": "Number of bins in Y"},
+                        "data": {
+                            "type": "object",
+                            "description": "Pre-calculated histogram data (bin_counts, x_edges, y_edges, etc.)",
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "File path (required if data not provided)",
+                        },
+                        "tree_name": {
+                            "type": "string",
+                            "description": "Tree name (required if data not provided)",
+                        },
+                        "branch_x": {
+                            "type": "string",
+                            "description": "X-axis branch (required if data not provided)",
+                        },
+                        "branch_y": {
+                            "type": "string",
+                            "description": "Y-axis branch (required if data not provided)",
+                        },
+                        "bins_x": {
+                            "type": "integer",
+                            "description": "Number of bins in X (required if data not provided)",
+                        },
+                        "bins_y": {
+                            "type": "integer",
+                            "description": "Number of bins in Y (required if data not provided)",
+                        },
                         "range_x": {
                             "type": "array",
                             "items": {"type": "number"},
@@ -556,15 +594,7 @@ class ROOTMCPServer:
                             "enum": ["default", "publication", "presentation"],
                         },
                     },
-                    "required": [
-                        "path",
-                        "tree_name",
-                        "branch_x",
-                        "branch_y",
-                        "bins_x",
-                        "bins_y",
-                        "output_path",
-                    ],
+                    "required": ["output_path"],
                 },
             ),
         ]

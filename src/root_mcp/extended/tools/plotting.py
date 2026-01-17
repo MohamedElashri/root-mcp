@@ -46,10 +46,11 @@ class PlottingTools:
 
     def plot_histogram_1d(
         self,
-        path: str,
-        tree_name: str,
-        branch: str,
-        bins: int,
+        data: dict[str, Any] | None = None,
+        path: str | None = None,
+        tree_name: str | None = None,
+        branch: str | None = None,
+        bins: int | None = None,
         range: tuple[float, float] | None = None,
         selection: str | None = None,
         weights: str | None = None,
@@ -65,10 +66,11 @@ class PlottingTools:
         Create a 1D histogram plot.
 
         Args:
-            path: File path
-            tree_name: Tree name
-            branch: Branch to histogram
-            bins: Number of bins
+            data: Pre-calculated histogram data (optional)
+            path: File path (optional if data provided)
+            tree_name: Tree name (optional if data provided)
+            branch: Branch to histogram (optional if data provided)
+            bins: Number of bins (optional if data provided)
             range: (min, max) for histogram
             selection: Optional cut expression
             weights: Optional weight branch
@@ -95,14 +97,16 @@ class PlottingTools:
                     "message": f"Invalid JSON in defines parameter: {e}",
                 }
 
-        # Validate path
-        try:
-            validated_path = self.path_validator.validate_path(path)
-        except Exception as e:
-            return {
-                "error": "invalid_path",
-                "message": str(e),
-            }
+        # Validate path if provided
+        validated_path = None
+        if path:
+            try:
+                validated_path = self.path_validator.validate_path(path)
+            except Exception as e:
+                return {
+                    "error": "invalid_path",
+                    "message": str(e),
+                }
 
         # Validate output path
         output_path_obj = Path(output_path)
@@ -115,46 +119,54 @@ class PlottingTools:
                     "message": f"Cannot create output directory: {e}",
                 }
 
-        # Compute histogram (use AnalysisOperations if defines are provided)
-        try:
-            if defines:
-                # Use AnalysisOperations which supports defines
-                hist_result = self.analysis_ops.compute_histogram(
-                    path=str(validated_path),
-                    tree_name=tree_name,
-                    branch=branch,
-                    bins=bins,
-                    range=range,
-                    selection=selection,
-                    weights=weights,
-                    defines=defines,
-                )
-            else:
-                # Use HistogramOperations for better performance when no defines
-                hist_result = self.histogram_ops.compute_histogram_1d(
-                    path=str(validated_path),
-                    tree_name=tree_name,
-                    branch=branch,
-                    bins=bins,
-                    range=range,
-                    selection=selection,
-                    weights=weights,
-                )
+        hist_result = data
+        if hist_result is None:
+            if not all([validated_path, tree_name, branch, bins]):
+                return {
+                    "error": "missing_parameters",
+                    "message": "Either 'data' or (path, tree_name, branch, bins) must be provided",
+                }
 
-            if "error" in hist_result:
-                return hist_result
+            # Compute histogram (use AnalysisOperations if defines are provided)
+            try:
+                if defines:
+                    # Use AnalysisOperations which supports defines
+                    hist_result = self.analysis_ops.compute_histogram(
+                        path=str(validated_path),
+                        tree_name=tree_name,  # type: ignore
+                        branch=branch,  # type: ignore
+                        bins=bins,  # type: ignore
+                        range=range,
+                        selection=selection,
+                        weights=weights,
+                        defines=defines,
+                    )
+                else:
+                    # Use HistogramOperations for better performance when no defines
+                    hist_result = self.histogram_ops.compute_histogram_1d(
+                        path=str(validated_path),
+                        tree_name=tree_name,  # type: ignore
+                        branch=branch,  # type: ignore
+                        bins=bins,  # type: ignore
+                        range=range,
+                        selection=selection,
+                        weights=weights,
+                    )
 
-        except Exception as e:
-            logger.error(f"Failed to compute histogram: {e}")
-            return {
-                "error": "computation_error",
-                "message": f"Failed to compute histogram: {e}",
-            }
+                if "error" in hist_result:
+                    return hist_result
+
+            except Exception as e:
+                logger.error(f"Failed to compute histogram: {e}")
+                return {
+                    "error": "computation_error",
+                    "message": f"Failed to compute histogram: {e}",
+                }
 
         # Prepare plot options
         plot_options = {
-            "title": title or f"Histogram of {branch}",
-            "xlabel": xlabel or branch,
+            "title": title or f"Histogram of {branch or 'Custom Data'}",
+            "xlabel": xlabel or branch or "X",
             "ylabel": ylabel,
             "log_y": log_y,
             "style": style,
@@ -174,18 +186,35 @@ class PlottingTools:
             if "error" in plot_result:
                 return plot_result
 
+            # Save plot to file
+            import base64
+
+            try:
+                image_data = base64.b64decode(plot_result["image_data"])
+                with open(output_path_obj, "wb") as f:
+                    f.write(image_data)
+            except Exception as e:
+                return {
+                    "error": "write_error",
+                    "message": f"Failed to write plot to file: {e}",
+                }
+
+            # Extract statistics safely
+            stats = hist_result.get("data", hist_result)
+            entries = stats.get("entries", 0)
+
             # Return combined result
             return {
                 "data": {
                     "plot_path": str(output_path_obj),
                     "format": output_path_obj.suffix[1:],
-                    "statistics": hist_result["data"],
+                    "statistics": stats,
                 },
                 "metadata": {
                     "operation": "plot_histogram_1d",
                     "branch": branch,
                     "bins": bins,
-                    "entries": hist_result["data"]["entries"],
+                    "entries": entries,
                 },
                 "message": f"Plot saved to {output_path_obj}",
             }
@@ -199,12 +228,13 @@ class PlottingTools:
 
     def plot_histogram_2d(
         self,
-        path: str,
-        tree_name: str,
-        branch_x: str,
-        branch_y: str,
-        bins_x: int,
-        bins_y: int,
+        data: dict[str, Any] | None = None,
+        path: str | None = None,
+        tree_name: str | None = None,
+        branch_x: str | None = None,
+        branch_y: str | None = None,
+        bins_x: int | None = None,
+        bins_y: int | None = None,
         range_x: tuple[float, float] | None = None,
         range_y: tuple[float, float] | None = None,
         selection: str | None = None,
@@ -222,12 +252,13 @@ class PlottingTools:
         Create a 2D histogram plot.
 
         Args:
-            path: File path
-            tree_name: Tree name
-            branch_x: X-axis branch
-            branch_y: Y-axis branch
-            bins_x: Number of bins in X
-            bins_y: Number of bins in Y
+            data: Pre-calculated histogram data (optional)
+            path: File path (optional if data provided)
+            tree_name: Tree name (optional if data provided)
+            branch_x: X-axis branch (optional if data provided)
+            branch_y: Y-axis branch (optional if data provided)
+            bins_x: Number of bins in X (optional if data provided)
+            bins_y: Number of bins in Y (optional if data provided)
             range_x: (min, max) for X axis
             range_y: (min, max) for Y axis
             selection: Optional cut expression
@@ -256,14 +287,16 @@ class PlottingTools:
                     "message": f"Invalid JSON in defines parameter: {e}",
                 }
 
-        # Validate path
-        try:
-            validated_path = self.path_validator.validate_path(path)
-        except Exception as e:
-            return {
-                "error": "invalid_path",
-                "message": str(e),
-            }
+        # Validate path if provided
+        validated_path = None
+        if path:
+            try:
+                validated_path = self.path_validator.validate_path(path)
+            except Exception as e:
+                return {
+                    "error": "invalid_path",
+                    "message": str(e),
+                }
 
         # Validate output path
         output_path_obj = Path(output_path)
@@ -276,52 +309,60 @@ class PlottingTools:
                     "message": f"Cannot create output directory: {e}",
                 }
 
-        # Compute 2D histogram (use AnalysisOperations if defines are provided)
-        try:
-            if defines:
-                # Use AnalysisOperations which supports defines
-                hist_result = self.analysis_ops.compute_histogram_2d(
-                    path=str(validated_path),
-                    tree_name=tree_name,
-                    x_branch=branch_x,
-                    y_branch=branch_y,
-                    x_bins=bins_x,
-                    y_bins=bins_y,
-                    x_range=range_x,
-                    y_range=range_y,
-                    selection=selection,
-                    defines=defines,
-                )
-            else:
-                # Use HistogramOperations for better performance when no defines
-                hist_result = self.histogram_ops.compute_histogram_2d(
-                    path=str(validated_path),
-                    tree_name=tree_name,
-                    branch_x=branch_x,
-                    branch_y=branch_y,
-                    bins_x=bins_x,
-                    bins_y=bins_y,
-                    range_x=range_x,
-                    range_y=range_y,
-                    selection=selection,
-                    weights=weights,
-                )
+        hist_result = data
+        if hist_result is None:
+            if not all([validated_path, tree_name, branch_x, branch_y, bins_x, bins_y]):
+                return {
+                    "error": "missing_parameters",
+                    "message": "Either 'data' or (path, tree_name, branch_x, branch_y, bins_x, bins_y) must be provided",
+                }
 
-            if "error" in hist_result:
-                return hist_result
+            # Compute 2D histogram (use AnalysisOperations if defines are provided)
+            try:
+                if defines:
+                    # Use AnalysisOperations which supports defines
+                    hist_result = self.analysis_ops.compute_histogram_2d(
+                        path=str(validated_path),
+                        tree_name=tree_name,  # type: ignore
+                        x_branch=branch_x,  # type: ignore
+                        y_branch=branch_y,  # type: ignore
+                        x_bins=bins_x,  # type: ignore
+                        y_bins=bins_y,  # type: ignore
+                        x_range=range_x,
+                        y_range=range_y,
+                        selection=selection,
+                        defines=defines,
+                    )
+                else:
+                    # Use HistogramOperations for better performance when no defines
+                    hist_result = self.histogram_ops.compute_histogram_2d(
+                        path=str(validated_path),
+                        tree_name=tree_name,  # type: ignore
+                        branch_x=branch_x,  # type: ignore
+                        branch_y=branch_y,  # type: ignore
+                        bins_x=bins_x,  # type: ignore
+                        bins_y=bins_y,  # type: ignore
+                        range_x=range_x,
+                        range_y=range_y,
+                        selection=selection,
+                        weights=weights,
+                    )
 
-        except Exception as e:
-            logger.error(f"Failed to compute 2D histogram: {e}")
-            return {
-                "error": "computation_error",
-                "message": f"Failed to compute 2D histogram: {e}",
-            }
+                if "error" in hist_result:
+                    return hist_result
+
+            except Exception as e:
+                logger.error(f"Failed to compute 2D histogram: {e}")
+                return {
+                    "error": "computation_error",
+                    "message": f"Failed to compute 2D histogram: {e}",
+                }
 
         # Prepare plot options
         plot_options = {
-            "title": title or f"{branch_y} vs {branch_x}",
-            "xlabel": xlabel or branch_x,
-            "ylabel": ylabel or branch_y,
+            "title": title or f"{branch_y or 'Y'} vs {branch_x or 'X'}",
+            "xlabel": xlabel or branch_x or "X",
+            "ylabel": ylabel or branch_y or "Y",
             "colormap": colormap,
             "log_z": log_z,
             "style": style,
@@ -341,15 +382,34 @@ class PlottingTools:
             if "error" in plot_result:
                 return plot_result
 
+            # Save plot to file
+            import base64
+
+            try:
+                image_data = base64.b64decode(plot_result["image_data"])
+                with open(output_path_obj, "wb") as f:
+                    f.write(image_data)
+            except Exception as e:
+                return {
+                    "error": "write_error",
+                    "message": f"Failed to write plot to file: {e}",
+                }
+
+            # Extract statistics safely
+            stats = hist_result.get("data", hist_result)
+            entries = stats.get("entries", 0)
+            bx = bins_x or stats.get("bins_x", 0)
+            by = bins_y or stats.get("bins_y", 0)
+
             # Return combined result
             return {
                 "data": {
                     "plot_path": str(output_path_obj),
                     "format": output_path_obj.suffix[1:],
                     "statistics": {
-                        "entries": hist_result["data"]["entries"],
-                        "bins_x": bins_x,
-                        "bins_y": bins_y,
+                        "entries": entries,
+                        "bins_x": bx,
+                        "bins_y": by,
                     },
                 },
                 "metadata": {
