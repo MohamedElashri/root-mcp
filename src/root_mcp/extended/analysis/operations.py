@@ -557,6 +557,126 @@ class AnalysisOperations:
             },
         }
 
+    def compute_histogram_arithmetic(
+        self,
+        operation: str,
+        data1: dict[str, Any],
+        data2: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Perform arithmetic on two histograms.
+
+        Args:
+            operation: One of "add", "subtract", "multiply", "divide", "asymmetry"
+            data1: First histogram object
+            data2: Second histogram object
+
+        Returns:
+            New histogram object with computed values.
+        """
+        # Normalize input (handle if wrapped in {"data": ...} or direct)
+        d1 = data1["data"] if "data" in data1 else data1
+        d2 = data2["data"] if "data" in data2 else data2
+
+        # Detect dimensionality
+        is_1d = "bin_counts" in d1
+        is_2d = "counts" in d1
+
+        if not is_1d and not is_2d:
+            raise ValueError("data1 format not recognized (must have 'bin_counts' or 'counts')")
+
+        # Validate compatibility
+        if is_1d:
+            if "bin_counts" not in d2:
+                raise ValueError("Mismatch: data1 is 1D, data2 is not.")
+            # Check edges
+            edges1 = np.array(d1["bin_edges"])
+            edges2 = np.array(d2["bin_edges"])
+            if not np.allclose(edges1, edges2):
+                raise ValueError("Bin edges do not match.")
+
+            c1 = np.array(d1["bin_counts"])
+            c2 = np.array(d2["bin_counts"])
+            e1 = np.array(d1["bin_errors"]) if "bin_errors" in d1 else np.sqrt(c1)
+            e2 = np.array(d2["bin_errors"]) if "bin_errors" in d2 else np.sqrt(c2)
+
+        elif is_2d:
+            if "counts" not in d2:
+                raise ValueError("Mismatch: data1 is 2D, data2 is not.")
+            x_edges1 = np.array(d1["x_edges"])
+            x_edges2 = np.array(d2["x_edges"])
+            y_edges1 = np.array(d1["y_edges"])
+            y_edges2 = np.array(d2["y_edges"])
+
+            if not np.allclose(x_edges1, x_edges2) or not np.allclose(y_edges1, y_edges2):
+                raise ValueError("2D Bin edges do not match.")
+
+            c1 = np.array(d1["counts"])
+            c2 = np.array(d2["counts"])
+            # 2D usually doesn't have errors in simple output, estimate sqrt(N)
+            e1 = np.sqrt(c1)
+            e2 = np.sqrt(c2)
+
+        # Perform operation
+        with np.errstate(divide="ignore", invalid="ignore"):
+            if operation == "add":
+                c_out = c1 + c2
+                e_out = np.sqrt(e1**2 + e2**2)
+            elif operation == "subtract":
+                c_out = c1 - c2
+                e_out = np.sqrt(e1**2 + e2**2)
+            elif operation == "multiply":
+                c_out = c1 * c2
+                # err(A*B) approx |A*B| * sqrt((eA/A)^2 + (eB/B)^2)
+                # Avoid div by zero
+                term1 = np.divide(e1, c1, out=np.zeros_like(e1), where=c1 != 0) ** 2
+                term2 = np.divide(e2, c2, out=np.zeros_like(e2), where=c2 != 0) ** 2
+                e_out = np.abs(c_out) * np.sqrt(term1 + term2)
+            elif operation == "divide":
+                c_out = np.divide(c1, c2, out=np.zeros_like(c1), where=c2 != 0)
+                # err(A/B) approx |A/B| * sqrt((eA/A)^2 + (eB/B)^2)
+                term1 = np.divide(e1, c1, out=np.zeros_like(e1), where=c1 != 0) ** 2
+                term2 = np.divide(e2, c2, out=np.zeros_like(e2), where=c2 != 0) ** 2
+                e_out = np.abs(c_out) * np.sqrt(term1 + term2)
+            elif operation == "asymmetry":
+                # (A-B)/(A+B)
+                num = c1 - c2
+                denom = c1 + c2
+                c_out = np.divide(num, denom, out=np.zeros_like(num), where=denom != 0)
+
+                # Asymmetry error: 2/(A+B)^2 * sqrt( B^2 eA^2 + A^2 eB^2 )
+                denom_sq = denom**2
+                prefactor = np.divide(2, denom_sq, out=np.zeros_like(denom), where=denom_sq != 0)
+                inner = (c2 * e1) ** 2 + (c1 * e2) ** 2
+                e_out = prefactor * np.sqrt(inner)
+            else:
+                raise ValueError(f"Unknown operation: {operation}")
+
+        # Construct result
+        res_data = d1.copy()
+        if is_1d:
+            res_data["bin_counts"] = c_out.tolist()
+            res_data["bin_errors"] = e_out.tolist()
+            # Update stats? approximate
+            res_data["entries"] = int(np.sum(c_out)) if operation in ["add", "subtract"] else 0
+            res_data["sum_weights"] = float(np.sum(c_out))
+        else:
+            res_data["counts"] = c_out.tolist()
+            # 2D output doesn't usually carry errors array in current schema,
+            # but plot_histogram_2d accepts "counts".
+            # We can add "errors" if we want extended schema support later.
+            res_data["entries"] = int(np.sum(c_out)) if operation in ["add", "subtract"] else 0
+
+        return {
+            "data": res_data,
+            "metadata": {
+                "operation": "histogram_arithmetic",
+                "mode": operation,
+                "input_1": data1.get("metadata", {}).get("branch", "custom"),
+                "input_2": data2.get("metadata", {}).get("branch", "custom"),
+            },
+        }
+
     def apply_selection(
         self,
         path: str,

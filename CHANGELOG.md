@@ -30,6 +30,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   - **Polynomial Models**: Added `polynomial_2` (quadratic) and `polynomial_3` (cubic), and enabled dynamic degree detection for `polynomial` based on initial guess length.
   - **Smart Custom Models**: `fit_histogram` now automatically parses raw string formulas (e.g. `"a*x + b"`), detecting parameters without needing explicit dictionary syntax.
   - **Multi-file Histograms**: `compute_histogram` and `compute_histogram_2d` now accept a list of file paths (e.g. `["file1.root", "file2.root"]`), automatically aggregating statistics and handling range consistency.
+  - **Histogram Arithmetic**: Added `histogram_arithmetic` tool to perform operations like `asymmetry` (CP Map), `subtract`, `divide`, etc. on calculated histograms server-side.
   - Plots are saved to specified output paths (PNG, PDF, SVG formats supported)
   - Includes publication-ready styling options
 - **defines support for get_branch_stats**: Added `defines` parameter to `get_branch_stats` tool, enabling statistics computation on derived variables (e.g., compute stats for invariant mass without reading all momentum components)

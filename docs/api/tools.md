@@ -529,7 +529,7 @@ Create 1D histogram with optional fitting support.
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `path` | `string` | Yes | ROOT file path |
+| `path` | `string` or `string[]` | Yes | ROOT file path(s) |
 | `tree` | `string` | Yes | TTree name |
 | `branch` | `string` | Yes | Branch to histogram |
 | `bins` | `integer` | Yes | Number of bins |
@@ -598,7 +598,7 @@ Create 2D histogram for correlation studies.
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `path` | `string` | Yes | ROOT file path |
+| `path` | `string` or `string[]` | Yes | ROOT file path(s) |
 | `tree` | `string` | Yes | TTree name |
 | `branch_x` | `string` | Yes | X-axis branch |
 | `branch_y` | `string` | Yes | Y-axis branch |
@@ -641,6 +641,47 @@ Create 2D histogram for correlation studies.
 
 ---
 
+### `histogram_arithmetic`
+
+Perform bin-by-bin arithmetic on two histograms.
+
+**Mode**: Extended only
+
+**Arguments**:
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `operation` | `string` | Yes | `"add"`, `"subtract"`, `"multiply"`, `"divide"`, `"asymmetry"` |
+| `data1` | `object` | Yes | First histogram data object |
+| `data2` | `object` | Yes | Second histogram data object |
+
+**Example**:
+
+```json
+{
+  "tool": "histogram_arithmetic",
+  "arguments": {
+    "operation": "asymmetry",
+    "data1": { ... },
+    "data2": { ... }
+  }
+}
+```
+
+**Response**:
+
+```json
+{
+  "data": {
+    "bin_counts": [...],
+    "bin_errors": [...],
+    "entries": 500
+  }
+}
+```
+
+---
+
 ### `fit_histogram`
 
 Fit mathematical model to existing histogram data.
@@ -661,10 +702,11 @@ Fit mathematical model to existing histogram data.
 **Available Models**:
 - `gaussian`: Normal distribution
 - `exponential`: Exponential decay
-- `polynomial`: Polynomial (degree 1-5)
+- `polynomial`: Polynomial (auto-detected degree from guess or explicit `polynomial_N`)
 - `crystal_ball`: Crystal Ball function (for resonances)
 - `gaussian_2d`: 2D Gaussian (for 2D histograms)
 - `polynomial_2d`: 2D polynomial
+- **Custom**: Raw string formula (e.g. `"a*x**2 + b"` - params auto-detected)
 
 **Example**:
 
@@ -916,9 +958,9 @@ Compute statistical correlations between branches.
 
 ## Visualization
 
-### `generate_plot`
+### `plot_histogram_1d`
 
-Generate publication-quality plots.
+Generate a 1D histogram plot. Can compute from file OR plot pre-calculated data.
 
 **Mode**: Extended only
 
@@ -926,32 +968,60 @@ Generate publication-quality plots.
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `plot_type` | `string` | Yes | `"histogram"`, `"scatter"`, `"histogram_2d"` |
-| `data` | `object` | Yes | Plot data (format depends on type) |
-| `output_path` | `string` | Yes | Output file path |
+| `output_path` | `string` | Yes | Output file path (e.g. "plot.png") |
+| `data` | `object` | No | Pre-calculated histogram data |
+| `path` | `string` | No | ROOT file path (if data omitted) |
+| `tree` | `string` | No | TTree name (if data omitted) |
+| `branch` | `string` | No | Branch name (if data omitted) |
+| `bins` | `integer` | No | Number of bins |
 | `title` | `string` | No | Plot title |
 | `xlabel` | `string` | No | X-axis label |
 | `ylabel` | `string` | No | Y-axis label |
-| `format` | `string` | No | `"png"`, `"pdf"`, `"svg"` |
-| `dpi` | `integer` | No | Resolution (default 100) |
+| `log_y` | `boolean` | No | Log scale Y axis |
 
-**Example (Histogram)**:
+**Example (From Data)**:
 
 ```json
 {
-  "tool": "generate_plot",
+  "tool": "plot_histogram_1d",
   "arguments": {
-    "plot_type": "histogram",
-    "data": {
-      "bin_edges": [0, 10, 20, ..., 100],
-      "bin_counts": [45, 52, 58, ...]
-    },
-    "output_path": "/exports/mass_plot.png",
-    "title": "Dimuon Mass Distribution",
-    "xlabel": "Mass [GeV]",
-    "ylabel": "Events / 1 GeV",
-    "format": "png",
-    "dpi": 300
+    "data": { ... },
+    "output_path": "mass_plot.png",
+    "title": "Mass Distribution"
+  }
+}
+```
+
+---
+
+### `plot_histogram_2d`
+
+Generate a 2D histogram plot. Can compute from file OR plot pre-calculated data.
+
+**Mode**: Extended only
+
+**Arguments**:
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `output_path` | `string` | Yes | Output file path |
+| `data` | `object` | No | Pre-calculated 2D data |
+| `path` | `string` | No | ROOT file path (if data omitted) |
+| `tree` | `string` | No | TTree name (if data omitted) |
+| `branch_x` | `string` | No | X Branch |
+| `branch_y` | `string` | No | Y Branch |
+| `colormap` | `string` | No | Matplotlib colormap (e.g. "viridis") |
+| `log_z` | `boolean` | No | Log scale color |
+
+**Example (From Data)**:
+
+```json
+{
+  "tool": "plot_histogram_2d",
+  "arguments": {
+    "data": { ... },
+    "output_path": "correlation.png",
+    "colormap": "inferno"
   }
 }
 ```
@@ -961,9 +1031,9 @@ Generate publication-quality plots.
 ```json
 {
   "data": {
-    "output_path": "/exports/mass_plot.png",
+    "output_path": "/exports/correlation.png",
     "format": "png",
-    "size_bytes": 125678
+    "size_bytes": 123456
   }
 }
 ```
@@ -993,7 +1063,9 @@ Generate publication-quality plots.
 14. `compute_transverse_mass` - Transverse mass
 15. `compute_delta_r` - Angular separation
 16. `compute_correlation` - Statistical correlations
-17. `generate_plot` - Visualization
+17. `histogram_arithmetic` - Histogram math
+18. `plot_histogram_1d` - Plotting
+19. `plot_histogram_2d` - Plotting
 
 ## By Category
 
@@ -1004,7 +1076,10 @@ Generate publication-quality plots.
 - `list_branches`, `read_branches`, `get_branch_stats`
 
 ### Data Export
-- `export_data`, `generate_plot`
+- `export_data`
+
+### Visualization
+- `plot_histogram_1d`, `plot_histogram_2d`
 
 ### Histograms
 - `compute_histogram`, `compute_histogram_2d`, `fit_histogram`
@@ -1069,8 +1144,7 @@ Generate publication-quality plots.
 }}
 
 // 4. Generate plot
-{"tool": "generate_plot", "arguments": {
-  "plot_type": "histogram",
+{"tool": "plot_histogram_1d", "arguments": {
   "data": {...},
   "output_path": "/exports/plot.png"
 }}

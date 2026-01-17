@@ -615,6 +615,29 @@ class ROOTMCPServer:
                     "required": ["output_path"],
                 },
             ),
+            Tool(
+                name="histogram_arithmetic",
+                description="Perform bin-by-bin arithmetic on two histograms (e.g. asymmetry, difference, ratio)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": ["add", "subtract", "multiply", "divide", "asymmetry"],
+                            "description": "Operation to perform: data1 [op] data2. Asymmetry is (d1-d2)/(d1+d2).",
+                        },
+                        "data1": {
+                            "type": "object",
+                            "description": "First histogram data (result from compute_histogram)",
+                        },
+                        "data2": {
+                            "type": "object",
+                            "description": "Second histogram data",
+                        },
+                    },
+                    "required": ["operation", "data1", "data2"],
+                },
+            ),
         ]
 
     def _register_tools(self) -> None:
@@ -706,6 +729,7 @@ class ROOTMCPServer:
                     "compute_correlation",
                     "plot_histogram_1d",
                     "plot_histogram_2d",
+                    "histogram_arithmetic",
                 ]:
                     if self.current_mode != "extended" or not self._extended_components_loaded:
                         result = {
@@ -729,6 +753,8 @@ class ROOTMCPServer:
                             result = self.plotting_tools.plot_histogram_1d(**arguments)
                         elif name == "plot_histogram_2d":
                             result = self.plotting_tools.plot_histogram_2d(**arguments)
+                        elif name == "histogram_arithmetic":
+                            result = self.analysis_tools.compute_histogram_arithmetic(**arguments)
 
                 else:
                     result = {

@@ -288,6 +288,26 @@ class AnalysisTools:
                 "message": f"Fitting failed: {e}",
             }
 
+    def compute_histogram_arithmetic(
+        self,
+        operation: str,
+        data1: dict[str, Any],
+        data2: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Perform histogram arithmetic.
+
+        Args:
+            operation: Operation name
+            data1: First histogram
+            data2: Second histogram
+        """
+        try:
+            return self.analysis_ops.compute_histogram_arithmetic(operation, data1, data2)
+        except Exception as e:
+            logger.error(f"Arithmetic failed: {e}")
+            return {"error": "arithmetic_error", "message": str(e)}
+
     def generate_plot(
         self,
         data: dict[str, Any],
