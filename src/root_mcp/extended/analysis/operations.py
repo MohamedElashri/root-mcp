@@ -130,12 +130,15 @@ class AnalysisOperations:
 
         # Topological sort using Kahn's algorithm
         in_degree = {name: 0 for name in defines}
-        for deps in dependencies.values():
-            for dep in deps:
-                if dep in in_degree:
-                    in_degree[dep] += 1
+        dependents_map = {name: [] for name in defines}
 
-        # Find all nodes with no incoming edges
+        for name, deps in dependencies.items():
+            in_degree[name] = len(deps)
+            for dep in deps:
+                if dep in dependents_map:
+                    dependents_map[dep].append(name)
+
+        # Find all nodes with no dependencies (leaves)
         queue = [name for name, degree in in_degree.items() if degree == 0]
         result = []
 
@@ -145,12 +148,11 @@ class AnalysisOperations:
             name = queue.pop(0)
             result.append((name, defines[name]))
 
-            # For each dependent of this node
-            for other_name, deps in dependencies.items():
-                if name in deps and other_name not in [r[0] for r in result]:
-                    in_degree[other_name] -= 1
-                    if in_degree[other_name] == 0:
-                        queue.append(other_name)
+            # Notify dependents
+            for dependent in dependents_map[name]:
+                in_degree[dependent] -= 1
+                if in_degree[dependent] == 0:
+                    queue.append(dependent)
 
         # Check for cycles
         if len(result) != len(defines):

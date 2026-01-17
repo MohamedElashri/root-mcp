@@ -19,6 +19,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   - **Server routing**: Fixed `compute_histogram` and `compute_histogram_2d` to route through `AnalysisTools` wrapper instead of calling `HistogramOperations` directly, enabling proper `defines` parameter support
   - **Tool Parameter Compliance**: Updated `fit_histogram` schema to correctly accept composite models (lists) and file-related arguments (`path`, `tree_name`, etc.) for on-the-fly computation.
   - **Plot Output**: Fixed critical issue where `plot_histogram_1d` and `plot_histogram_2d` failed to write image files to disk despite reporting success.
+  - **Defines Dependency Resolution**: Fixed a bug in topological sorting that incorrectly flagged valid variable dependencies as circular (inverted dependency graph logic).
 
 ### Added
 - **Plotting Tools**: Added dedicated plotting tools that create and save plots directly:
