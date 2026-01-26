@@ -104,3 +104,6 @@ plan*
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb
+
+# uv
+uv.lock

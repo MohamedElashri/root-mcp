@@ -22,24 +22,24 @@ repos:
     hooks:
       - id: ty
         name: ty
-        entry: ty check --python venv/bin/python src
+        entry: ty check --python .venv/bin/python src
         language: system
         pass_filenames: false
 
       - id: pytest
         name: pytest
-        entry: venv/bin/python -m pytest -q
+        entry: .venv/bin/python -m pytest -q
         language: system
         pass_filenames: false
 
       - id: build
         name: build
-        entry: venv/bin/python -m build
+        entry: .venv/bin/python -m build
         language: system
         pass_filenames: false
 
       - id: twine-check
         name: twine check
-        entry: venv/bin/python -m twine check dist/*
+        entry: .venv/bin/python -m twine check dist/*
         language: system
         pass_filenames: false
