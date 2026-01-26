@@ -48,10 +48,10 @@ ROOT-MCP operates in two modes that balance simplicity and functionality. The mo
 - `compute_histogram_2d` - 2D histograms
 - `fit_histogram` - Model fitting (Gaussian, exponential, Crystal Ball, etc.)
 - `compute_invariant_mass` - 4-vector calculations
-- `compute_transverse_mass` - W→lν analyses
-- `compute_delta_r` - Angular separation
 - `compute_correlation` - Pearson/Spearman correlations
-- `generate_plot` - Visualization generation
+- `histogram_arithmetic` - Histogram arithmetic operations
+- `plot_histogram_1d` - 1D plot generation
+- `plot_histogram_2d` - 2D plot generation
 
 **Dependencies**: Core + scipy, matplotlib
 
@@ -234,7 +234,7 @@ server:
 2. `compute_invariant_mass` - Calculate invariant mass
 3. `compute_histogram` - Create mass histogram
 4. `fit_histogram` - Fit Gaussian to peak
-5. `generate_plot` - Create visualization
+5. `plot_histogram_1d` - Create visualization
 
 **Benefits**: Full analysis capabilities available
 
@@ -384,7 +384,7 @@ pip install --upgrade --force-reinstall root-mcp
 | **Dependencies** | Minimal | + scipy, matplotlib |
 | **Memory** | Low | Moderate |
 | **Startup** | Fast (~1s) | Moderate (~2-3s) |
-| **Tools** | 9 core tools | Core + 6 extended tools |
+| **Tools** | 9 core tools | Core + 8 extended tools |
 | **Use Case** | Exploration, reading | Analysis, fitting, plotting |
 | **Switching** | To extended: ~2s | To core: immediate |
 

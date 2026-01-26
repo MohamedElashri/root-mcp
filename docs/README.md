@@ -53,7 +53,7 @@ Mode is controlled via `config.yaml` and can be switched at runtime. See the [Mo
 - Data export (JSON/CSV/Parquet)
 - Mode management
 
-**Extended Tools** (6 additional tools - extended mode only):
+**Extended Tools** (8 additional tools - extended mode only):
 - Histogram fitting
 - Kinematics calculations
 - Correlation analysis
@@ -83,7 +83,7 @@ See the [Configuration Guide](guides/configuration.md) for details.
 1. Switch to extended mode
 2. Use `compute_invariant_mass` for kinematics
 3. Use `compute_histogram` with fitting
-4. Use `generate_plot` for visualization
+3. Use `plot_histogram_1d` for visualization
 
 ### Data Export
 1. Use `read_branches` to get data

@@ -128,7 +128,7 @@ When using `ROOT-MCP`, you should view the LLM not just as a text processor, but
 The LLM helps you by:
 1.  **Exploring** unknown datasets to understand their content.
 2.  **Formulating** analysis strategies (e.g., "I need to check the muon pT distribution").
-3.  **Executing** the analysis using tools (`compute_histogram`, `apply_selection`).
+3.  **Executing** the analysis using tools (`compute_histogram`, `read_branches`).
 4.  **Interpreting** the results (e.g., "The mean value is lower than expected").
 
 ### Recommended Workflow
@@ -136,10 +136,10 @@ The LLM helps you by:
 We recommend encouraging the LLM to follow this iterative loop:
 
 1.  **Discovery**: "What files do I have? What is inside them?" (`list_files` -> `inspect_file` -> `list_branches`)
-2.  **Sampling**: "Let me see a few real events to understand the structure." (`sample_tree`)
-3.  **Prototyping**: "Let's try a simple cut and see if it works." (`apply_selection`)
+2.  **Sampling**: "Let me see a few real events to understand the structure." (`read_branches` with `limit` parameter)
+3.  **Prototyping**: "Let's try a simple cut and see if it works." (`read_branches` with `selection` parameter)
 4.  **Analysis**: "Now let's compute the full histograms." (`compute_histogram`)
-5.  **Export/Plot**: "Save the data or show me a plot." (`export_branches`, `generate_plot`)
+5.  **Export/Plot**: "Save the data or show me a plot." (`export_data`, `plot_histogram_1d`)
 
 ## System Prompting
 
@@ -147,7 +147,7 @@ If you are building a custom agent using `ROOT-MCP`, consider adding the followi
 
 > You are an expert High Energy Physics analyst assistant. You have access to ROOT files via a set of tools.
 > When asked to analyze data, always start by exploring the file structure to verify branch names and types.
-> Use `sample_tree` to check the actual data values before writing complex selections.
+> Use `read_branches` with a small `limit` to check the actual data values before writing complex selections.
 > ROOT data often contains "jagged arrays" (variable-length lists per event). Remember that operations on jagged arrays in selections usually imply "ANY" semantics (e.g., `Muon_PT > 20` means "at least one muon has PT > 20").
 
 ## Example Conversation

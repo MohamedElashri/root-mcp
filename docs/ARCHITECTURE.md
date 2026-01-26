@@ -193,8 +193,6 @@ src/root_mcp/
 - **Purpose**: Particle physics calculations
 - **Features**:
   - Invariant mass from 4-vectors
-  - Transverse mass (W→lν analyses)
-  - Delta R separation
   - Dalitz plot variables
   - Lorentz boost to CM frame
 
@@ -241,7 +239,9 @@ src/root_mcp/
 | `fit_histogram` | Fit model to histogram | Extended |
 | `compute_invariant_mass` | Calculate invariant mass | Extended |
 | `compute_correlation` | Correlation analysis | Extended |
-| `generate_plot` | Create visualization | Extended |
+| `histogram_arithmetic` | Histogram arithmetic operations | Extended |
+| `plot_histogram_1d` | Create 1D plot | Extended |
+| `plot_histogram_2d` | Create 2D plot | Extended |
 
 ## Configuration
 

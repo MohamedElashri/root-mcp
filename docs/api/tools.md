@@ -4,10 +4,10 @@ Complete reference for all ROOT-MCP tools, organized by mode availability.
 
 ## Tool Organization
 
-ROOT-MCP provides **15 tools** organized into two categories:
+ROOT-MCP provides **17 tools** organized into two categories:
 
 - **Core Tools (9)**: Always available in both core and extended modes
-- **Extended Tools (6)**: Only available in extended mode
+- **Extended Tools (8)**: Only available in extended mode
 
 All tools return a standard JSON response structure:
 
@@ -498,8 +498,8 @@ Get server information including current mode and capabilities.
   "available_modes": ["core", "extended"],
   "capabilities": {
     "core_tools": 9,
-    "extended_tools": 6,
-    "total_tools": 15
+    "extended_tools": 8,
+    "total_tools": 17
   }
 }
 ```
@@ -869,80 +869,6 @@ Compute statistical correlations between branches.
 
 ### `plot_histogram_1d`
 
-Generate a 1D histogram plot. Can compute from file OR plot pre-calculated data.
-
-**Mode**: Extended only
-
-**Arguments**:
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `output_path` | `string` | Yes | Output file path (e.g. "plot.png") |
-| `data` | `object` | No | Pre-calculated histogram data |
-| `path` | `string` | No | ROOT file path (if data omitted) |
-| `tree` | `string` | No | TTree name (if data omitted) |
-| `branch` | `string` | No | Branch name (if data omitted) |
-| `bins` | `integer` | No | Number of bins |
-| `title` | `string` | No | Plot title |
-| `xlabel` | `string` | No | X-axis label |
-| `ylabel` | `string` | No | Y-axis label |
-| `log_y` | `boolean` | No | Log scale Y axis |
-
-**Example (From Data)**:
-
-```json
-{
-  "tool": "plot_histogram_1d",
-  "arguments": {
-    "data": { ... },
-    "output_path": "mass_plot.png",
-    "title": "Mass Distribution"
-  }
-}
-```
-
----
-
-### `plot_histogram_2d`
-
-Generate a 2D histogram plot. Can compute from file OR plot pre-calculated data.
-
-**Mode**: Extended only
-
-**Arguments**:
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `output_path` | `string` | Yes | Output file path |
-| `data` | `object` | No | Pre-calculated 2D data |
-| `path` | `string` | No | ROOT file path (if data omitted) |
-| `tree` | `string` | No | TTree name (if data omitted) |
-| `branch_x` | `string` | No | X Branch |
-| `branch_y` | `string` | No | Y Branch |
-| `colormap` | `string` | No | Matplotlib colormap (e.g. "viridis") |
-| `log_z` | `boolean` | No | Log scale color |
-
-**Example (From Data)**:
-
-```json
-{
-  "tool": "plot_histogram_2d",
-  "arguments": {
-    "data": { ... },
-    "output_path": "correlation.png",
-    "colormap": "inferno"
-  }
-}
-```
-
-**Response**:
-
-```
-
----
-
-### `plot_histogram_1d`
-
 Generate a 1D histogram plot.
 
 **Mode**: Extended only
@@ -1050,17 +976,15 @@ Generate a 2D histogram plot.
 8. `switch_mode` - Change server mode
 9. `get_server_info` - Get server capabilities
 
-### Extended Mode (6 additional tools)
+### Extended Mode (8 additional tools)
 10. `compute_histogram` - 1D histogram with fitting
 11. `compute_histogram_2d` - 2D histogram
 12. `fit_histogram` - Model fitting
 13. `compute_invariant_mass` - Invariant mass calculation
-14. `compute_transverse_mass` - Transverse mass
-15. `compute_delta_r` - Angular separation
-16. `compute_correlation` - Statistical correlations
-17. `histogram_arithmetic` - Histogram math
-18. `plot_histogram_1d` - Plotting
-19. `plot_histogram_2d` - Plotting
+14. `compute_correlation` - Statistical correlations
+15. `histogram_arithmetic` - Histogram math
+16. `plot_histogram_1d` - 1D plotting
+17. `plot_histogram_2d` - 2D plotting
 
 ## By Category
 
@@ -1080,7 +1004,7 @@ Generate a 2D histogram plot.
 - `compute_histogram`, `compute_histogram_2d`, `fit_histogram`
 
 ### Kinematics
-- `compute_invariant_mass`, `compute_transverse_mass`, `compute_delta_r`
+- `compute_invariant_mass`
 
 ### Statistics
 - `get_branch_stats`, `compute_correlation`
