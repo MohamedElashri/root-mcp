@@ -154,7 +154,7 @@ List branches in a TTree with type information.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `path` | `string` | Yes | Absolute path to ROOT file |
-| `tree` | `string` | Yes | TTree name (e.g., `"events"`) |
+| `tree_name` | `string` | Yes | TTree name (e.g., `"events"`) |
 | `pattern` | `string` | No | Glob pattern (e.g., `"muon_*"`) |
 | `limit` | `integer` | No | Maximum branches to return |
 | `include_stats` | `boolean` | No | Compute statistics (slower) |
@@ -166,7 +166,7 @@ List branches in a TTree with type information.
   "tool": "list_branches",
   "arguments": {
     "path": "/data/sample.root",
-    "tree": "events",
+    "tree_name": "events",
     "pattern": "muon_*"
   }
 }
@@ -177,7 +177,7 @@ List branches in a TTree with type information.
 ```json
 {
   "data": {
-    "tree": "events",
+    "tree_name": "events",
     "total_entries": 10000,
     "branches": [
       {
@@ -254,7 +254,7 @@ Read branch data from TTree with optional filtering and derived branches.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `path` | `string` | Yes | Absolute path to ROOT file |
-| `tree` | `string` | Yes | TTree name |
+| `tree_name` | `string` | Yes | TTree name |
 | `branches` | `string[]` | Yes | Branch names (physical or derived) |
 | `selection` | `string` | No | Cut expression (e.g., `'pt > 20'`) |
 | `limit` | `integer` | No | Maximum entries to return |
@@ -271,7 +271,7 @@ Read branch data from TTree with optional filtering and derived branches.
   "tool": "read_branches",
   "arguments": {
     "path": "/data/sample.root",
-    "tree": "events",
+    "tree_name": "events",
     "branches": ["muon_pt", "muon_eta"],
     "selection": "muon_pt > 20",
     "limit": 100
@@ -286,7 +286,7 @@ Read branch data from TTree with optional filtering and derived branches.
   "tool": "read_branches",
   "arguments": {
     "path": "/data/sample.root",
-    "tree": "events",
+    "tree_name": "events",
     "branches": ["met", "met_x", "met_y"],
     "defines": {
       "met_x": "met * cos(met_phi)",
@@ -330,7 +330,7 @@ Compute basic statistics for branches.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `path` | `string` | Yes | Absolute path to ROOT file |
-| `tree` | `string` | Yes | TTree name |
+| `tree_name` | `string` | Yes | TTree name |
 | `branches` | `string[]` | Yes | Branch names |
 | `selection` | `string` | No | Optional cut expression |
 | `defines` | `object` | No | Derived variables `{name: expr}` |
@@ -342,7 +342,7 @@ Compute basic statistics for branches.
   "tool": "get_branch_stats",
   "arguments": {
     "path": "/data/sample.root",
-    "tree": "events",
+    "tree_name": "events",
     "branches": ["met", "muon_pt"]
   }
 }
@@ -391,7 +391,7 @@ Export branch data to JSON, CSV, or Parquet format.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `path` | `string` | Yes | Input ROOT file path |
-| `tree` | `string` | Yes | TTree name |
+| `tree_name` | `string` | Yes | TTree name |
 | `branches` | `string[]` | Yes | Branches to export |
 | `output_path` | `string` | Yes | Output file path |
 | `format` | `string` | Yes | `"json"`, `"csv"`, or `"parquet"` |
@@ -406,7 +406,7 @@ Export branch data to JSON, CSV, or Parquet format.
   "tool": "export_data",
   "arguments": {
     "path": "/data/sample.root",
-    "tree": "events",
+    "tree_name": "events",
     "branches": ["run", "event", "met"],
     "output_path": "/exports/data.parquet",
     "format": "parquet",
@@ -533,7 +533,7 @@ Create 1D histogram with optional fitting support.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `path` | `string` or `string[]` | Yes | ROOT file path(s) |
-| `tree` | `string` | Yes | TTree name |
+| `tree_name` | `string` | Yes | TTree name |
 | `branch` | `string` | Yes | Branch to histogram |
 | `bins` | `integer` | Yes | Number of bins |
 | `range` | `[min, max]` | No | Range (auto if omitted) |
@@ -550,7 +550,7 @@ Create 1D histogram with optional fitting support.
   "tool": "compute_histogram",
   "arguments": {
     "path": "/data/sample.root",
-    "tree": "events",
+    "tree_name": "events",
     "branch": "dimuon_mass",
     "bins": 100,
     "range": [2.8, 3.4],
@@ -603,13 +603,13 @@ Create 2D histogram for correlation studies.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `path` | `string` or `string[]` | Yes | ROOT file path(s) |
-| `tree` | `string` | Yes | TTree name |
+| `tree_name` | `string` | Yes | TTree name |
 | `branch_x` | `string` | Yes | X-axis branch |
 | `branch_y` | `string` | Yes | Y-axis branch |
-| `bins_x` | `integer` | Yes | Number of X bins |
-| `bins_y` | `integer` | Yes | Number of Y bins |
-| `range_x` | `[min, max]` | No | X range |
-| `range_y` | `[min, max]` | No | Y range |
+| `x_bins` | `integer` | Yes | Number of bins in X |
+| `y_bins` | `integer` | Yes | Number of bins in Y |
+| `x_range` | `[min, max]` | No | X range |
+| `y_range` | `[min, max]` | No | Y range |
 | `selection` | `string` | No | Cut expression |
 | `defines` | `object` | No | Derived variables `{name: expr}` |
 
@@ -620,13 +620,13 @@ Create 2D histogram for correlation studies.
   "tool": "compute_histogram_2d",
   "arguments": {
     "path": "/data/sample.root",
-    "tree": "events",
-    "branch_x": "muon_eta",
-    "branch_y": "muon_phi",
-    "bins_x": 50,
-    "bins_y": 50,
-    "range_x": [-2.5, 2.5],
-    "range_y": [-3.14, 3.14]
+    "tree_name": "events",
+    "x_branch": "muon_eta",
+    "y_branch": "muon_phi",
+    "x_bins": 50,
+    "y_bins": 50,
+    "x_range": [-2.5, 2.5],
+    "y_range": [-3.14, 3.14]
   }
 }
 ```
@@ -769,7 +769,7 @@ Calculate invariant mass from particle 4-vectors.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `path` | `string` | Yes | ROOT file path |
-| `tree` | `string` | Yes | TTree name |
+| `tree_name` | `string` | Yes | TTree name |
 | `pt_branches` | `string[]` | Yes | Transverse momentum branches |
 | `eta_branches` | `string[]` | Yes | Pseudorapidity branches |
 | `phi_branches` | `string[]` | Yes | Azimuthal angle branches |
@@ -784,7 +784,7 @@ Calculate invariant mass from particle 4-vectors.
   "tool": "compute_invariant_mass",
   "arguments": {
     "path": "/data/sample.root",
-    "tree": "events",
+    "tree_name": "events",
     "pt_branches": ["muon1_pt", "muon2_pt"],
     "eta_branches": ["muon1_eta", "muon2_eta"],
     "phi_branches": ["muon1_phi", "muon2_phi"],
@@ -823,7 +823,7 @@ Compute statistical correlations between branches.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `path` | `string` | Yes | ROOT file path |
-| `tree` | `string` | Yes | TTree name |
+| `tree_name` | `string` | Yes | TTree name |
 | `branches` | `string[]` | Yes | Branches to correlate |
 | `method` | `string` | No | `"pearson"` or `"spearman"` |
 | `selection` | `string` | No | Cut expression |
@@ -835,7 +835,7 @@ Compute statistical correlations between branches.
   "tool": "compute_correlation",
   "arguments": {
     "path": "/data/sample.root",
-    "tree": "events",
+    "tree_name": "events",
     "branches": ["met", "jet1_pt", "jet2_pt"],
     "method": "pearson"
   }
@@ -880,7 +880,7 @@ Generate a 1D histogram plot.
 | `output_path` | `string` | Yes | Output file path (e.g. "/tmp/plot.png") |
 | `data` | `object` | No | Pre-calculated histogram data |
 | `path` | `string` | No | ROOT file path (if data omitted) |
-| `tree` | `string` | No | TTree name (if data omitted) |
+| `tree_name` | `string` | No | TTree name (if data omitted) |
 | `branch` | `string` | No | Branch name (if data omitted) |
 | `bins` | `integer` | No | Number of bins |
 | `range` | `[min, max]` | No | Range |
@@ -921,7 +921,7 @@ Generate a 2D histogram plot.
 | `output_path` | `string` | Yes | Output file path |
 | `data` | `object` | No | Pre-calculated 2D data |
 | `path` | `string` | No | ROOT file path (if data omitted) |
-| `tree` | `string` | No | TTree name (if data omitted) |
+| `tree_name` | `string` | No | TTree name (if data omitted) |
 | `branch_x` | `string` | No | X Branch |
 | `branch_y` | `string` | No | Y Branch |
 | `bins_x` | `integer` | No | X bins |
@@ -1026,12 +1026,12 @@ Generate a 2D histogram plot.
 {"tool": "inspect_file", "arguments": {"path": "/data/sample.root"}}
 
 // 3. List branches
-{"tool": "list_branches", "arguments": {"path": "/data/sample.root", "tree": "events"}}
+{"tool": "list_branches", "arguments": {"path": "/data/sample.root", "tree_name": "events"}}
 
 // 4. Read data
 {"tool": "read_branches", "arguments": {
   "path": "/data/sample.root",
-  "tree": "events",
+  "tree_name": "events",
   "branches": ["muon_pt", "muon_eta"],
   "limit": 100
 }}
@@ -1046,7 +1046,7 @@ Generate a 2D histogram plot.
 // 2. Compute invariant mass
 {"tool": "compute_invariant_mass", "arguments": {
   "path": "/data/sample.root",
-  "tree": "events",
+  "tree_name": "events",
   "pt_branches": ["muon1_pt", "muon2_pt"],
   "eta_branches": ["muon1_eta", "muon2_eta"],
   "phi_branches": ["muon1_phi", "muon2_phi"]
@@ -1055,7 +1055,7 @@ Generate a 2D histogram plot.
 // 3. Create histogram with fit
 {"tool": "compute_histogram", "arguments": {
   "path": "/data/sample.root",
-  "tree": "events",
+  "tree_name": "events",
   "branch": "dimuon_mass",
   "bins": 100,
   "range": [2.8, 3.4],

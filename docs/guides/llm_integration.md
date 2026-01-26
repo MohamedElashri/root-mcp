@@ -206,7 +206,7 @@ The `compute_invariant_mass` tool calculates the invariant mass of particle syst
   "tool": "compute_invariant_mass",
   "arguments": {
     "path": "/data/drell_yan.root",
-    "tree": "events",
+    "tree_name": "events",
     "pt_branches": ["mu1_pt", "mu2_pt"],
     "eta_branches": ["mu1_eta", "mu2_eta"],
     "phi_branches": ["mu1_phi", "mu2_phi"],
