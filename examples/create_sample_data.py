@@ -331,8 +331,7 @@ def main():
     print("2. Start the server: root-mcp")
     print("3. Test with list_files, inspect_file, etc.")
     print("\nExample config.yaml:")
-    print(
-        f"""
+    print(f"""
 resources:
   - name: "local_data"
     uri: "file://{output_dir.absolute()}"
@@ -342,8 +341,7 @@ resources:
 security:
   allowed_roots:
     - "{output_dir.absolute()}"
-"""
-    )
+""")
 
 
 if __name__ == "__main__":
