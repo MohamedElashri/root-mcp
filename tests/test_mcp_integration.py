@@ -37,8 +37,7 @@ def sample_file(test_data_dir):
 async def mcp_server(tmp_path, test_data_dir):
     """Create MCP server in extended mode."""
     config_path = tmp_path / "config.yaml"
-    config_path.write_text(
-        f"""
+    config_path.write_text(f"""
 server:
   name: "test-mcp-server"
   mode: "extended"
@@ -57,8 +56,7 @@ extended:
 security:
   allowed_roots:
     - "{test_data_dir}"
-"""
-    )
+""")
     config = load_config(str(config_path))
     server = ROOTMCPServer(config)
     return server
