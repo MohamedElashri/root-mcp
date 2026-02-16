@@ -155,10 +155,23 @@ class AnalysisConfig(BaseModel):
     plotting: PlottingConfig = Field(default_factory=PlottingConfig)
 
 
+class RootNativeConfig(BaseModel):
+    """Configuration for native ROOT/PyROOT execution."""
+
+    execution_timeout: int = Field(60, gt=0)
+    max_output_size: int = Field(10_000_000, gt=0)
+    allowed_output_formats: list[str] = Field(
+        default_factory=lambda: ["png", "pdf", "svg", "root", "json", "csv"]
+    )
+    working_directory: str = "/tmp/root_mcp_native"
+    max_code_length: int = Field(100_000, gt=0)
+
+
 class FeatureFlags(BaseModel):
     """Feature toggles."""
 
     enable_export: bool = True
+    enable_root: bool = False
 
 
 class Config(BaseModel):
@@ -173,6 +186,7 @@ class Config(BaseModel):
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
+    root_native: RootNativeConfig = Field(default_factory=RootNativeConfig)
     features: FeatureFlags = Field(default_factory=FeatureFlags)
 
     def get_resource(self, name: str) -> ResourceConfig | None:

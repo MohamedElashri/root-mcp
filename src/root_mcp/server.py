@@ -12,6 +12,7 @@ from mcp.types import Resource, Tool, TextContent
 from mcp.server.stdio import stdio_server
 
 from root_mcp.config import Config, load_config
+from root_mcp.common.root_availability import is_root_available, get_root_version, get_root_features
 from root_mcp.core.io import FileManager, PathValidator, TreeReader, HistogramReader, DataExporter
 from root_mcp.core.operations import BasicStatistics
 from root_mcp.core.tools import DiscoveryTools, DataAccessTools
@@ -45,6 +46,7 @@ class ROOTMCPServer:
 
         # Initialize extended components if in extended mode
         self._extended_components_loaded = False
+        self._root_native_available = False
         if self.current_mode == "extended":
             self._initialize_extended_components()
 
@@ -114,6 +116,9 @@ class ROOTMCPServer:
             self._extended_components_loaded = True
             logger.info("Extended components initialized")
 
+            # Initialize native ROOT tools if enabled and available
+            self._initialize_root_native()
+
         except ImportError as e:
             logger.error(f"Failed to load extended components: {e}")
             logger.warning(
@@ -121,6 +126,31 @@ class ROOTMCPServer:
             )
             self.current_mode = "core"
             self._extended_components_loaded = False
+
+    def _initialize_root_native(self) -> None:
+        """Initialize native ROOT tools if enabled and available."""
+        if not self.config.features.enable_root:
+            logger.info("Native ROOT support disabled (enable_root=false)")
+            self._root_native_available = False
+            return
+
+        if not is_root_available():
+            logger.info("Native ROOT support enabled but ROOT not found in environment")
+            self._root_native_available = False
+            return
+
+        try:
+            from root_mcp.extended.tools.root_native import RootNativeTools
+
+            self.root_native_tools = RootNativeTools(config=self.config)
+            self._root_native_available = True
+            logger.info(
+                "Native ROOT tools initialized (ROOT %s)",
+                get_root_version() or "unknown version",
+            )
+        except Exception as e:
+            logger.warning("Failed to initialize native ROOT tools: %s", e)
+            self._root_native_available = False
 
     def _unload_extended_components(self) -> None:
         """Unload extended components to free memory."""
@@ -138,8 +168,11 @@ class ROOTMCPServer:
             del self.correlation_analysis
         if hasattr(self, "analysis_tools"):
             del self.analysis_tools
+        if hasattr(self, "root_native_tools"):
+            del self.root_native_tools
 
         self._extended_components_loaded = False
+        self._root_native_available = False
         logger.info("Extended components unloaded")
 
     def switch_mode(self, new_mode: str) -> dict[str, Any]:
@@ -640,6 +673,128 @@ class ROOTMCPServer:
             ),
         ]
 
+    def _get_root_native_tools(self) -> list[Tool]:
+        """Get native ROOT tools (only when ROOT is enabled and available)."""
+        return [
+            Tool(
+                name="run_root_code",
+                description=(
+                    "Execute PyROOT/Python code with native ROOT. "
+                    "Requires ROOT installation. Use for operations not possible "
+                    "with uproot (RDataFrame, RooFit, custom classes, TCanvas plots, etc.)"
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "code": {
+                            "type": "string",
+                            "description": "Python code to execute (may import ROOT)",
+                        },
+                        "output_dir": {
+                            "type": "string",
+                            "description": "Directory for output files (optional, defaults to temp dir)",
+                        },
+                        "timeout": {
+                            "type": "integer",
+                            "description": "Execution timeout in seconds (optional, default from config)",
+                        },
+                        "input_files": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Paths to ROOT files the code needs access to",
+                        },
+                    },
+                    "required": ["code"],
+                },
+            ),
+            Tool(
+                name="run_rdataframe",
+                description=(
+                    "Compute a 1D histogram using ROOT RDataFrame. "
+                    "A convenience wrapper that generates and executes RDataFrame code. "
+                    "Requires native ROOT."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Path to the ROOT file",
+                        },
+                        "tree_name": {
+                            "type": "string",
+                            "description": "Name of the TTree",
+                        },
+                        "branch": {
+                            "type": "string",
+                            "description": "Branch to histogram",
+                        },
+                        "bins": {
+                            "type": "integer",
+                            "description": "Number of bins",
+                        },
+                        "range_min": {
+                            "type": "number",
+                            "description": "Histogram range minimum",
+                        },
+                        "range_max": {
+                            "type": "number",
+                            "description": "Histogram range maximum",
+                        },
+                        "selection": {
+                            "type": "string",
+                            "description": "Optional cut expression (C++ syntax for RDF Filter)",
+                        },
+                        "weight": {
+                            "type": "string",
+                            "description": "Optional weight column name",
+                        },
+                        "output_path": {
+                            "type": "string",
+                            "description": "Save histogram plot to this path (png, pdf, svg)",
+                        },
+                        "timeout": {
+                            "type": "integer",
+                            "description": "Execution timeout in seconds",
+                        },
+                    },
+                    "required": [
+                        "file_path",
+                        "tree_name",
+                        "branch",
+                        "bins",
+                        "range_min",
+                        "range_max",
+                    ],
+                },
+            ),
+            Tool(
+                name="run_root_macro",
+                description=(
+                    "Execute a ROOT C++ macro via gROOT.ProcessLine. "
+                    "Use for running C++ code snippets directly. Requires native ROOT."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "macro_code": {
+                            "type": "string",
+                            "description": "C++ code to execute",
+                        },
+                        "output_path": {
+                            "type": "string",
+                            "description": "Save any canvas output to this path (optional)",
+                        },
+                        "timeout": {
+                            "type": "integer",
+                            "description": "Execution timeout in seconds",
+                        },
+                    },
+                    "required": ["macro_code"],
+                },
+            ),
+        ]
+
     def _register_tools(self) -> None:
         """Register all MCP tools based on current mode."""
 
@@ -650,6 +805,9 @@ class ROOTMCPServer:
 
             if self.current_mode == "extended" and self._extended_components_loaded:
                 tools.extend(self._get_extended_tools())
+
+            if self._root_native_available:
+                tools.extend(self._get_root_native_tools())
 
             return tools
 
@@ -669,6 +827,12 @@ class ROOTMCPServer:
                         "current_mode": self.current_mode,
                         "extended_components_loaded": self._extended_components_loaded,
                         "available_modes": ["core", "extended"],
+                        "root_native_available": is_root_available(),
+                        "root_native_enabled": (
+                            self.config.features.enable_root and is_root_available()
+                        ),
+                        "root_version": get_root_version(),
+                        "root_features": get_root_features(),
                     }
 
                 # Core tools (always available)
@@ -755,6 +919,25 @@ class ROOTMCPServer:
                             result = self.plotting_tools.plot_histogram_2d(**arguments)
                         elif name == "histogram_arithmetic":
                             result = self.analysis_tools.compute_histogram_arithmetic(**arguments)
+
+                # Native ROOT tools
+                elif name in ["run_root_code", "run_rdataframe", "run_root_macro"]:
+                    if not self._root_native_available:
+                        result = {
+                            "error": "root_not_available",
+                            "message": (
+                                "Native ROOT tools are not available. "
+                                "Ensure ROOT is installed and enable_root is set to true in config."
+                            ),
+                            "hint": "Use get_server_info to check ROOT availability",
+                        }
+                    else:
+                        if name == "run_root_code":
+                            result = self.root_native_tools.run_root_code(**arguments)
+                        elif name == "run_rdataframe":
+                            result = self.root_native_tools.run_rdataframe(**arguments)
+                        elif name == "run_root_macro":
+                            result = self.root_native_tools.run_root_macro(**arguments)
 
                 else:
                     result = {

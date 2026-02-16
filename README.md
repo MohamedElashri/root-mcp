@@ -27,6 +27,40 @@ ROOT-MCP features a **dual-mode architecture**:
 
 The mode is controlled via configuration, and the server automatically loads only the components you need. Runtime mode switching is also available.
 
+### Optional Native ROOT Support
+
+ROOT-MCP can optionally integrate with a native [ROOT/PyROOT](https://root.cern/) installation to unlock capabilities beyond what `uproot` provides:
+
+- **`run_root_code`**: Execute arbitrary PyROOT/Python code and get structured results
+- **`run_rdataframe`**: Compute histograms using ROOT's RDataFrame (no boilerplate needed)
+- **`run_root_macro`**: Execute C++ ROOT macros via `gROOT.ProcessLine`
+
+This feature is **entirely optional** — ROOT-MCP works fully without ROOT installed. When ROOT is available and enabled, these additional tools appear automatically.
+
+**Requirements**: A working ROOT installation (via [conda-forge](https://anaconda.org/conda-forge/root), system package, or binary tarball). ROOT is not pip-installable at this time.
+
+**Enable it** by setting `enable_root: true` in your `config.yaml`:
+
+```yaml
+features:
+  enable_root: true
+
+# Optional: tune execution settings
+root_native:
+  execution_timeout: 60
+  working_directory: "/tmp/root_mcp_native"
+```
+
+Use `get_server_info` to check ROOT availability at runtime:
+```json
+{
+  "root_native_available": true,
+  "root_native_enabled": true,
+  "root_version": "6.32/02",
+  "root_features": {"rdataframe": true, "roofit": true, "tmva": false}
+}
+```
+
 ## Quick Start
 
 ### 1. Install

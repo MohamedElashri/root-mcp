@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.1.5] - 2026-02-16
+
+### Added
+- **Optional Native ROOT/PyROOT Support**: When a native ROOT installation is available, three new tools become accessible:
+  - `run_root_code`: Execute arbitrary PyROOT/Python code in a sandboxed subprocess with structured result capture (stdout, stderr, output files, execution time)
+  - `run_rdataframe`: Convenience wrapper to compute RDataFrame histograms without writing boilerplate
+  - `run_root_macro`: Execute C++ ROOT macros via `gROOT.ProcessLine`
+- **ROOT Detection**: Subprocess-based probe that safely detects ROOT availability, version, and optional features (RDataFrame, RooFit, TMVA, Minuit2) without polluting the server process
+- **Code Validation**: AST-based security sandbox that blocks dangerous imports (`os`, `subprocess`, `shutil`, `socket`, etc.), blocked built-ins (`exec`, `eval`, `compile`), and dangerous attribute accesses (`.system`, `.popen`, `.kill`, `.rmtree`, etc.)
+- **Code Templates**: Pre-built templates for common ROOT operations — `rdataframe_histogram`, `rdataframe_snapshot`, `tcanvas_plot`, `roofit_fit`, `root_file_write`, `root_macro`
+- **Configuration**: New `enable_root` feature flag and `root_native` config section for execution timeout, output size limits, and working directory
+- **Server Info**: `get_server_info` now reports `root_native_available`, `root_native_enabled`, `root_version`, and `root_features`
+
+### Changed
+- ROOT native tools are gated behind dual condition: `enable_root: true` in config AND ROOT importable in environment
+- Extended tools `__init__.py` now exports `RootNativeTools`
+
 ## [0.1.4] - 2026-01-15
 
 ### Fixed

@@ -8,6 +8,7 @@ from .errors import (
     FileOperationError,
     AnalysisError,
 )
+from .root_availability import is_root_available, get_root_version, get_root_features
 from .utils import format_bytes, ensure_path_exists, sanitize_filename
 
 __all__ = [
@@ -20,4 +21,7 @@ __all__ = [
     "format_bytes",
     "ensure_path_exists",
     "sanitize_filename",
+    "is_root_available",
+    "get_root_version",
+    "get_root_features",
 ]

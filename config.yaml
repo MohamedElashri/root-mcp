@@ -162,6 +162,21 @@ analysis:
       - "pdf"
       - "svg"
 
+# Native ROOT/PyROOT execution settings (only used when enable_root is true)
+root_native:
+  execution_timeout: 60       # seconds
+  max_output_size: 10000000   # bytes
+  max_code_length: 100000     # characters
+  working_directory: "/tmp/root_mcp_native"
+  allowed_output_formats:
+    - "png"
+    - "pdf"
+    - "svg"
+    - "root"
+    - "json"
+    - "csv"
+
 # Feature flags
 features:
   enable_export: true
+  enable_root: false  # Set to true to enable native ROOT/PyROOT tools (requires ROOT installation)
