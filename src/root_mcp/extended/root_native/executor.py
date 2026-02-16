@@ -43,6 +43,12 @@ _result = {{
     "traceback": None,
 }}
 
+
+def _set_result(value):
+    \"\"\"Set a structured return value (must be JSON-serializable).\"\"\"
+    _result["return_value"] = value
+
+
 try:
     # --- Begin user code ---
 {indented_code}

@@ -680,15 +680,27 @@ class ROOTMCPServer:
                 name="run_root_code",
                 description=(
                     "Execute PyROOT/Python code with native ROOT. "
-                    "Requires ROOT installation. Use for operations not possible "
-                    "with uproot (RDataFrame, RooFit, custom classes, TCanvas plots, etc.)"
+                    "Use for operations not possible with uproot: RDataFrame, RooFit, "
+                    "custom classes, TCanvas plots, C++ interop, etc. "
+                    "IMPORTANT: Always start code with 'import ROOT' and "
+                    "'ROOT.gROOT.SetBatch(True)' (prevents GUI). "
+                    "The variable '_output_dir' is available in code as a writable "
+                    "directory for saving files (plots, ROOT files). "
+                    "The variable '_input_files' contains the list of input file paths. "
+                    "To return structured data, call '_set_result(value)' where value "
+                    "is a JSON-serializable object, or print JSON to stdout. "
+                    "Prefer run_rdataframe for simple histograms."
                 ),
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "code": {
                             "type": "string",
-                            "description": "Python code to execute (may import ROOT)",
+                            "description": (
+                                "Python code to execute. Must import ROOT explicitly. "
+                                "Use ROOT.gROOT.SetBatch(True) to prevent GUI. "
+                                "Use _output_dir for file output, _set_result() for structured results."
+                            ),
                         },
                         "output_dir": {
                             "type": "string",
@@ -696,12 +708,18 @@ class ROOTMCPServer:
                         },
                         "timeout": {
                             "type": "integer",
-                            "description": "Execution timeout in seconds (optional, default from config)",
+                            "description": (
+                                "Execution timeout in seconds (default: 60). "
+                                "Increase for large files or complex fits."
+                            ),
                         },
                         "input_files": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "Paths to ROOT files the code needs access to",
+                            "description": (
+                                "Paths to ROOT files the code needs. "
+                                "Available inside code as _input_files list."
+                            ),
                         },
                     },
                     "required": ["code"],
@@ -711,7 +729,10 @@ class ROOTMCPServer:
                 name="run_rdataframe",
                 description=(
                     "Compute a 1D histogram using ROOT RDataFrame. "
-                    "A convenience wrapper that generates and executes RDataFrame code. "
+                    "Preferred over run_root_code for simple histograms — no boilerplate needed. "
+                    "Returns JSON with entries, mean, std_dev, bin_contents, bin_errors, bin_edges. "
+                    "Use inspect_file first to discover tree and branch names. "
+                    "Selection uses C++ syntax (e.g. 'pt > 20 && abs(eta) < 2.5'). "
                     "Requires native ROOT."
                 ),
                 inputSchema={
@@ -772,7 +793,10 @@ class ROOTMCPServer:
                 name="run_root_macro",
                 description=(
                     "Execute a ROOT C++ macro via gROOT.ProcessLine. "
-                    "Use for running C++ code snippets directly. Requires native ROOT."
+                    'Use for short C++ snippets (e.g. \'TH1F h("h","h",100,-5,5); '
+                    'h.FillRandom("gaus",10000);\'). Multi-line code is supported. '
+                    "For complex analysis, prefer run_root_code with Python. "
+                    "Requires native ROOT."
                 ),
                 inputSchema={
                     "type": "object",

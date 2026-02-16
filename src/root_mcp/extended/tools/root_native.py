@@ -87,6 +87,8 @@ class RootNativeTools:
 
         if result.error:
             response["error"] = result.error
+            # Add actionable hints for common failure modes
+            response["hint"] = self._error_hint(result)
         if result.traceback:
             response["traceback"] = result.traceback
         if result.validation and result.validation.warnings:
@@ -221,7 +223,63 @@ class RootNativeTools:
 
         if result.error:
             response["error"] = result.error
+            response["hint"] = self._error_hint(result)
         if result.traceback:
             response["traceback"] = result.traceback
 
         return response
+
+    @staticmethod
+    def _error_hint(result: Any) -> str:
+        """Generate actionable hints for common ROOT failure modes."""
+        from root_mcp.extended.root_native.executor import ExecutionResult
+
+        if not isinstance(result, ExecutionResult):
+            return ""
+
+        error = result.error or ""
+        stderr = result.stderr or ""
+        combined = error + " " + stderr
+
+        if result.status == "timeout":
+            return (
+                "Execution timed out. Try increasing the 'timeout' parameter. "
+                "Large ROOT files and RooFit fits may need 120-300 seconds."
+            )
+
+        if "ModuleNotFoundError" in combined and "ROOT" in combined:
+            return (
+                "ROOT is not importable in the execution environment. "
+                "Verify ROOT is installed and PYTHONPATH includes ROOT's Python bindings."
+            )
+
+        if "No such file" in combined or "file not found" in combined.lower():
+            return (
+                "File not found. Use list_files to discover available ROOT files, "
+                "then pass the exact path."
+            )
+
+        if "does not exist" in combined and (
+            "branch" in combined.lower() or "tree" in combined.lower()
+        ):
+            return (
+                "Tree or branch not found. Use inspect_file to list available "
+                "trees and branches in the ROOT file."
+            )
+
+        if "SetBatch" not in (result.stdout or "") and (
+            "display" in combined.lower()
+            or "cannot open display" in combined.lower()
+            or "DISPLAY" in combined
+        ):
+            return (
+                "ROOT tried to open a GUI display. Add 'ROOT.gROOT.SetBatch(True)' "
+                "at the start of your code."
+            )
+
+        if "SyntaxError" in combined:
+            return (
+                "Python syntax error in submitted code. Check for typos or incorrect indentation."
+            )
+
+        return ""
