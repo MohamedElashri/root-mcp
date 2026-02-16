@@ -134,6 +134,8 @@ def rdataframe_snapshot(
         "import ROOT",
         "import json",
         "",
+        "ROOT.gROOT.SetBatch(True)",
+        "",
         f"rdf = ROOT.RDataFrame({tree_name!r}, {file_path!r})",
     ]
 
@@ -223,8 +225,10 @@ def tcanvas_plot(
         lines.extend(
             [
                 "",
-                "# Set title",
-                f'ROOT.gPad.GetPrimitive("htemp").SetTitle({title!r})',
+                "# Set title (handle both default 'htemp' and user-specified histogram names)",
+                "_drawn_obj = ROOT.gPad.GetPrimitive('htemp') if ROOT.gPad.GetPrimitive('htemp') else ROOT.gPad.GetListOfPrimitives().At(0)",
+                "if _drawn_obj:",
+                f"    _drawn_obj.SetTitle({title!r})",
             ]
         )
 
@@ -316,14 +320,15 @@ def roofit_fit(
             [
                 "",
                 "# Plot fit result",
-                "obs = w.var(model.getObservables(data).first().GetName())",
-                "frame = obs.frame()",
-                "data.plotOn(frame)",
-                "model.plotOn(frame)",
-                "",
-                'c = ROOT.TCanvas("c", "c", 800, 600)',
-                "frame.Draw()",
-                f"c.SaveAs({output_path!r})",
+                "_obs_set = model.getObservables(data)",
+                "if _obs_set.getSize() > 0:",
+                "    obs = w.var(_obs_set.first().GetName())",
+                "    frame = obs.frame()",
+                "    data.plotOn(frame)",
+                "    model.plotOn(frame)",
+                '    c = ROOT.TCanvas("c", "c", 800, 600)',
+                "    frame.Draw()",
+                f"    c.SaveAs({output_path!r})",
             ]
         )
 

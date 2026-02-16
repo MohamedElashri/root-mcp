@@ -209,7 +209,7 @@ class RootCodeExecutor:
             result_path = os.path.join(work_dir, "_result.json")
             structured = self._read_result_file(result_path)
 
-            return ExecutionResult(
+            exec_result = ExecutionResult(
                 status=structured.get("status", "error"),
                 stdout=stdout,
                 stderr=stderr,
@@ -220,6 +220,10 @@ class RootCodeExecutor:
                 traceback=structured.get("traceback"),
                 validation=validation,
             )
+
+            # Clean up working directory (preserve output files)
+            self._cleanup_work_dir(work_dir, exec_result.output_files)
+            return exec_result
 
         except subprocess.TimeoutExpired:
             elapsed = time.monotonic() - start_time
@@ -269,3 +273,38 @@ class RootCodeExecutor:
                 "status": "error",
                 "error": f"Failed to read execution result: {e}",
             }
+
+    @staticmethod
+    def _cleanup_work_dir(work_dir: str, output_files: list[str]) -> None:
+        """Remove the temporary working directory after execution.
+
+        Output files that live inside the work_dir are left in place so
+        callers can still read them; only internal bookkeeping files
+        (_runner.py, _result.json) and the output sub-directory are removed
+        once the output file list has been captured.
+        """
+        try:
+            # Identify files we must keep (output files the caller may need)
+            keep = {os.path.abspath(f) for f in output_files}
+            work_abs = os.path.abspath(work_dir)
+
+            for root, dirs, files in os.walk(work_abs, topdown=False):
+                for fname in files:
+                    fpath = os.path.join(root, fname)
+                    if os.path.abspath(fpath) not in keep:
+                        os.remove(fpath)
+                for dname in dirs:
+                    dpath = os.path.join(root, dname)
+                    # Remove dir only if empty (output files may keep it alive)
+                    try:
+                        os.rmdir(dpath)
+                    except OSError:
+                        pass  # Not empty — output files still inside
+
+            # Remove the work_dir itself if empty
+            try:
+                os.rmdir(work_abs)
+            except OSError:
+                pass  # Output files still inside
+        except Exception as e:
+            logger.debug("Cleanup of %s failed: %s", work_dir, e)
