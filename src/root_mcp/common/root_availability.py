@@ -58,9 +58,9 @@ try:
     except Exception:
         features["tmva"] = False
 
-    # TMinuit2
+    # Minuit2
     try:
-        _ = ROOT.Math.MinimizerOptions
+        _ = ROOT.Minuit2.Minuit2Minimizer
         features["minuit2"] = True
     except Exception:
         features["minuit2"] = False

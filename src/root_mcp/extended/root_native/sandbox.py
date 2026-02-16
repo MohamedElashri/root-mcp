@@ -122,15 +122,11 @@ ALLOWED_MODULES: frozenset[str] = frozenset(
         "textwrap",
         "string",
         "numpy",
-        "np",
         "scipy",
         "matplotlib",
-        "plt",
         "awkward",
-        "ak",
         "uproot",
         "pandas",
-        "pd",
         "hist",
     }
 )

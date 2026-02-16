@@ -249,8 +249,6 @@ class RootCodeExecutor:
         env = os.environ.copy()
         # Ensure ROOT batch mode (no GUI)
         env["ROOT_BATCH"] = "1"
-        # Disable ROOT splash screen
-        env.setdefault("ROOTSYS", env.get("ROOTSYS", ""))
         return env
 
     def _truncate(self, text: str) -> str:

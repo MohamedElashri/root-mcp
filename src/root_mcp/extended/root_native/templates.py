@@ -51,6 +51,8 @@ def rdataframe_histogram(
         "import ROOT",
         "import json",
         "",
+        "ROOT.gROOT.SetBatch(True)",
+        "",
         f"rdf = ROOT.RDataFrame({tree_name!r}, {file_path!r})",
     ]
 
@@ -87,7 +89,6 @@ def rdataframe_histogram(
             [
                 "",
                 "# Save plot",
-                "ROOT.gROOT.SetBatch(True)",
                 'c = ROOT.TCanvas("c", "c", 800, 600)',
                 "h.Draw()",
                 f"c.SaveAs({output_path!r})",
@@ -410,8 +411,17 @@ def root_macro(
     str
         Complete Python script.
     """
-    # Escape the C++ code for embedding in a Python string
-    escaped = macro_code.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    # For multi-line macros, wrap in braces so ProcessLine handles them
+    # as a single compound statement. Single-line macros work as-is.
+    macro_lines = macro_code.strip().splitlines()
+    if len(macro_lines) > 1:
+        # Wrap in { } block for multi-line C++ code
+        wrapped = "{ " + " ".join(line.strip() for line in macro_lines) + " }"
+    else:
+        wrapped = macro_code.strip()
+
+    # Escape for embedding in a Python string
+    escaped = wrapped.replace("\\", "\\\\").replace('"', '\\"')
 
     lines = [
         "import ROOT",
