@@ -729,7 +729,10 @@ class ROOTMCPServer:
                 name="run_rdataframe",
                 description=(
                     "Compute a 1D histogram using ROOT RDataFrame. "
-                    "Preferred over run_root_code for simple histograms — no boilerplate needed. "
+                    "Only supports 1D histograms of a single branch. "
+                    "For 2D histograms, profiles, Define() columns, or other RDataFrame "
+                    "operations, use run_root_code instead. "
+                    "Preferred over run_root_code for simple 1D histograms — no boilerplate needed. "
                     "Returns JSON with entries, mean, std_dev, bin_contents, bin_errors, bin_edges. "
                     "Use inspect_file first to discover tree and branch names. "
                     "Selection uses C++ syntax (e.g. 'pt > 20 && abs(eta) < 2.5'). "
