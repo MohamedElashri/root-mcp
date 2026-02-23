@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+from pathlib import Path
 import sys
 from typing import Any, cast
 from mcp.server import Server
 from mcp.types import Resource, Tool, TextContent
 from mcp.server.stdio import stdio_server
 
-from root_mcp.config import Config, load_config
+from root_mcp.config import Config, load_config, _CONFIG_TEMPLATE
 from root_mcp.common.root_availability import is_root_available, get_root_version, get_root_features
 from root_mcp.core.io import FileManager, PathValidator, TreeReader, HistogramReader, DataExporter
 from root_mcp.core.operations import BasicStatistics
@@ -995,13 +996,106 @@ class ROOTMCPServer:
             )
 
 
+def _run_init(argv: list[str]) -> None:
+    """Handle the ``root-mcp init`` sub-command."""
+    parser = argparse.ArgumentParser(
+        prog="root-mcp init",
+        description="Generate a minimal config.yaml for ROOT-MCP.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  root-mcp init                        # placeholder URI, edit before use\n"
+            "  root-mcp init --permissive           # URI set to current directory\n"
+            "  root-mcp init --permissive --output ~/my-config.yaml\n"
+        ),
+    )
+    parser.add_argument(
+        "--permissive",
+        action="store_true",
+        help=(
+            "Set the resource URI to the current working directory so the "
+            "generated config works immediately without further editing."
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="config.yaml",
+        metavar="PATH",
+        help="Where to write the config file (default: ./config.yaml).",
+    )
+    args = parser.parse_args(argv)
+
+    output_path = Path(args.output).resolve()
+
+    if output_path.exists():
+        print(f"Warning: {output_path} already exists — overwriting.", file=sys.stderr)
+
+    if args.permissive:
+        uri = f"file://{Path.cwd()}"
+    else:
+        uri = "file:///REPLACE_WITH_YOUR_DATA_PATH"
+
+    # Detect whether ROOT/PyROOT is available so the flag is pre-set correctly.
+    root_detected = is_root_available()
+    enable_root = "true" if root_detected else "false"
+    if root_detected:
+        print("ROOT/PyROOT detected — setting enable_root: true in generated config.")
+
+    content = _CONFIG_TEMPLATE.format(uri=uri, enable_root=enable_root)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(content)
+
+    print(f"Created: {output_path}")
+    if not args.permissive:
+        print(
+            f"  → Edit the 'uri' field to point at your ROOT files, then run:\n"
+            f"    root-mcp --config {output_path}"
+        )
+    else:
+        print(f"  → Config is ready. Run:\n" f"    root-mcp --config {output_path}")
+
+
 def main() -> None:
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="ROOT-MCP Server")
+    # Dispatch 'root-mcp init …' before the main parser so the init sub-command
+    # gets its own clean argument namespace and the existing server flags are
+    # unaffected.
+    if len(sys.argv) > 1 and sys.argv[1] == "init":
+        _run_init(sys.argv[2:])
+        return
+
+    parser = argparse.ArgumentParser(
+        description="ROOT-MCP Server",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Zero-config quick start:\n"
+            "  root-mcp --data-path /path/to/root/files\n\n"
+            "Multiple directories:\n"
+            "  root-mcp --data-path /data/run3 --data-path /data/mc\n\n"
+            "Via environment variable:\n"
+            "  ROOT_MCP_DATA_PATH=/data/run3 root-mcp\n\n"
+            "Generate a config file:\n"
+            "  root-mcp init --permissive"
+        ),
+    )
     parser.add_argument(
         "--config",
         type=str,
         help="Path to configuration file (overrides ROOT_MCP_CONFIG env var)",
+    )
+    parser.add_argument(
+        "--data-path",
+        action="append",
+        metavar="DIR",
+        dest="data_paths",
+        help=(
+            "Local directory containing ROOT files. "
+            "Can be specified multiple times. "
+            "Adds a resource and permits access to that directory. "
+            "No config.yaml required."
+        ),
     )
     args = parser.parse_args()
 
@@ -1010,6 +1104,14 @@ def main() -> None:
     except Exception as e:
         logger.error(f"Failed to load configuration: {e}")
         sys.exit(1)
+
+    # Merge data paths from CLI --data-path flags.
+    from root_mcp.config import apply_data_paths
+
+    cli_paths: list[str] = args.data_paths or []
+    if cli_paths:
+        apply_data_paths(config, cli_paths)
+        logger.info(f"Added {len(cli_paths)} data path(s) from --data-path: {cli_paths}")
 
     server = ROOTMCPServer(config)
 

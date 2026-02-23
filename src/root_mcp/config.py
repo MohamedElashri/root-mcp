@@ -5,6 +5,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version as _dist_version
 import os
 from pathlib import Path
+import re
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -65,10 +66,36 @@ class SecurityConfig(BaseModel):
     allowed_protocols: list[str] = Field(default_factory=lambda: ["file"])
     max_path_depth: int = Field(10, gt=0)
 
+    def effective_protocols(self, resources: list) -> list[str]:
+        """Return the union of explicitly allowed protocols and protocols
+        inferred from the URI scheme of declared resources.
+
+        This means a resource with ``uri: "root://…"`` automatically permits
+        the ``root`` protocol without requiring ``allow_remote: true`` or
+        manually adding ``root`` to ``allowed_protocols``.
+
+        Args:
+            resources: List of :class:`ResourceConfig` objects (pass
+                ``config.resources``).
+
+        Returns:
+            Deduplicated list of permitted protocol strings.
+        """
+        from urllib.parse import urlparse
+
+        auto = {urlparse(r.uri).scheme.lower() for r in resources if r.uri}
+        return list(set(self.allowed_protocols) | auto)
+
     @field_validator("allowed_roots")
     @classmethod
     def validate_roots(cls, v: list[str]) -> list[str]:
-        """Ensure allowed roots are absolute paths."""
+        """Ensure allowed roots are absolute paths.
+
+        An empty list is valid and means permissive / zero-config mode:
+        the server will allow access to any path the OS permits.
+        """
+        if not v:
+            return v  # Empty = permissive mode; nothing to validate
         validated = []
         for root in v:
             path = Path(root).resolve()
@@ -205,6 +232,21 @@ def load_config(config_path: str | Path | None = None) -> Config:
     """
     Load configuration from YAML file.
 
+    After loading (or using built-in defaults when no file is found), the
+    ``ROOT_MCP_DATA_PATH`` environment variable is checked.  Any
+    colon-separated directory paths it contains are merged into the config as
+    resources via :func:`apply_data_paths`, exactly as if those directories had
+    been passed via ``--data-path`` on the CLI.  YAML-declared resources always
+    take precedence over env-var paths; CLI ``--data-path`` flags (applied in
+    ``main()``) take precedence over both.
+
+    **Config merge priority** (ascending — later wins):
+
+    1. Built-in Pydantic defaults
+    2. ``ROOT_MCP_DATA_PATH`` environment variable
+    3. ``--data-path`` CLI flags  (applied in ``main()``)
+    4. YAML config file values
+
     Args:
         config_path: Path to config file. If None, looks for:
                     1. ROOT_MCP_CONFIG env var
@@ -226,7 +268,9 @@ def load_config(config_path: str | Path | None = None) -> Config:
             config_path = Path.home() / ".config/root-mcp/config.yaml"
         else:
             # Use defaults
-            return Config()
+            config = Config()
+            _apply_data_path_env(config)
+            return config
 
     config_path = Path(config_path)
     if not config_path.exists():
@@ -235,34 +279,173 @@ def load_config(config_path: str | Path | None = None) -> Config:
     with open(config_path) as f:
         data = yaml.safe_load(f)
 
-    return Config(**data)
+    config = Config(**data)
+    _apply_data_path_env(config)
+    return config
 
 
-def create_default_config(output_path: str | Path) -> None:
+def _apply_data_path_env(config: Config) -> None:
+    """Merge ``ROOT_MCP_DATA_PATH`` env var into *config* (in-place).
+
+    The variable accepts colon-separated absolute directory paths, identical in
+    semantics to passing each directory via ``--data-path``.  Silently ignores
+    empty segments and paths that are already declared as resources in the
+    config (YAML values take precedence).
     """
-    Create a default configuration file.
+    raw = os.environ.get("ROOT_MCP_DATA_PATH", "").strip()
+    if not raw:
+        return
+    paths = [p.strip() for p in raw.split(":") if p.strip()]
+    if paths:
+        apply_data_paths(config, paths)
+
+
+# Two-tier YAML template used by both create_default_config() and
+# `root-mcp init`.  Placeholders: {uri}, {enable_root}.
+_CONFIG_TEMPLATE = """\
+# ROOT-MCP configuration
+# ══════════════════════════════════════════════════════
+# QUICK START — edit only this section to get started
+# ══════════════════════════════════════════════════════
+
+server:
+  mode: "extended"
+
+resources:
+  - name: "local_data"
+    uri: "{uri}"
+    description: "Local ROOT files"
+
+# Leave allowed_roots empty to allow any directory (permissive / zero-config mode).
+# Add explicit absolute paths here to restrict access.
+security:
+  allowed_roots: []
+
+features:
+  enable_root: {enable_root}  # set true if ROOT/PyROOT is installed
+
+# ══════════════════════════════════════════════════════
+# ADVANCED — change only if you need fine-tuning
+# ══════════════════════════════════════════════════════
+
+core:
+  cache:
+    enabled: true
+    file_cache_size: 50
+  limits:
+    max_rows_per_call: 1_000_000
+    max_export_rows: 10_000_000
+
+extended:
+  histogram:
+    max_bins_1d: 10_000
+    max_bins_2d: 1_000
+  plotting:
+    figure_width: 10.0
+    figure_height: 6.0
+    dpi: 100
+    default_format: "png"
+    allowed_formats: ["png", "pdf", "svg"]
+  fitting_max_iterations: 10_000
+
+output:
+  export_base_path: "/tmp/root_mcp_output"
+  allowed_formats: ["json", "csv", "parquet"]
+
+root_native:
+  execution_timeout: 60
+  working_directory: "/tmp/root_mcp_native"
+"""
+
+
+def create_default_config(
+    output_path: str | Path,
+    data_path: Path | None = None,
+    permissive: bool = True,
+) -> None:
+    """Generate a minimal, human-readable ``config.yaml``.
+
+    The output uses the same two-tier format as ``root-mcp init``: a short
+    **QUICK START** section with the only field most users need to change,
+    followed by an **ADVANCED** section with fine-tuning knobs.
 
     Args:
-        output_path: Where to write the config file
+        output_path: Destination file path.
+        data_path:  Local directory to use as the resource URI.
+                    When ``None`` and ``permissive`` is ``True``, defaults to
+                    the current working directory.
+                    When ``None`` and ``permissive`` is ``False``, writes a
+                    placeholder that the user must edit before use.
+        permissive: When ``True`` (default), ``security.allowed_roots`` is
+                    left empty (allow any OS-readable path).  Ignored when
+                    ``data_path`` is ``None`` and ``permissive`` is ``False``.
     """
-    config = Config(
-        resources=[
-            ResourceConfig(
-                name="local_data",
-                uri="file:///data/root_files",
-                description="Local ROOT files for analysis",
-            )
-        ],
-        security=SecurityConfig(
-            allowed_roots=["/data/root_files", "/tmp/root_mcp_output"],
-        ),
-    )
+    if data_path is not None:
+        uri = f"file://{Path(data_path).resolve()}"
+    elif permissive:
+        uri = f"file://{Path.cwd()}"
+    else:
+        uri = "file:///REPLACE_WITH_YOUR_DATA_PATH"
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Convert to dict and write as YAML
-    with open(output_path, "w") as f:
-        yaml.safe_dump(config.model_dump(), f, default_flow_style=False, sort_keys=False)
-
+    output_path.write_text(_CONFIG_TEMPLATE.format(uri=uri, enable_root="false"))
     print(f"Created default config at: {output_path}")
+
+
+def apply_data_paths(config: Config, paths: list[str]) -> Config:
+    """Merge a list of local directory paths into *config* as resources.
+
+    Each path is added as a new :class:`ResourceConfig` only when no existing
+    resource already points to the same URI (YAML-declared resources take
+    precedence). When ``security.allowed_roots`` is non-empty (restrictive
+    mode), the path is also appended there so the validator permits access.
+
+    This is the shared building block used by both the ``--data-path`` CLI
+    flag (Task 3) and the ``ROOT_MCP_DATA_PATH`` environment variable (Task 5).
+
+    Args:
+        config: The :class:`Config` to update in-place.
+        paths:  List of local directory paths (resolved to absolute).
+
+    Returns:
+        The same *config* object (mutated) for convenience.
+    """
+    existing_uris = {r.uri for r in config.resources}
+    existing_names = {r.name for r in config.resources}
+
+    for raw_path in paths:
+        path = Path(raw_path).resolve()
+        uri = f"file://{path}"
+
+        if uri in existing_uris:
+            # Already declared in YAML — don't duplicate; YAML wins.
+            continue
+
+        # Derive a unique, valid resource name from the directory basename.
+        base = re.sub(r"[^a-zA-Z0-9_-]", "_", path.name).strip("_") or "data"
+        if base[0].isdigit():
+            base = f"data_{base}"
+        name = base
+        counter = 1
+        while name in existing_names:
+            name = f"{base}_{counter}"
+            counter += 1
+
+        resource = ResourceConfig(
+            name=name,
+            uri=uri,
+            description=f"Data directory: {path}",
+        )
+        config.resources.append(resource)
+        existing_uris.add(uri)
+        existing_names.add(name)
+
+        # In restrictive mode (allowed_roots explicitly set), also whitelist
+        # the path so the path validator allows access to it.
+        if config.security.allowed_roots:
+            str_path = str(path)
+            if str_path not in config.security.allowed_roots:
+                config.security.allowed_roots.append(str_path)
+
+    return config

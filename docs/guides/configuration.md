@@ -2,14 +2,76 @@
 
 ROOT-MCP is configured through a YAML file that controls server behavior, mode selection, resource limits, and security constraints.
 
+## Quick Start
+
+You do **not** need a config file to get started. Three zero-config approaches are available:
+
+### Option 1 — Inline data path (fastest)
+
+Pass `--data-path` directly on the command line. The server will grant access to that directory without any YAML required:
+
+```bash
+root-mcp --data-path /path/to/your/data
+```
+
+Multiple directories are supported:
+
+```bash
+root-mcp --data-path /data/run2024 --data-path /data/simulation
+```
+
+### Option 2 — Environment variable
+
+Set `ROOT_MCP_DATA_PATH` once (colon-separated on Linux/macOS) and start the server without arguments:
+
+```bash
+export ROOT_MCP_DATA_PATH=/path/to/your/data
+root-mcp
+```
+
+### Option 3 — Generate a starter config file
+
+Use the built-in `init` command to create a ready-to-edit `config.yaml` in the current directory:
+
+```bash
+root-mcp init                    # generates config.yaml with a placeholder URI
+root-mcp init --permissive       # fills the URI with the current working directory
+root-mcp init --output ~/root-mcp.yaml   # custom output path
+```
+
+Open the generated file, replace the `REPLACE_WITH_YOUR_DATA_PATH` placeholder, and run:
+
+```bash
+root-mcp --config config.yaml
+```
+
+### Permissive mode
+
+When `security.allowed_roots` is an **empty list** (the default in the generated config), the server allows access to **any** local path. This is the recommended setting for personal or local use. Restrict it by listing explicit directories when deploying in a shared environment:
+
+```yaml
+security:
+  allowed_roots: []            # permissive — any local path is accessible
+  # allowed_roots:             # restrictive — only these directories
+  #   - /data/physics
+  #   - /home/user/exports
+```
+
+---
+
 ## Configuration File Location
 
-The server looks for configuration in the following order:
-1. Path specified in `ROOT_MCP_CONFIG` environment variable
-2. `./config.yaml` (current directory)
-3. `~/.config/root-mcp/config.yaml` (user config directory)
+Settings are merged from multiple sources in the following priority order (highest wins):
 
-**Recommendation**: Use environment variable for production, local file for development.
+1. `--data-path` CLI flag (appends resource entries dynamically)
+2. `ROOT_MCP_DATA_PATH` environment variable (same as `--data-path`, colon-separated)
+3. Config file — searched in order:
+   - Path specified in `ROOT_MCP_CONFIG` environment variable
+   - `./config.yaml` (current directory)
+   - `~/.config/root-mcp/config.yaml` (user config directory)
+4. Built-in defaults
+
+**Recommendation**: Use `ROOT_MCP_CONFIG` or `--config` for production, `--data-path` / `ROOT_MCP_DATA_PATH` for quick or per-session access.
 
 ## Complete Configuration Reference
 
@@ -339,9 +401,15 @@ output:
 
 ## Environment Variables
 
-Override configuration with environment variables:
+Override or supplement configuration with environment variables:
 
 ```bash
+# Data directory — no config file needed
+export ROOT_MCP_DATA_PATH="/path/to/your/data"
+
+# Multiple directories (colon-separated)
+export ROOT_MCP_DATA_PATH="/data/run2024:/data/simulation"
+
 # Configuration file location
 export ROOT_MCP_CONFIG="/path/to/config.yaml"
 
@@ -358,9 +426,8 @@ The server validates configuration on startup:
 
 **Common Errors**:
 - Invalid mode (must be "core" or "extended")
-- Missing `allowed_roots` in security section
 - Invalid URI format in resources
-- Export path not in `allowed_roots`
+- Export path not in `allowed_roots` (add the path or set `allowed_roots: []` for permissive mode)
 
 **Validation Messages**:
 ```

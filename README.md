@@ -76,39 +76,61 @@ pip install "root-mcp[xrootd]"
 
 ### 2. Configure
 
-Create a `config.yaml` and set your preferred mode:
+**Fastest path — no config file needed:**
+
+```bash
+root-mcp --data-path /path/to/your/data
+```
+
+Or set an environment variable once:
+
+```bash
+export ROOT_MCP_DATA_PATH=/path/to/your/data
+```
+
+**Generate a starter config (optional):**
+
+```bash
+root-mcp init --permissive   # creates config.yaml pre-filled with current directory
+```
+
+**Manual config file** — for persistent settings, remote resources, or native ROOT:
 
 ```yaml
-# Server settings
 server:
-  name: "root-mcp"
-  mode: "extended"  # Options: "core" or "extended"
+  mode: "extended"   # "core" or "extended"
 
-# Data resources
 resources:
   - name: "my_analysis"
-    uri: "file:///Users/me/data"
+    uri: "file:///path/to/data"
     allowed_patterns: ["*.root"]
 
-# Security
 security:
-  allowed_roots:
-    - "/Users/me/data"
-
-# Output directory for exports
-output:
-  export_base_path: "/Users/me/exports"
+  allowed_roots: []  # empty = any local path is accessible (permissive)
 ```
 
 **Mode Selection:**
-- `mode: "core"` - Lightweight mode for file operations and basic statistics
-- `mode: "extended"` - Full analysis features (histograms, fitting, kinematics, correlations)
+- `mode: "core"` — Lightweight: file operations and basic statistics
+- `mode: "extended"` — Full analysis: histograms, fitting, kinematics, correlations
 
-You can switch modes at runtime using the `switch_mode` tool without restarting the server.
+Switch modes at runtime with the `switch_mode` tool — no restart required.
 
 ### 3. Run with Claude Desktop
 
 Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "args": ["--data-path", "/path/to/your/data"]
+    }
+  }
+}
+```
+
+Or with a persistent config file:
 
 ```json
 {
