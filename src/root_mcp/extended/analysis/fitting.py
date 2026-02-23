@@ -1,4 +1,18 @@
-"""Fitting module for ROOT-MCP."""
+"""Histogram fitting engine for ROOT-MCP extended mode.
+
+Provides least-squares curve fitting via :mod:`scipy.optimize.curve_fit`
+for a registry of physics-motivated models:
+
+- **Gaussian** — symmetric peaks (resonances, detector resolutions)
+- **Exponential** — falling backgrounds
+- **Polynomial** (linear, quadratic, cubic) — smooth backgrounds
+- **Crystal Ball** — asymmetric peaks with a power-law tail (common in HEP)
+- **Double Gaussian** — overlapping resonances
+- **Voigt** — convolution of Gaussian detector resolution and Lorentzian natural width
+- **Breit-Wigner** — resonance line shape
+
+The public entry point is :class:`HistogramFitter`.
+"""
 
 from __future__ import annotations
 
@@ -191,7 +205,7 @@ def fit_histogram(
         model: Model definition. Can be:
             - str: Name of built-in model (e.g., "gaussian")
             - list[str]: List of built-in models (e.g., ["gaussian", "exponential"])
-            - list[dict]: List of models with config (e.g., [{"name": "gaussian", "prefix": "s_"}])
+            - list[dict]: List of models with config (e.g., ``[{"name": "gaussian", "prefix": "s_"}]``)
             - dict: Custom model definition (e.g. {"expr": "A*x + B", "params": ["A", "B"]})
         initial_guess: Initial parameter values
         bounds: List of [min, max] pairs for each parameter. Use [-np.inf, np.inf] for no bound.

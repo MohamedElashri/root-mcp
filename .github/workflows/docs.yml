@@ -1,0 +1,98 @@
+name: Docs
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "docs/**"
+      - "src/**"
+      - "scripts/build_docs.sh"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "src/**"
+      - "scripts/build_docs.sh"
+
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+# Only one deployment runs at a time; in-progress runs are cancelled when a
+# newer push arrives on main.
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Build — runs on every push and every PR
+  # --------------------------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.1.6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install project and doc dependencies
+        run: |
+          uv venv
+          uv pip install -e ".[dev,docs]"
+
+      - name: Regenerate sphinx-apidoc stubs
+        run: |
+          uv run sphinx-apidoc \
+            --output-dir docs/apidoc/root_mcp \
+            --module-first \
+            --separate \
+            --force \
+            src/root_mcp
+
+      - name: Build HTML docs
+        run: uv run sphinx-build -b html --keep-going docs docs/_build/html
+
+      - name: Configure GitHub Pages
+        # Only configure Pages on the main branch push (not on PRs)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        # Only upload on the main branch push (not on PRs)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+
+  # --------------------------------------------------------------------------
+  # Deploy — runs only after a successful build on main
+  # --------------------------------------------------------------------------
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    # Only deploy from main branch pushes, not from PRs
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+
+    # Required permissions for Pages deployment
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

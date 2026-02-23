@@ -846,12 +846,11 @@ class AnalysisOperations:
         Args:
             path: File path
             tree_name: Tree name
-            computations: List of kinematic calculations, each dict should have:
-                - name: Output variable name
-                - type: Calculation type (invariant_mass, invariant_mass_squared,
-                        transverse_mass, delta_r, delta_phi)
-                - particles: List of particle prefixes
-                - components: Component suffixes (default based on type)
+            computations: List of kinematic calculations. Each entry is a dict
+                with keys ``name`` (output variable name), ``type`` (one of
+                ``invariant_mass``, ``invariant_mass_squared``, ``transverse_mass``,
+                ``delta_r``, ``delta_phi``), ``particles`` (list of branch prefixes),
+                and optionally ``components`` (component suffixes; defaults vary by type).
             selection: Optional cut expression
             limit: Maximum entries to process
 
