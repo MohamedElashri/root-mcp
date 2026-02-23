@@ -1,0 +1,36 @@
+/* ROOT-MCP custom overrides (sphinxawesome-theme)
+ * Accent colour: #3d87c8 (ROOT blue)
+ * This file handles layout tweaks that cannot be expressed as theme options.
+ */
+
+/* Widen the content area slightly for wide tables in the tools reference */
+.content-container {
+    max-width: 1200px;
+}
+
+/* Give code blocks a subtle left border to visually separate them */
+div.highlight {
+    border-left: 3px solid #3d87c8;
+}
+
+/* Make copy-button slightly more prominent */
+button.copybtn {
+    opacity: 0.6;
+}
+button.copybtn:hover {
+    opacity: 1.0;
+}
+
+/* Admonition: slightly tighter top/bottom padding */
+.admonition {
+    padding-top: 0.6em;
+    padding-bottom: 0.6em;
+}
+
+/* Ensure wide tables in the tools reference page scroll horizontally */
+.rst-content .section table,
+article.bd-article table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+}

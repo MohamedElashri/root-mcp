@@ -166,9 +166,29 @@ Or with a persistent config file:
 
 ## Documentation
 
-- **[Full Documentation](docs/README.md)**: The complete guide.
-- **[Tool Reference](docs/api/tools.md)**: Detailed API definition for all tools.
-- **[LLM Integration Guide](docs/guides/llm_integration.md)**: How to prompt and work with the agent.
+The full documentation site is built with Sphinx and covers installation,
+configuration, all 20 MCP tools, LLM integration patterns, and the developer
+guide with auto-generated API reference.
+
+**Read online**: see the `docs/` directory on GitHub, or build locally:
+
+```bash
+pip install "root-mcp[docs]"
+./scripts/build_docs.sh
+# open docs/_build/html/index.html
+```
+
+For live-reload while writing docs:
+
+```bash
+cd docs && make livehtml
+```
+
+Highlights:
+- **[User Guide](docs/user/)** — installation, quickstart, modes, configuration, LLM integration
+- **[Tool Reference](docs/api/tools.md)** — complete catalogue of all tools and their JSON payloads
+- **[Developer Guide](docs/developer/)** — architecture, module overview, dev setup, contributing
+- **[API Reference](docs/apidoc/)** — auto-generated from source docstrings
 
 ## Citation
 

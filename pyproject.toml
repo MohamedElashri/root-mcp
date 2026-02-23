@@ -59,6 +59,14 @@ xrootd = [
     "XRootD>=5.5.0",
 ]
 
+docs = [
+    "sphinx>=7.0,<9.0",
+    "furo>=2024.1.29",
+    "myst-parser[linkify]>=3.0",
+    "sphinx-copybutton>=0.5.2",
+    "sphinx-autobuild>=2024.2.4",
+]
+
 # Native ROOT/PyROOT support — ROOT must be installed externally
 # (conda-forge, system package, or binary tarball). This group is
 # intentionally empty; it just exist to document the optional feature.

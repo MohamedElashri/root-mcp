@@ -36,7 +36,7 @@ class LimitsConfig(BaseModel):
 
 
 class CacheConfig(BaseModel):
-    """Caching configuration."""
+    """File-handle cache settings."""
 
     enabled: bool = True
     file_cache_size: int = Field(50, gt=0)
