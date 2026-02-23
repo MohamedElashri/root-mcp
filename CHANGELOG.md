@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
-## [0.1.5] - 2026-02-16
+## [0.1.5] - 2026-02-23
 
 ### Added
 - **Optional Native ROOT/PyROOT Support**: When a native ROOT installation is available, three new tools become accessible:
@@ -16,10 +16,29 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - **Code Templates**: Pre-built templates for common ROOT operations — `rdataframe_histogram`, `rdataframe_snapshot`, `tcanvas_plot`, `roofit_fit`, `root_file_write`, `root_macro`
 - **Configuration**: New `enable_root` feature flag and `root_native` config section for execution timeout, output size limits, and working directory
 - **Server Info**: `get_server_info` now reports `root_native_available`, `root_native_enabled`, `root_version`, and `root_features`
+- **Zero-config / Permissive-default Onboarding**: ROOT-MCP now works without any config file
+  - `--data-path` CLI flag sets the data directory inline
+  - `ROOT_MCP_DATA_PATH` environment variable as an alternative
+  - `root-mcp init --permissive` generates a starter `config.yaml` pre-filled with the current directory
+- **Full Environment-Variable Configuration**: Every `config.yaml` field now has a matching `ROOT_MCP_*` env var (25 variables across 8 phases):
+  - *Server*: `ROOT_MCP_MODE`, `ROOT_MCP_SERVER_NAME`
+  - *Security*: `ROOT_MCP_ALLOWED_ROOTS`, `ROOT_MCP_ALLOW_REMOTE`, `ROOT_MCP_ALLOWED_PROTOCOLS`, `ROOT_MCP_MAX_PATH_DEPTH`
+  - *Output*: `ROOT_MCP_EXPORT_PATH`, `ROOT_MCP_EXPORT_FORMATS`, `ROOT_MCP_ENABLE_EXPORT`
+  - *Limits*: `ROOT_MCP_MAX_ROWS`, `ROOT_MCP_MAX_EXPORT_ROWS`
+  - *Cache*: `ROOT_MCP_CACHE`, `ROOT_MCP_CACHE_SIZE`
+  - *Analysis*: `ROOT_MCP_MAX_BINS_1D`, `ROOT_MCP_MAX_BINS_2D`, `ROOT_MCP_FITTING_ITERATIONS`
+  - *Plotting*: `ROOT_MCP_PLOT_DPI`, `ROOT_MCP_PLOT_FORMAT`, `ROOT_MCP_PLOT_WIDTH`, `ROOT_MCP_PLOT_HEIGHT`
+  - *ROOT exec*: `ROOT_MCP_ROOT_TIMEOUT`, `ROOT_MCP_ROOT_WORKDIR`, `ROOT_MCP_ROOT_MAX_OUTPUT`, `ROOT_MCP_ROOT_MAX_CODE`
+  - *Resources*: `ROOT_MCP_RESOURCES` (semicolon-separated `NAME=URI|description` specs)
+  - *Logging*: `ROOT_MCP_LOG_LEVEL` (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
+- **Full CLI-Flag Configuration**: Every env var above has an equivalent `root-mcp` flag (e.g. `--mode`, `--allowed-root`, `--max-rows`, `--root-timeout`, `--resource`, `--log-level`). Merge priority: defaults → config.yaml → env vars → CLI flags
+- **`apply_env_overrides()` / `apply_cli_overrides()`**: New pure functions in `config.py` that apply the env-var and CLI layers onto a loaded `Config` object
+- **`apply_log_level()`**: Standalone function; applied before `load_config()` so early startup messages respect the configured level
 
 ### Changed
 - ROOT native tools are gated behind dual condition: `enable_root: true` in config AND ROOT importable in environment
 - Extended tools `__init__.py` now exports `RootNativeTools`
+- `main()` in `server.py` now calls `apply_env_overrides` then `apply_cli_overrides` after loading config, completing the four-source merge chain
 
 ## [0.1.4] - 2026-01-15
 
