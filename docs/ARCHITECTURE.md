@@ -305,6 +305,21 @@ src/root_mcp/
 
 ## Configuration
 
+### Merge Priority
+
+Settings are applied from four sources in ascending priority (later wins):
+
+```
+1. Built-in Pydantic defaults          (always lowest)
+2. YAML config file                    (ROOT_MCP_CONFIG / --config / auto-discovery)
+3. ROOT_MCP_* environment variables    (override everything from YAML)
+4. CLI flags                           (always highest)
+```
+
+This means every field in `config.yaml` can be overridden in a container simply by setting an
+environment variable, and a user can always override that with a CLI flag.  YAML users
+see no behaviour change unless they also set conflicting env vars.
+
 ### Zero-Config Quick Start
 
 No config file is required. Pass a data directory at invocation time:
@@ -313,10 +328,13 @@ No config file is required. Pass a data directory at invocation time:
 root-mcp --data-path /path/to/data
 ```
 
-Or via environment variable:
+Or via environment variables (fully env-driven — useful for containers):
 
 ```bash
-export ROOT_MCP_DATA_PATH=/path/to/data
+export ROOT_MCP_DATA_PATH=/data
+export ROOT_MCP_MODE=extended
+export ROOT_MCP_EXPORT_PATH=/exports
+export ROOT_MCP_ENABLE_ROOT=1
 root-mcp
 ```
 
@@ -326,7 +344,20 @@ Generate a starter config pre-filled with the current directory:
 root-mcp init --permissive
 ```
 
-### Full Structure
+### `apply_env_overrides` / `apply_cli_overrides`
+
+Two functions in `config.py` implement the merge:
+
+```python
+apply_env_overrides(config)     # reads all ROOT_MCP_* vars, mutates config in-place
+apply_cli_overrides(config, args)  # applies parsed argparse.Namespace, in-place
+```
+
+Both are called in `main()` after `load_config()` and `apply_data_paths()` — env vars
+first, then CLI flags, so CLI always wins.  Log level is the exception: it is applied
+before `load_config()` so that config-loading messages also respect the requested verbosity.
+
+### Full Configuration Structure
 
 ```yaml
 # QUICK START

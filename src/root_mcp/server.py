@@ -1072,6 +1072,8 @@ def main() -> None:
         epilog=(
             "Zero-config quick start:\n"
             "  root-mcp --data-path /path/to/root/files\n\n"
+            "With native ROOT support (no config file needed):\n"
+            "  root-mcp --data-path /path/to/root/files --enable-root\n\n"
             "Multiple directories:\n"
             "  root-mcp --data-path /data/run3 --data-path /data/mc\n\n"
             "Via environment variable:\n"
@@ -1097,7 +1099,291 @@ def main() -> None:
             "No config.yaml required."
         ),
     )
+    parser.add_argument(
+        "--enable-root",
+        action="store_true",
+        default=False,
+        dest="enable_root",
+        help=(
+            "Enable native ROOT/PyROOT tools (run_root_code, run_rdataframe, "
+            "run_root_macro). Requires a ROOT installation on PATH. "
+            "No config.yaml required."
+        ),
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["core", "extended"],
+        default=None,
+        dest="mode",
+        metavar="MODE",
+        help=(
+            "Server mode: 'core' (file I/O + basic stats only) or "
+            "'extended' (full analysis suite, default). "
+            "Overrides config.yaml and ROOT_MCP_MODE."
+        ),
+    )
+    parser.add_argument(
+        "--server-name",
+        default=None,
+        dest="server_name",
+        metavar="NAME",
+        help=(
+            "Override the MCP server name reported to clients. "
+            "Overrides config.yaml and ROOT_MCP_SERVER_NAME."
+        ),
+    )
+    # Security
+    parser.add_argument(
+        "--allowed-root",
+        action="append",
+        dest="allowed_root",
+        metavar="DIR",
+        help=(
+            "Restrict file access to this directory (absolute path). "
+            "Repeat to allow multiple directories. "
+            "Replaces any allowed_roots set in config.yaml. "
+            "Overrides ROOT_MCP_ALLOWED_ROOTS."
+        ),
+    )
+    _allow_remote_group = parser.add_mutually_exclusive_group()
+    _allow_remote_group.add_argument(
+        "--allow-remote",
+        dest="allow_remote",
+        action="store_true",
+        help="Allow access to remote (non-file://) URIs.",
+    )
+    _allow_remote_group.add_argument(
+        "--no-allow-remote",
+        dest="allow_remote",
+        action="store_false",
+        help="Deny access to remote URIs (default behaviour).",
+    )
+    parser.set_defaults(allow_remote=None)
+    parser.add_argument(
+        "--allowed-protocols",
+        default=None,
+        dest="allowed_protocols",
+        metavar="PROTOCOLS",
+        help=(
+            "Comma-separated list of permitted URI protocols "
+            "(e.g. 'file,root,http'). "
+            "Replaces config.yaml allowed_protocols. "
+            "Overrides ROOT_MCP_ALLOWED_PROTOCOLS."
+        ),
+    )
+    parser.add_argument(
+        "--max-path-depth",
+        type=int,
+        default=None,
+        dest="max_path_depth",
+        metavar="N",
+        help=(
+            "Maximum directory depth for path validation (default: 10). "
+            "Overrides ROOT_MCP_MAX_PATH_DEPTH."
+        ),
+    )
+    # Output / Export
+    parser.add_argument(
+        "--export-path",
+        default=None,
+        dest="export_path",
+        metavar="DIR",
+        help=(
+            "Directory for exported files (default: /tmp/root_mcp_output). "
+            "Overrides ROOT_MCP_EXPORT_PATH."
+        ),
+    )
+    parser.add_argument(
+        "--export-formats",
+        default=None,
+        dest="export_formats",
+        metavar="FORMATS",
+        help=(
+            "Comma-separated list of permitted export formats "
+            "(e.g. 'json,csv,parquet'). "
+            "Overrides ROOT_MCP_EXPORT_FORMATS."
+        ),
+    )
+    parser.add_argument(
+        "--no-export",
+        dest="enable_export",
+        action="store_false",
+        help="Disable the file export feature entirely.",
+    )
+    parser.set_defaults(enable_export=None)
+    # Core Limits & Cache
+    parser.add_argument(
+        "--max-rows",
+        type=int,
+        default=None,
+        dest="max_rows",
+        metavar="N",
+        help=(
+            "Maximum rows returned per read call (default: 1_000_000). "
+            "Overrides ROOT_MCP_MAX_ROWS."
+        ),
+    )
+    parser.add_argument(
+        "--max-export-rows",
+        type=int,
+        default=None,
+        dest="max_export_rows",
+        metavar="N",
+        help=(
+            "Maximum rows written per export (default: 10_000_000). "
+            "Overrides ROOT_MCP_MAX_EXPORT_ROWS."
+        ),
+    )
+    parser.add_argument(
+        "--no-cache",
+        dest="cache_enabled",
+        action="store_false",
+        help="Disable the in-memory file metadata cache.",
+    )
+    parser.set_defaults(cache_enabled=None)
+    parser.add_argument(
+        "--cache-size",
+        type=int,
+        default=None,
+        dest="cache_size",
+        metavar="N",
+        help=(
+            "Number of file entries held in the metadata cache (default: 50). "
+            "Overrides ROOT_MCP_CACHE_SIZE."
+        ),
+    )
+    # Extended Analysis
+    parser.add_argument(
+        "--max-bins-1d",
+        type=int,
+        default=None,
+        dest="max_bins_1d",
+        metavar="N",
+        help="Maximum bins for 1D histograms (default: 10000). Overrides ROOT_MCP_MAX_BINS_1D.",
+    )
+    parser.add_argument(
+        "--max-bins-2d",
+        type=int,
+        default=None,
+        dest="max_bins_2d",
+        metavar="N",
+        help="Maximum bins for 2D histograms (default: 1000). Overrides ROOT_MCP_MAX_BINS_2D.",
+    )
+    parser.add_argument(
+        "--fitting-iterations",
+        type=int,
+        default=None,
+        dest="fitting_iterations",
+        metavar="N",
+        help="Maximum fitting iterations (default: 10000). Overrides ROOT_MCP_FITTING_ITERATIONS.",
+    )
+    parser.add_argument(
+        "--plot-dpi",
+        type=int,
+        default=None,
+        dest="plot_dpi",
+        metavar="N",
+        help="Plot resolution in DPI (default: 100). Overrides ROOT_MCP_PLOT_DPI.",
+    )
+    parser.add_argument(
+        "--plot-format",
+        choices=["png", "pdf", "svg"],
+        default=None,
+        dest="plot_format",
+        metavar="FMT",
+        help="Default plot output format: png, pdf, or svg (default: png). Overrides ROOT_MCP_PLOT_FORMAT.",
+    )
+    parser.add_argument(
+        "--plot-width",
+        type=float,
+        default=None,
+        dest="plot_width",
+        metavar="N",
+        help="Plot figure width in inches (default: 10.0). Overrides ROOT_MCP_PLOT_WIDTH.",
+    )
+    parser.add_argument(
+        "--plot-height",
+        type=float,
+        default=None,
+        dest="plot_height",
+        metavar="N",
+        help="Plot figure height in inches (default: 6.0). Overrides ROOT_MCP_PLOT_HEIGHT.",
+    )
+    # Native ROOT Execution
+    parser.add_argument(
+        "--root-timeout",
+        type=int,
+        default=None,
+        dest="root_timeout",
+        metavar="N",
+        help="ROOT execution timeout in seconds (default: 60). Overrides ROOT_MCP_ROOT_TIMEOUT.",
+    )
+    parser.add_argument(
+        "--root-workdir",
+        type=str,
+        default=None,
+        dest="root_workdir",
+        metavar="DIR",
+        help="Working directory for ROOT execution (default: /tmp/root_mcp_native). Overrides ROOT_MCP_ROOT_WORKDIR.",
+    )
+    parser.add_argument(
+        "--root-max-output",
+        type=int,
+        default=None,
+        dest="root_max_output",
+        metavar="N",
+        help="Maximum output size from ROOT in bytes (default: 10_000_000). Overrides ROOT_MCP_ROOT_MAX_OUTPUT.",
+    )
+    parser.add_argument(
+        "--root-max-code",
+        type=int,
+        default=None,
+        dest="root_max_code",
+        metavar="N",
+        help="Maximum ROOT script length in characters (default: 100_000). Overrides ROOT_MCP_ROOT_MAX_CODE.",
+    )
+    # Remote Resources
+    parser.add_argument(
+        "--resource",
+        action="append",
+        default=None,
+        dest="resource",
+        metavar="NAME=URI[|DESCRIPTION]",
+        help=(
+            "Declare a named resource. Format: NAME=URI or NAME=URI|DESCRIPTION "
+            "(use | to separate the optional description from the URI, since URIs "
+            "contain colons). Can be repeated. Overrides ROOT_MCP_RESOURCES."
+        ),
+    )
+    # Log Level
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default=None,
+        dest="log_level",
+        metavar="LEVEL",
+        help=(
+            "Set logging verbosity: DEBUG, INFO, WARNING, or ERROR "
+            "(default: INFO). Overrides ROOT_MCP_LOG_LEVEL."
+        ),
+    )
     args = parser.parse_args()
+
+    # Apply log level as early as possible — before load_config so that
+    # config-loading log messages are also at the right verbosity.
+    import os as _os
+    from root_mcp.config import apply_log_level as _apply_log_level
+
+    _env_log_level = _os.environ.get("ROOT_MCP_LOG_LEVEL", "").strip().upper()
+    _cli_log_level = getattr(args, "log_level", None)  # CLI wins over env
+    _final_log_level = _cli_log_level or _env_log_level or None
+    if _final_log_level:
+        try:
+            _apply_log_level(_final_log_level)
+        except ValueError as e:
+            # Use print because logger level may not be set correctly yet.
+            print(f"root-mcp: invalid log level: {e}", file=sys.stderr)
+            sys.exit(1)
 
     try:
         config = load_config(args.config)
@@ -1112,6 +1398,34 @@ def main() -> None:
     if cli_paths:
         apply_data_paths(config, cli_paths)
         logger.info(f"Added {len(cli_paths)} data path(s) from --data-path: {cli_paths}")
+
+    # Apply environment variable overrides (priority 3: above YAML, below CLI).
+    from root_mcp.config import apply_env_overrides, apply_cli_overrides
+
+    try:
+        apply_env_overrides(config)
+    except ValueError as e:
+        logger.error(f"Invalid environment variable: {e}")
+        sys.exit(1)
+
+    # Apply CLI flag overrides (priority 4: highest).
+    try:
+        apply_cli_overrides(config, args)
+    except ValueError as e:
+        logger.error(f"Invalid CLI argument: {e}")
+        sys.exit(1)
+
+    # Enable native ROOT support via --enable-root flag or ROOT_MCP_ENABLE_ROOT env var.
+    # (Shipped before apply_env/cli_overrides; kept inline for backward compat.)
+    import os as _os
+
+    if args.enable_root or _os.environ.get("ROOT_MCP_ENABLE_ROOT", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        config.features.enable_root = True
+        logger.info("Native ROOT support enabled via --enable-root / ROOT_MCP_ENABLE_ROOT")
 
     server = ROOTMCPServer(config)
 

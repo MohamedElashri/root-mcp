@@ -197,7 +197,7 @@ You can switch modes without restarting the server using the `switch_mode` tool.
 ```json
 {
   "server_name": "root-mcp",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "current_mode": "extended",
   "extended_components_loaded": true,
   "available_modes": ["core", "extended"],

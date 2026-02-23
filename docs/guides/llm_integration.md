@@ -38,6 +38,47 @@ Or use an environment variable instead of a command-line flag:
 }
 ```
 
+#### Extended setup — no YAML file required
+
+All `config.yaml` fields are available as CLI flags or env vars, so you can fully configure
+the server from the JSON block without writing any additional files:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "args": [
+        "--data-path", "/data/cms",
+        "--mode", "extended",
+        "--enable-root",
+        "--allowed-root", "/data/cms",
+        "--export-path", "/tmp/exports",
+        "--root-timeout", "120",
+        "--log-level", "WARNING"
+      ]
+    }
+  }
+}
+```
+
+With a remote XRootD resource:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "args": [
+        "--resource", "cms=root://xrootd.cern.ch//store/data|CMS open data",
+        "--allow-remote",
+        "--mode", "extended"
+      ]
+    }
+  }
+}
+```
+
 #### Persistent config file (optional)
 
 For more control (remote resources, custom limits, native ROOT), generate a config file first:
@@ -107,6 +148,25 @@ Or use an environment variable:
       "env": {
         "ROOT_MCP_CONFIG": "/path/to/your/config.yaml"
       }
+    }
+  }
+}
+```
+
+**Extended setup — no YAML file required:**
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "args": [
+        "--data-path", "/data",
+        "--mode", "extended",
+        "--allowed-root", "/data",
+        "--export-path", "/tmp/exports",
+        "--log-level", "WARNING"
+      ]
     }
   }
 }

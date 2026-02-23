@@ -88,6 +88,25 @@ Or set an environment variable once:
 export ROOT_MCP_DATA_PATH=/path/to/your/data
 ```
 
+**Zero-config one-liners:**
+
+```bash
+# Core mode (lightweight, no scipy/matplotlib needed)
+root-mcp --data-path /data --mode core
+
+# Extended mode with native ROOT, restricted to one directory
+root-mcp --data-path /data --enable-root --allowed-root /data
+
+# Remote XRootD resource, no YAML needed
+root-mcp --resource cms=root://xrootd.cern.ch//store --allow-remote --mode extended
+
+# Docker / container — fully env-var driven
+ROOT_MCP_DATA_PATH=/data ROOT_MCP_MODE=extended ROOT_MCP_EXPORT_PATH=/exports root-mcp
+
+# Quiet server (only warnings+) with a cache increase
+root-mcp --data-path /data --log-level WARNING --cache-size 100
+```
+
 **Generate a starter config (optional):**
 
 ```bash
