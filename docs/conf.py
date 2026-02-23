@@ -35,7 +35,6 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
     "myst_parser",
-    "sphinx_copybutton",
     "sphinxawesome_theme",
 ]
 
@@ -157,13 +156,6 @@ intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable", None),
     "pandas": ("https://pandas.pydata.org/docs", None),
 }
-
-# ---------------------------------------------------------------------------
-# Copy button
-# ---------------------------------------------------------------------------
-
-copybutton_prompt_text = r"^\$ |^>>> "
-copybutton_prompt_is_regexp = True
 
 # ---------------------------------------------------------------------------
 # Suppress known false positives
