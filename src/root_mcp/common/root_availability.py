@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import sys
 from typing import Any
@@ -13,6 +14,90 @@ logger = logging.getLogger(__name__)
 _root_available: bool | None = None
 _root_version: str | None = None
 _root_features: dict[str, bool] | None = None
+_root_pythonpath: str | None = None  # cached root-config --libdir result
+
+
+def _get_root_pythonpath() -> str | None:
+    """
+    Return the directory that must be on PYTHONPATH for 'import ROOT' to work.
+
+    Strategy:
+    1. If ROOT is already importable (PYTHONPATH already set externally), return None
+       (no extra injection needed).
+    2. Otherwise, run ``root-config --libdir`` to find the ROOT library directory
+       (which also contains the Python package).
+    """
+    global _root_pythonpath
+    if _root_pythonpath is not None:
+        return _root_pythonpath
+
+    # Check if it's already on sys.path / PYTHONPATH
+    try:
+        import importlib.util
+
+        if importlib.util.find_spec("ROOT") is not None:
+            _root_pythonpath = ""  # already importable, nothing to inject
+            return None
+    except Exception:
+        pass
+
+    # Try root-config
+    try:
+        result = subprocess.run(
+            ["root-config", "--libdir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            libdir = result.stdout.strip()
+            if libdir and os.path.isdir(libdir):
+                _root_pythonpath = libdir
+                return libdir
+    except Exception:
+        pass
+
+    return None
+
+
+def _get_cppyy_api_path() -> str | None:
+    """Return the CPyCppyy API directory path, or None if not found."""
+    try:
+        result = subprocess.run(
+            ["root-config", "--incdir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            incdir = result.stdout.strip()
+            candidate = os.path.join(incdir, "CPyCppyy")
+            if os.path.isdir(candidate):
+                return candidate
+    except Exception:
+        pass
+    return None
+
+
+def _build_root_env() -> dict[str, str]:
+    """
+    Return an environment dict with PYTHONPATH and CPPYY_API_PATH set for ROOT.
+    """
+    env = os.environ.copy()
+
+    # Inject ROOT Python path
+    extra = _get_root_pythonpath()
+    if extra:
+        existing = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = f"{extra}:{existing}" if existing else extra
+
+    # Suppress CPyCppyy API warning if not already set
+    if "CPPYY_API_PATH" not in env:
+        cppyy_path = _get_cppyy_api_path()
+        if cppyy_path:
+            env["CPPYY_API_PATH"] = cppyy_path
+
+    return env
 
 
 def _probe_root_subprocess() -> dict[str, Any]:
@@ -79,6 +164,7 @@ print(json.dumps(result))
             capture_output=True,
             text=True,
             timeout=30,
+            env=_build_root_env(),
         )
         if proc.returncode == 0 and proc.stdout.strip():
             import json

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .sandbox import CodeValidator, ValidationResult
+from root_mcp.common.root_availability import _build_root_env
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +257,7 @@ class RootCodeExecutor:
 
     def _build_env(self) -> dict[str, str]:
         """Build environment variables for the subprocess."""
-        env = os.environ.copy()
+        env = _build_root_env()  # includes PYTHONPATH with ROOT lib dir if needed
         # Ensure ROOT batch mode (no GUI)
         env["ROOT_BATCH"] = "1"
         return env
