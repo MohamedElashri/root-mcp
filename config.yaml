@@ -1,20 +1,72 @@
-# ROOT-MCP Server Configuration
+# ROOT-MCP configuration
+# ══════════════════════════════════════════════════════════════════════════════
+# QUICK START — the only lines most users need to change
+# ══════════════════════════════════════════════════════════════════════════════
 
-# Server settings
 server:
-  name: "root-mcp"
-  mode: "extended"  # Options: "core", "extended"
+  mode: "extended"  # "core" (lightweight) or "extended" (full analysis)
 
-# Core configuration (always loaded)
+# Where your ROOT files live.  Add as many entries as you need.
+# Tip: skip this file entirely and use the CLI or env var instead:
+#   root-mcp --data-path /your/data/dir
+#   ROOT_MCP_DATA_PATH=/your/data/dir root-mcp
+resources:
+  - name: "local_data"
+    uri: "file:///REPLACE_WITH_YOUR_DATA_PATH"   # ← change this one line
+    description: "Local ROOT files for analysis"
+    allowed_patterns:
+      - "*.root"
+
+  # ── Remote / open-data examples (uncomment to enable) ───────────────────
+  # - name: "xrootd_data"
+  #   uri: "root://eosuser.cern.ch//eos/user/data"
+  #   description: "CERN EOS storage"
+  #   allowed_patterns: ["*.root"]
+  #
+  # - name: "opendata"
+  #   uri: "root://eospublic.cern.ch//eos/opendata/cms/derived-data/AOD2NanoAODOutreachTool"
+  #   description: "CERN Open Data samples"
+  #   allowed_patterns: ["*.root"]
+
+features:
+  enable_root: false  # Set true to enable native ROOT/PyROOT tools (requires ROOT installation)
+  enable_export: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ADVANCED — change only if you need fine-tuning
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Security and access control
+security:
+  # ↓ KEY SETTING: leave empty to allow any OS-readable path (permissive / zero-config mode).
+  # Add explicit absolute paths to restrict which directories the server may read.
+  allowed_roots: []
+
+  # Whether to allow remote file access explicitly.
+  # Note: declaring a resource with uri "root://…" automatically permits that
+  # protocol — you don't need to set allow_remote: true in most cases.
+  allow_remote: false
+
+  # Protocols the server may access (remote URI schemes are added automatically
+  # from resource declarations, so this list rarely needs changing).
+  allowed_protocols:
+    - "file"
+    - "root"
+    - "http"
+    - "https"
+
+  max_path_depth: 10  # Reject paths deeper than this (DoS protection)
+
+# Core configuration (always loaded regardless of mode)
 core:
   cache:
     enabled: true
-    file_cache_size: 50  # Number of open file handles to cache
+    file_cache_size: 50        # Number of open file handles to keep cached
   limits:
-    max_rows_per_call: 1_000_000
-    max_export_rows: 10_000_000  # Maximum rows for data export operations
+    max_rows_per_call: 1_000_000      # Max entries per read operation
+    max_export_rows: 10_000_000       # Max entries for data export operations
 
-# Extended configuration (only loaded in extended mode)
+# Extended configuration (only used in extended mode)
 extended:
   histogram:
     max_bins_1d: 10_000
@@ -47,70 +99,9 @@ extended:
       - "svg"
   fitting_max_iterations: 10_000
 
-# Resource limits (safety bounds) - kept for backward compatibility
-limits:
-  max_rows_per_call: 1_000_000
-  max_export_rows: 10_000_000
-
-# Caching configuration - kept for backward compatibility
-cache:
-  enabled: true
-  file_cache_size: 50
-
-# Data sources (MCP resources)
-resources:
-  - name: "local_data"
-    uri: "file:///data/root_files"
-    description: "Local ROOT files for analysis"
-    allowed_patterns:
-      - "*.root"
-    excluded_patterns:
-      - ".*"  # No hidden files
-      - "tmp*"
-
-  # Example: Remote XRootD storage
-  # - name: "xrootd_data"
-  #   uri: "root://eosuser.cern.ch//eos/user/data"
-  #   description: "CERN EOS storage"
-  #   allowed_patterns:
-  #     - "*.root"
-  #   requires_auth: true
-  #   auth_type: "kerberos"
-
-  # Example: HTTP open data
-  # HTTP open data
-  - name: "opendata"
-    uri: "root://eospublic.cern.ch//eos/opendata/cms/derived-data/AOD2NanoAODOutreachTool"
-    description: "CERN Open Data samples"
-    allowed_patterns:
-      - "*.root"
-
-# Security settings
-security:
-  # Allowed directories (absolute paths) - prevents path traversal
-  allowed_roots:
-    - "/data/root_files"
-    - "/tmp/root_mcp_output"
-
-  # Whether to allow remote file access
-  allow_remote: false
-
-  # Protocols allowed for remote files
-  allowed_protocols:
-    - "file"
-    - "root"
-    - "http"
-    - "https"
-
-  # Maximum path depth to prevent DoS
-  max_path_depth: 10
-
-# Output settings
+# Output / export settings
 output:
-  # Where to write exported files
   export_base_path: "/tmp/root_mcp_output"
-
-  # Allowed export formats
   allowed_formats:
     - "json"
     - "csv"
@@ -118,50 +109,42 @@ output:
 
 # Analysis defaults
 analysis:
-  # Default chunk size for iterating large TTrees
-  default_chunk_size: 10_000
-
-  # Default limit for data reads if not specified
-  default_read_limit: 1_000
-
-  # Histogram defaults
+  default_chunk_size: 10_000    # Chunk size when iterating large TTrees
+  default_read_limit: 1_000     # Default row limit for data reads if not specified
   histogram:
     max_bins_1d: 10_000
     max_bins_2d: 1_000  # Per dimension
-
-  # Plotting and visualization settings
   plotting:
-    # Figure dimensions and quality
     figure_width: 10.0
     figure_height: 6.0
     dpi: 100
-
-    # Data point styling
     marker_size: 4.0
     marker_style: "o"
     error_bar_cap_size: 2.0
-
-    # Line styling
     line_width: 2.0
     fit_line_color: "red"
     fit_line_style: "-"
-
-    # Histogram styling
     hist_fill_alpha: 0.2
     hist_fill_color: "blue"
     data_color: "black"
-
-    # Grid settings
     grid_alpha: 0.3
     grid_enabled: true
-
-    # Output formats
     default_format: "png"
     allowed_formats:
       - "png"
       - "pdf"
       - "svg"
 
-# Feature flags
-features:
-  enable_export: true
+# Native ROOT/PyROOT execution (only active when features.enable_root is true)
+root_native:
+  execution_timeout: 60         # seconds
+  max_output_size: 10_000_000   # bytes
+  max_code_length: 100_000      # characters
+  working_directory: "/tmp/root_mcp_native"
+  allowed_output_formats:
+    - "png"
+    - "pdf"
+    - "svg"
+    - "root"
+    - "json"
+    - "csv"

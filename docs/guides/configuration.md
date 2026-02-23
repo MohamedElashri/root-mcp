@@ -2,14 +2,77 @@
 
 ROOT-MCP is configured through a YAML file that controls server behavior, mode selection, resource limits, and security constraints.
 
+## Quick Start
+
+You do **not** need a config file to get started. Three zero-config approaches are available:
+
+### Option 1 — Inline data path (fastest)
+
+Pass `--data-path` directly on the command line. The server will grant access to that directory without any YAML required:
+
+```bash
+root-mcp --data-path /path/to/your/data
+```
+
+Multiple directories are supported:
+
+```bash
+root-mcp --data-path /data/run2024 --data-path /data/simulation
+```
+
+### Option 2 — Environment variable
+
+Set `ROOT_MCP_DATA_PATH` once (colon-separated on Linux/macOS) and start the server without arguments:
+
+```bash
+export ROOT_MCP_DATA_PATH=/path/to/your/data
+root-mcp
+```
+
+### Option 3 — Generate a starter config file
+
+Use the built-in `init` command to create a ready-to-edit `config.yaml` in the current directory:
+
+```bash
+root-mcp init                    # generates config.yaml with a placeholder URI
+root-mcp init --permissive       # fills the URI with the current working directory
+root-mcp init --output ~/root-mcp.yaml   # custom output path
+```
+
+Open the generated file, replace the `REPLACE_WITH_YOUR_DATA_PATH` placeholder, and run:
+
+```bash
+root-mcp --config config.yaml
+```
+
+### Permissive mode
+
+When `security.allowed_roots` is an **empty list** (the default in the generated config), the server allows access to **any** local path. This is the recommended setting for personal or local use. Restrict it by listing explicit directories when deploying in a shared environment:
+
+```yaml
+security:
+  allowed_roots: []            # permissive — any local path is accessible
+  # allowed_roots:             # restrictive — only these directories
+  #   - /data/physics
+  #   - /home/user/exports
+```
+
+---
+
 ## Configuration File Location
 
-The server looks for configuration in the following order:
-1. Path specified in `ROOT_MCP_CONFIG` environment variable
-2. `./config.yaml` (current directory)
-3. `~/.config/root-mcp/config.yaml` (user config directory)
+Settings are merged from multiple sources in the following priority order (highest wins):
 
-**Recommendation**: Use environment variable for production, local file for development.
+```
+1. Built-in Pydantic defaults          (always lowest)
+2. YAML config file                    (ROOT_MCP_CONFIG / --config / auto-discovery)
+3. ROOT_MCP_* environment variables    (override anything from YAML)
+4. CLI flags                           (always highest — beat both YAML and env vars)
+```
+
+Every field that can appear in `config.yaml` has a corresponding env var and CLI flag (see the [Complete Env Var & CLI Reference](#complete-env-var--cli-reference) below).  YAML users are unaffected — all new sources are strictly additive.
+
+**Recommendation**: Use `ROOT_MCP_CONFIG` or `--config` for production, `--data-path` / `ROOT_MCP_DATA_PATH` for quick or per-session access.
 
 ## Complete Configuration Reference
 
@@ -20,7 +83,7 @@ Controls server identity and operational mode.
 ```yaml
 server:
   name: "root-mcp"        # Server name (shown to AI)
-  version: "0.1.4"        # Version (auto-detected if omitted)
+  version: "0.1.5"        # Version (auto-detected if omitted)
   mode: "extended"        # "core" or "extended" - see Mode Selection below
 ```
 
@@ -339,18 +402,112 @@ output:
 
 ## Environment Variables
 
-Override configuration with environment variables:
+Every `config.yaml` field now has a matching `ROOT_MCP_*` environment variable. See the [Complete Env Var & CLI Reference](#complete-env-var--cli-reference) below for the full table. A few of the most commonly used variables:
 
 ```bash
+# Data directory — no config file needed
+export ROOT_MCP_DATA_PATH="/path/to/your/data"
+
+# Multiple directories (colon-separated)
+export ROOT_MCP_DATA_PATH="/data/run2024:/data/simulation"
+
 # Configuration file location
 export ROOT_MCP_CONFIG="/path/to/config.yaml"
 
 # Override mode
 export ROOT_MCP_MODE="core"
 
+# Enable native ROOT
+export ROOT_MCP_ENABLE_ROOT="1"
+
 # Override log level
 export ROOT_MCP_LOG_LEVEL="DEBUG"
 ```
+
+---
+
+## Complete Env Var & CLI Reference
+
+Every field is configurable from three sources (later wins): YAML → env var → CLI flag.
+
+### Already Shipped
+
+| Config field | Env var | CLI flag |
+|---|---|---|
+| `resources[].uri` (local paths) | `ROOT_MCP_DATA_PATH` (colon-sep) | `--data-path DIR` (append) |
+| `features.enable_root` | `ROOT_MCP_ENABLE_ROOT` | `--enable-root` |
+
+### Server & Mode
+
+| Config field | Env var | CLI flag | Type | Default |
+|---|---|---|---|---|
+| `server.mode` | `ROOT_MCP_MODE` | `--mode core\|extended` | str | `extended` |
+| `server.name` | `ROOT_MCP_SERVER_NAME` | `--server-name NAME` | str | `root-mcp` |
+
+### Security
+
+| Config field | Env var | CLI flag | Type | Default |
+|---|---|---|---|---|
+| `security.allowed_roots` | `ROOT_MCP_ALLOWED_ROOTS` (`:` sep) | `--allowed-root DIR` (append) | list[str] | `[]` |
+| `security.allow_remote` | `ROOT_MCP_ALLOW_REMOTE` (`1`/`true`/`yes`) | `--allow-remote` / `--no-allow-remote` | bool | `false` |
+| `security.allowed_protocols` | `ROOT_MCP_ALLOWED_PROTOCOLS` (`,` sep) | `--allowed-protocols p1,p2` | list[str] | `["file"]` |
+| `security.max_path_depth` | `ROOT_MCP_MAX_PATH_DEPTH` | `--max-path-depth N` | int | `10` |
+
+### Output / Export
+
+| Config field | Env var | CLI flag | Type | Default |
+|---|---|---|---|---|
+| `output.export_base_path` | `ROOT_MCP_EXPORT_PATH` | `--export-path DIR` | str | `/tmp/root_mcp_output` |
+| `output.allowed_formats` | `ROOT_MCP_EXPORT_FORMATS` (`,` sep) | `--export-formats json,csv` | list[str] | `["json","csv","parquet"]` |
+| `features.enable_export` | `ROOT_MCP_ENABLE_EXPORT` (`0`/`false`/`no`) | `--no-export` | bool | `true` |
+
+### Core Limits & Cache
+
+| Config field | Env var | CLI flag | Type | Default |
+|---|---|---|---|---|
+| `core.limits.max_rows_per_call` | `ROOT_MCP_MAX_ROWS` | `--max-rows N` | int | `1_000_000` |
+| `core.limits.max_export_rows` | `ROOT_MCP_MAX_EXPORT_ROWS` | `--max-export-rows N` | int | `10_000_000` |
+| `core.cache.enabled` | `ROOT_MCP_CACHE` (`0`/`false`/`no`) | `--no-cache` | bool | `true` |
+| `core.cache.file_cache_size` | `ROOT_MCP_CACHE_SIZE` | `--cache-size N` | int | `50` |
+
+### Extended Analysis
+
+| Config field | Env var | CLI flag | Type | Default |
+|---|---|---|---|---|
+| `extended.histogram.max_bins_1d` | `ROOT_MCP_MAX_BINS_1D` | `--max-bins-1d N` | int | `10_000` |
+| `extended.histogram.max_bins_2d` | `ROOT_MCP_MAX_BINS_2D` | `--max-bins-2d N` | int | `1_000` |
+| `extended.fitting_max_iterations` | `ROOT_MCP_FITTING_ITERATIONS` | `--fitting-iterations N` | int | `10_000` |
+| `extended.plotting.dpi` | `ROOT_MCP_PLOT_DPI` | `--plot-dpi N` | int | `100` |
+| `extended.plotting.default_format` | `ROOT_MCP_PLOT_FORMAT` | `--plot-format png\|pdf\|svg` | str | `png` |
+| `extended.plotting.figure_width` | `ROOT_MCP_PLOT_WIDTH` | `--plot-width N` | float | `10.0` |
+| `extended.plotting.figure_height` | `ROOT_MCP_PLOT_HEIGHT` | `--plot-height N` | float | `6.0` |
+
+### Native ROOT Execution
+
+| Config field | Env var | CLI flag | Type | Default |
+|---|---|---|---|---|
+| `root_native.execution_timeout` | `ROOT_MCP_ROOT_TIMEOUT` | `--root-timeout N` | int (s) | `60` |
+| `root_native.working_directory` | `ROOT_MCP_ROOT_WORKDIR` | `--root-workdir DIR` | str | `/tmp/root_mcp_native` |
+| `root_native.max_output_size` | `ROOT_MCP_ROOT_MAX_OUTPUT` | `--root-max-output N` | int (B) | `10_000_000` |
+| `root_native.max_code_length` | `ROOT_MCP_ROOT_MAX_CODE` | `--root-max-code N` | int (chars) | `100_000` |
+
+### Remote Resources
+
+| Mechanism | Syntax | Example |
+|---|---|---|
+| CLI | `--resource NAME=URI[\|DESCRIPTION]` (append) | `--resource cms=root://xrootd.cern.ch//store` |
+| Env var | `ROOT_MCP_RESOURCES` — semicolon-sep list of `NAME=URI[\|DESC]` | `ROOT_MCP_RESOURCES="cms=root://…;local=file:///data"` |
+
+Notes:
+- Use `|` (pipe) to separate description from URI — colons are ambiguous inside URIs.
+- YAML-declared resources take precedence: a spec whose URI already exists is silently skipped.
+- Both sources are **additive**: env var resources plus CLI resources are both added.
+
+### Log Level
+
+| Mechanism | Env var | CLI flag | Notes |
+|---|---|---|---|
+| Log level | `ROOT_MCP_LOG_LEVEL` | `--log-level DEBUG\|INFO\|WARNING\|ERROR` | Applied before config loading |
 
 ## Configuration Validation
 
@@ -358,9 +515,8 @@ The server validates configuration on startup:
 
 **Common Errors**:
 - Invalid mode (must be "core" or "extended")
-- Missing `allowed_roots` in security section
 - Invalid URI format in resources
-- Export path not in `allowed_roots`
+- Export path not in `allowed_roots` (add the path or set `allowed_roots: []` for permissive mode)
 
 **Validation Messages**:
 ```

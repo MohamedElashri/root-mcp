@@ -29,7 +29,14 @@ class PathValidator:
         """
         self.config = config
         self.allowed_roots = [Path(root).resolve() for root in config.security.allowed_roots]
-        self.allowed_protocols = set(config.security.allowed_protocols)
+        # Protocols explicitly listed in config (the baseline).
+        self._base_protocols = set(config.security.allowed_protocols)
+        # Protocols auto-elevated from declared resource URI schemes.
+        self._auto_protocols = (
+            set(config.security.effective_protocols(config.resources)) - self._base_protocols
+        )
+        # Effective set used for the protocol allow-list check.
+        self.allowed_protocols = self._base_protocols | self._auto_protocols
         self.max_depth = config.security.max_path_depth
 
     def validate_path(self, path: str, resource: ResourceConfig | None = None) -> Path:
@@ -74,18 +81,22 @@ class PathValidator:
         if depth > self.max_depth:
             raise SecurityError(f"Path depth {depth} exceeds maximum {self.max_depth}: {path}")
 
-        # Check if path is under any allowed root
-        for allowed_root in self.allowed_roots:
-            try:
-                resolved.relative_to(allowed_root)
-                return resolved  # Path is valid
-            except ValueError:
-                continue  # Try next root
+        # Check if path is under any allowed root.
+        # Empty allowed_roots = zero-config permissive mode: allow any OS-readable path.
+        if self.allowed_roots:
+            for allowed_root in self.allowed_roots:
+                try:
+                    resolved.relative_to(allowed_root)
+                    return resolved  # Path is valid
+                except ValueError:
+                    continue  # Try next root
 
-        raise SecurityError(
-            f"Path '{path}' is not under any allowed root. "
-            f"Allowed roots: {[str(r) for r in self.allowed_roots]}"
-        )
+            raise SecurityError(
+                f"Path '{path}' is not under any allowed root. "
+                f"Allowed roots: {[str(r) for r in self.allowed_roots]}"
+            )
+
+        return resolved
 
     def _validate_uri(self, uri: str, resource: ResourceConfig | None) -> Path:
         """Validate a URI (file://, root://, http://, etc.)."""
@@ -105,8 +116,14 @@ class PathValidator:
             return self._validate_local_path(local_path)
 
         # For remote protocols (root://, http://, etc.)
-        if not self.config.security.allow_remote:
-            raise SecurityError("Remote file access is disabled")
+        # Skip the allow_remote gate when the protocol was auto-elevated from a
+        # resource URI declaration — the resource entry is already the opt-in.
+        if not self.config.security.allow_remote and protocol not in self._auto_protocols:
+            raise SecurityError(
+                f"Remote file access is disabled for protocol '{protocol}'. "
+                "Set 'security.allow_remote: true' in config, or declare a resource "
+                "whose URI uses this protocol to enable it automatically."
+            )
 
         # If resource is provided, check if URI matches resource pattern
         if resource:

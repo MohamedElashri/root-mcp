@@ -6,7 +6,139 @@
 
 ### Claude Desktop
 
-Add to your Claude Desktop configuration file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Add to your Claude Desktop configuration file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS).
+
+#### Quickest setup — no config file needed
+
+Pass `--data-path` directly so Claude can access your data with zero additional setup:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "args": ["--data-path", "/path/to/your/data"]
+    }
+  }
+}
+```
+
+Or use an environment variable instead of a command-line flag:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "env": {
+        "ROOT_MCP_DATA_PATH": "/path/to/your/data"
+      }
+    }
+  }
+}
+```
+
+#### Extended setup — no YAML file required
+
+All `config.yaml` fields are available as CLI flags or env vars, so you can fully configure
+the server from the JSON block without writing any additional files:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "args": [
+        "--data-path", "/data/cms",
+        "--mode", "extended",
+        "--enable-root",
+        "--allowed-root", "/data/cms",
+        "--export-path", "/tmp/exports",
+        "--root-timeout", "120",
+        "--log-level", "WARNING"
+      ]
+    }
+  }
+}
+```
+
+With a remote XRootD resource:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "args": [
+        "--resource", "cms=root://xrootd.cern.ch//store/data|CMS open data",
+        "--allow-remote",
+        "--mode", "extended"
+      ]
+    }
+  }
+}
+```
+
+#### Persistent config file (optional)
+
+For more control (remote resources, custom limits, native ROOT), generate a config file first:
+
+```bash
+root-mcp init --permissive   # creates config.yaml pre-filled with your cwd
+```
+
+Then reference it:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "env": {
+        "ROOT_MCP_CONFIG": "/path/to/config.yaml"
+      }
+    }
+  }
+}
+```
+
+### Gemini CLI
+
+Gemini CLI supports MCP servers through settings files. You can configure ROOT-MCP either globally or per-project.
+
+#### Global Configuration (All Sessions)
+
+Add to `~/.gemini/settings.json`.
+
+**Quickest setup — no config file needed:**
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "args": ["--data-path", "/path/to/your/data"]
+    }
+  }
+}
+```
+
+Or use an environment variable:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "env": {
+        "ROOT_MCP_DATA_PATH": "/path/to/your/data"
+      }
+    }
+  }
+}
+```
+
+**With a persistent config file:**
 
 ```json
 {
@@ -21,23 +153,20 @@ Add to your Claude Desktop configuration file (`~/Library/Application Support/Cl
 }
 ```
 
-### Gemini CLI
-
-Gemini CLI supports MCP servers through settings files. You can configure ROOT-MCP either globally or per-project.
-
-#### Global Configuration (All Sessions)
-
-Add to `~/.gemini/settings.json`:
+**Extended setup — no YAML file required:**
 
 ```json
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "python",
-      "args": ["-m", "root_mcp.server"],
-      "env": {
-        "ROOT_MCP_CONFIG": "/path/to/your/config.yaml"
-      }
+      "command": "root-mcp",
+      "args": [
+        "--data-path", "/data",
+        "--mode", "extended",
+        "--allowed-root", "/data",
+        "--export-path", "/tmp/exports",
+        "--log-level", "WARNING"
+      ]
     }
   }
 }
@@ -53,10 +182,10 @@ Add to `/path/to/your/project/.gemini/settings.json`:
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "python",
-      "args": ["-m", "root_mcp.server"],
+      "command": "root-mcp",
+      "args": ["--data-path", "."],
       "env": {
-        "ROOT_MCP_CONFIG": "./config.yaml"
+        "ROOT_MCP_DATA_PATH": "."
       }
     }
   }
@@ -77,12 +206,9 @@ For production use, we recommend explicitly specifying all paths for better cont
       "args": [
         "-m",
         "root_mcp.server",
-        "--config",
-        "/path/to/config.yaml"
-      ],
-      "env": {
-        "ROOT_DATA_PATH": "/path/to/data"
-      }
+        "--data-path",
+        "/path/to/data"
+      ]
     }
   }
 }
@@ -90,13 +216,10 @@ For production use, we recommend explicitly specifying all paths for better cont
 
 This format:
 - Uses the virtual environment's Python interpreter explicitly
-- Passes the config file as a command-line argument (more explicit than environment variable)
-- Sets `ROOT_DATA_PATH` for easy data directory access
+- Passes the data path as a command-line argument (no config file required)
 - Makes debugging easier by showing all paths clearly
 
-**Simpler Alternative:**
-
-If you prefer environment variables:
+**With a persistent config file:**
 
 ```json
 {

@@ -27,6 +27,40 @@ ROOT-MCP features a **dual-mode architecture**:
 
 The mode is controlled via configuration, and the server automatically loads only the components you need. Runtime mode switching is also available.
 
+### Optional Native ROOT Support
+
+ROOT-MCP can optionally integrate with a native [ROOT/PyROOT](https://root.cern/) installation to unlock capabilities beyond what `uproot` provides:
+
+- **`run_root_code`**: Execute arbitrary PyROOT/Python code and get structured results
+- **`run_rdataframe`**: Compute histograms using ROOT's RDataFrame (no boilerplate needed)
+- **`run_root_macro`**: Execute C++ ROOT macros via `gROOT.ProcessLine`
+
+This feature is **entirely optional** — ROOT-MCP works fully without ROOT installed. When ROOT is available and enabled, these additional tools appear automatically.
+
+**Requirements**: A working ROOT installation (via [conda-forge](https://anaconda.org/conda-forge/root), system package, or binary tarball). ROOT is not pip-installable at this time.
+
+**Enable it** by setting `enable_root: true` in your `config.yaml`:
+
+```yaml
+features:
+  enable_root: true
+
+# Optional: tune execution settings
+root_native:
+  execution_timeout: 60
+  working_directory: "/tmp/root_mcp_native"
+```
+
+Use `get_server_info` to check ROOT availability at runtime:
+```json
+{
+  "root_native_available": true,
+  "root_native_enabled": true,
+  "root_version": "6.32/02",
+  "root_features": {"rdataframe": true, "roofit": true, "tmva": false}
+}
+```
+
 ## Quick Start
 
 ### 1. Install
@@ -42,39 +76,80 @@ pip install "root-mcp[xrootd]"
 
 ### 2. Configure
 
-Create a `config.yaml` and set your preferred mode:
+**Fastest path — no config file needed:**
+
+```bash
+root-mcp --data-path /path/to/your/data
+```
+
+Or set an environment variable once:
+
+```bash
+export ROOT_MCP_DATA_PATH=/path/to/your/data
+```
+
+**Zero-config one-liners:**
+
+```bash
+# Core mode (lightweight, no scipy/matplotlib needed)
+root-mcp --data-path /data --mode core
+
+# Extended mode with native ROOT, restricted to one directory
+root-mcp --data-path /data --enable-root --allowed-root /data
+
+# Remote XRootD resource, no YAML needed
+root-mcp --resource cms=root://xrootd.cern.ch//store --allow-remote --mode extended
+
+# Docker / container — fully env-var driven
+ROOT_MCP_DATA_PATH=/data ROOT_MCP_MODE=extended ROOT_MCP_EXPORT_PATH=/exports root-mcp
+
+# Quiet server (only warnings+) with a cache increase
+root-mcp --data-path /data --log-level WARNING --cache-size 100
+```
+
+**Generate a starter config (optional):**
+
+```bash
+root-mcp init --permissive   # creates config.yaml pre-filled with current directory
+```
+
+**Manual config file** — for persistent settings, remote resources, or native ROOT:
 
 ```yaml
-# Server settings
 server:
-  name: "root-mcp"
-  mode: "extended"  # Options: "core" or "extended"
+  mode: "extended"   # "core" or "extended"
 
-# Data resources
 resources:
   - name: "my_analysis"
-    uri: "file:///Users/me/data"
+    uri: "file:///path/to/data"
     allowed_patterns: ["*.root"]
 
-# Security
 security:
-  allowed_roots:
-    - "/Users/me/data"
-
-# Output directory for exports
-output:
-  export_base_path: "/Users/me/exports"
+  allowed_roots: []  # empty = any local path is accessible (permissive)
 ```
 
 **Mode Selection:**
-- `mode: "core"` - Lightweight mode for file operations and basic statistics
-- `mode: "extended"` - Full analysis features (histograms, fitting, kinematics, correlations)
+- `mode: "core"` — Lightweight: file operations and basic statistics
+- `mode: "extended"` — Full analysis: histograms, fitting, kinematics, correlations
 
-You can switch modes at runtime using the `switch_mode` tool without restarting the server.
+Switch modes at runtime with the `switch_mode` tool — no restart required.
 
 ### 3. Run with Claude Desktop
 
 Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "root-mcp",
+      "args": ["--data-path", "/path/to/your/data"]
+    }
+  }
+}
+```
+
+Or with a persistent config file:
 
 ```json
 {

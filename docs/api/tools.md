@@ -4,10 +4,11 @@ Complete reference for all ROOT-MCP tools, organized by mode availability.
 
 ## Tool Organization
 
-ROOT-MCP provides **17 tools** organized into two categories:
+ROOT-MCP provides **17 standard tools** plus **3 optional native ROOT tools** organized into three categories:
 
 - **Core Tools (9)**: Always available in both core and extended modes
 - **Extended Tools (8)**: Only available in extended mode
+- **Native ROOT Tools (3)**: Only available when a ROOT installation is present and `features.enable_root: true` is set
 
 All tools return a standard JSON response structure:
 
@@ -492,14 +493,19 @@ Get server information including current mode and capabilities.
 ```json
 {
   "server_name": "root-mcp",
-  "version": "0.1.4",
+  "version": "5",
   "current_mode": "extended",
   "extended_components_loaded": true,
   "available_modes": ["core", "extended"],
+  "root_native_available": true,
+  "root_native_enabled": true,
+  "root_version": "6.32/02",
+  "root_features": {"rdataframe": true, "roofit": true, "tmva": false},
   "capabilities": {
     "core_tools": 9,
     "extended_tools": 8,
-    "total_tools": 17
+    "root_native_tools": 3,
+    "total_tools": 20
   }
 }
 ```
@@ -961,6 +967,151 @@ Generate a 2D histogram plot.
 
 ---
 
+# Native ROOT Tools
+
+Native ROOT tools are **only available when a ROOT/PyROOT installation is detected** and `features.enable_root: true` is set in your config. They run code in a sandboxed subprocess and return structured results.
+
+All code is validated by an AST-based sandbox before execution. Dangerous imports (`os`, `sys`, `subprocess`, `socket`) and builtins (`exec`, `eval`, `__import__`) are blocked.
+
+Use `get_server_info` to confirm availability:
+```json
+{"root_native_available": true, "root_native_enabled": true}
+```
+
+## Code Execution
+
+### `run_root_code`
+
+Execute arbitrary PyROOT/Python code in a sandboxed subprocess.
+
+**Mode**: Extended + ROOT (`enable_root: true`)
+
+**Arguments**:
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `code` | `string` | Yes | PyROOT/Python code to execute |
+| `timeout` | `integer` | No | Execution timeout in seconds (default: config value) |
+| `working_directory` | `string` | No | Working directory for the subprocess |
+
+**Example**:
+
+```json
+{
+  "tool": "run_root_code",
+  "arguments": {
+    "code": "import ROOT\nf = ROOT.TFile.Open('/data/sample.root')\nt = f.Get('events')\nprint(t.GetEntries())"
+  }
+}
+```
+
+**Response**:
+
+```json
+{
+  "data": {
+    "stdout": "10000\n",
+    "stderr": "",
+    "return_code": 0,
+    "execution_time_s": 1.2
+  }
+}
+```
+
+---
+
+### `run_rdataframe`
+
+Compute histograms using ROOT's RDataFrame without writing boilerplate.
+
+**Mode**: Extended + ROOT (`enable_root: true`)
+
+**Arguments**:
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `path` | `string` | Yes | Absolute path to ROOT file |
+| `tree_name` | `string` | Yes | TTree name |
+| `branch` | `string` | Yes | Branch to histogram |
+| `bins` | `integer` | Yes | Number of bins |
+| `range` | `[min, max]` | Yes | Histogram range |
+| `selection` | `string` | No | Filter expression passed to `Filter()` |
+| `defines` | `object` | No | Derived columns `{name: expr}` passed to `Define()` |
+
+**Example**:
+
+```json
+{
+  "tool": "run_rdataframe",
+  "arguments": {
+    "path": "/data/drell_yan.root",
+    "tree_name": "events",
+    "branch": "dimuon_mass",
+    "bins": 100,
+    "range": [70, 110],
+    "selection": "mu1_pt > 20 && mu2_pt > 20"
+  }
+}
+```
+
+**Response**:
+
+```json
+{
+  "data": {
+    "bin_edges": [70.0, 70.4, ..., 110.0],
+    "bin_counts": [12, 18, ..., 9],
+    "bin_errors": [3.5, 4.2, ..., 3.0],
+    "entries": 8234,
+    "mean": 91.2,
+    "std": 3.1
+  }
+}
+```
+
+---
+
+### `run_root_macro`
+
+Execute a C++ ROOT macro via `gROOT.ProcessLine`.
+
+**Mode**: Extended + ROOT (`enable_root: true`)
+
+**Arguments**:
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `macro` | `string` | Yes | C++ macro code (or path to `.C` file) |
+| `args` | `string[]` | No | Arguments to pass to the macro function |
+| `timeout` | `integer` | No | Execution timeout in seconds |
+
+**Example**:
+
+```json
+{
+  "tool": "run_root_macro",
+  "arguments": {
+    "macro": "void myMacro() { TFile *f = TFile::Open(\"data.root\"); f->ls(); }",
+    "timeout": 30
+  }
+}
+```
+
+**Response**:
+
+```json
+{
+  "data": {
+    "stdout": "TFile**\t\tdata.root\n...",
+    "stderr": "",
+    "return_code": 0,
+    "execution_time_s": 0.8
+  }
+}
+```
+
+---
+
 # Tool Summary
 
 ## By Mode
@@ -985,6 +1136,11 @@ Generate a 2D histogram plot.
 15. `histogram_arithmetic` - Histogram math
 16. `plot_histogram_1d` - 1D plotting
 17. `plot_histogram_2d` - 2D plotting
+
+### Native ROOT Tools (3 optional tools — ROOT installation + `enable_root: true`)
+18. `run_root_code` - Arbitrary PyROOT/Python code execution
+19. `run_rdataframe` - RDataFrame histogram computation
+20. `run_root_macro` - C++ ROOT macro execution
 
 ## By Category
 
@@ -1011,6 +1167,9 @@ Generate a 2D histogram plot.
 
 ### Server Management
 - `switch_mode`, `get_server_info`
+
+### Native ROOT
+- `run_root_code`, `run_rdataframe`, `run_root_macro`
 
 ---
 

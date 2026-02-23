@@ -2,7 +2,7 @@
 
 ## Overview
 
-ROOT-MCP operates in two modes that balance simplicity and functionality. The mode is controlled through your `config.yaml` file and can be switched at runtime without restarting the server.
+ROOT-MCP operates in two primary modes plus an optional native ROOT layer. The primary mode is controlled via `config.yaml` (or the `--data-path` / `ROOT_MCP_DATA_PATH` zero-config approach) and can be switched at runtime without restarting the server.
 
 ## Modes Explained
 
@@ -55,6 +55,38 @@ ROOT-MCP operates in two modes that balance simplicity and functionality. The mo
 
 **Dependencies**: Core + scipy, matplotlib
 
+### Native ROOT (Optional)
+
+**Purpose**: Execute arbitrary PyROOT/Python code and C++ macros directly against an installed ROOT build
+
+**When to Use**:
+- Custom RDataFrame analysis beyond uproot's reach
+- C++ ROOT macros (`gROOT.ProcessLine`)
+- RooFit unbinned fits
+- Any operation that truly requires a running ROOT session
+
+**Requires**:
+- Extended mode active (`mode: "extended"`)
+- A working ROOT/PyROOT installation (conda-forge, system package, or binary tarball)
+- `features.enable_root: true` in your config
+
+**Additional Tools** (appear automatically when ROOT is available and enabled):
+- `run_root_code` — execute arbitrary PyROOT/Python code in a sandboxed subprocess
+- `run_rdataframe` — compute RDataFrame histograms without boilerplate
+- `run_root_macro` — execute C++ ROOT macros via `gROOT.ProcessLine`
+
+**Enable**:
+```yaml
+features:
+  enable_root: true
+
+root_native:               # optional tuning
+  execution_timeout: 60
+  working_directory: "/tmp/root_mcp_native"
+```
+
+Use `get_server_info` to check availability at runtime (see [Checking Current Mode](#checking-current-mode) below).
+
 ## Configuration
 
 ### Setting the Mode
@@ -65,6 +97,18 @@ Edit your `config.yaml`:
 server:
   name: "root-mcp"
   mode: "extended"  # or "core"
+```
+
+**No config file required.** Use `--data-path` for zero-config start:
+
+```bash
+root-mcp --data-path /path/to/data
+```
+
+Or set the environment variable:
+
+```bash
+export ROOT_MCP_DATA_PATH=/path/to/data
 ```
 
 ### Mode-Specific Configuration
@@ -153,10 +197,14 @@ You can switch modes without restarting the server using the `switch_mode` tool.
 ```json
 {
   "server_name": "root-mcp",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "current_mode": "extended",
   "extended_components_loaded": true,
-  "available_modes": ["core", "extended"]
+  "available_modes": ["core", "extended"],
+  "root_native_available": true,
+  "root_native_enabled": true,
+  "root_version": "6.32/02",
+  "root_features": {"rdataframe": true, "roofit": true, "tmva": false}
 }
 ```
 
@@ -238,7 +286,21 @@ server:
 
 **Benefits**: Full analysis capabilities available
 
-### Example 3: Adaptive Workflow (Runtime Switching)
+### Example 3: Native ROOT Analysis
+
+**Scenario**: You need to run a custom RDataFrame event loop or a C++ ROOT macro.
+
+**Prerequisites**: ROOT installed, `features.enable_root: true` in config.
+
+**Workflow**:
+1. Confirm ROOT is available: `get_server_info` → check `root_native_available`
+2. `run_rdataframe` — compute histograms using RDataFrame
+3. `run_root_code` — execute custom PyROOT analysis
+4. `run_root_macro` — run a C++ macro if needed
+
+**Benefits**: Access to the full ROOT ecosystem; no uproot limitations
+
+### Example 4: Adaptive Workflow (Runtime Switching)
 
 **Scenario**: Start with exploration, then do detailed analysis.
 
@@ -378,14 +440,14 @@ pip install --upgrade --force-reinstall root-mcp
 
 ## Summary
 
-| Aspect | Core Mode | Extended Mode |
-|--------|-----------|---------------|
-| **Purpose** | File I/O & basic stats | Full physics analysis |
-| **Dependencies** | Minimal | + scipy, matplotlib |
-| **Memory** | Low | Moderate |
-| **Startup** | Fast (~1s) | Moderate (~2-3s) |
-| **Tools** | 9 core tools | Core + 8 extended tools |
-| **Use Case** | Exploration, reading | Analysis, fitting, plotting |
-| **Switching** | To extended: ~2s | To core: immediate |
+| Aspect | Core Mode | Extended Mode | Native ROOT |
+|--------|-----------|---------------|-------------|
+| **Purpose** | File I/O & basic stats | Full physics analysis | Arbitrary ROOT code |
+| **Dependencies** | Minimal | + scipy, matplotlib | + ROOT installation |
+| **Memory** | Low | Moderate | Moderate + subprocess |
+| **Startup** | Fast (~1s) | Moderate (~2-3s) | Same as Extended |
+| **Tools** | 9 core tools | Core + 8 extended tools | + 3 ROOT native tools |
+| **Use Case** | Exploration, reading | Analysis, fitting, plotting | Custom macros, RDataFrame |
+| **Enable** | default | `mode: extended` | + `enable_root: true` |
 
 Choose the mode that fits your workflow, and remember you can always switch at runtime!

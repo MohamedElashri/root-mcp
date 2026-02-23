@@ -326,7 +326,7 @@ def main():
     """Run all tests."""
     print("\n" + "=" * 60)
     print("  ROOT-MCP Integration Test Suite")
-    print("  Version 0.1.4 - Dual-Mode Architecture")
+    print("  Version 0.1.5 - Dual-Mode Architecture")
     print("=" * 60)
 
     results = []

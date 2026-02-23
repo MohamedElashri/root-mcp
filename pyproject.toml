@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "root-mcp"
-version = "0.1.4"
+version = "0.1.5"
 description = "Production-grade MCP server for CERN ROOT file analysis"
 authors = [{name = "Mohamed Elashri"}]
 maintainers = [{name = "Mohamed Elashri"}]
@@ -58,6 +58,12 @@ dev = [
 xrootd = [
     "XRootD>=5.5.0",
 ]
+
+# Native ROOT/PyROOT support — ROOT must be installed externally
+# (conda-forge, system package, or binary tarball). This group is
+# intentionally empty; it just exist to document the optional feature.
+# Until the experimental pip install root is finalized, this group is empty
+root = []
 
 [project.scripts]
 root-mcp = "root_mcp.server:main"
