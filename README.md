@@ -1,4 +1,13 @@
-# ROOT-MCP: LLM Powered HEP Analysis
+<p align="center">
+  <img src="https://raw.githubusercontent.com/MohamedElashri/root-mcp/main/root-mcp_logo.png" alt="CERN ROOT MCP Server" width="160" />
+</p>
+
+<h1 align="center">CERN ROOT MCP Server</h1>
+
+<p align="center">
+  An <a href="https://modelcontextprotocol.io/">MCP</a> server that allow LLMs to interact with CERN ROOT files.
+</p>
+
 
 [![CI](https://github.com/MohamedElashri/root-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedElashri/root-mcp/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/root-mcp.svg)](https://pypi.org/project/root-mcp/)
@@ -170,7 +179,7 @@ The full documentation site is built with Sphinx and covers installation,
 configuration, all 20 MCP tools, LLM integration patterns, and the developer
 guide with auto-generated API reference.
 
-**Read online**: see the `docs/` directory on GitHub, or build locally:
+**Read online**: The docs are hosted at [root-mcp docs](https://melashri.net/root-mcp)
 
 ```bash
 pip install "root-mcp[docs]"

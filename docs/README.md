@@ -2,12 +2,6 @@
 
 Welcome to the comprehensive documentation for **ROOT-MCP**, the Model Context Protocol server for CERN ROOT files.
 
-## Quick Links
-
-- **[Installation & Quick Start](../README.md)**: Get started in minutes (zero-config path included)
-- **[Architecture Overview](ARCHITECTURE.md)**: Understand the three-tier design
-- **[Mode Selection Guide](guides/modes.md)**: Choose between core, extended, and native ROOT modes
-
 ## User Guides
 
 ### Getting Started
