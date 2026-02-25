@@ -35,7 +35,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
     "myst_parser",
-    "sphinxawesome_theme",
+    "sphinx_rtd_theme",
 ]
 
 # Accept both RST and Markdown source files
@@ -68,20 +68,11 @@ html_static_path = ["_static"]
 # HTML / Theme
 # ---------------------------------------------------------------------------
 
-html_theme = "sphinxawesome_theme"
+html_theme = "sphinx_rtd_theme"
 
 html_theme_options = {
-    "show_breadcrumbs": True,
-    "show_prev_next": True,
-    "main_nav_links": {
-        "Docs": "index",
-        "GitHub": "https://github.com/MohamedElashri/root-mcp",
-    },
-    "extra_footer": (
-        "Built with "
-        '<a href="https://github.com/kai687/sphinxawesome-theme" '
-        'target="_blank" rel="noopener">Sphinx Awesome Theme</a>.'
-    ),
+    "logo_only": False,
+    "display_version": True,
 }
 
 html_css_files = ["custom.css"]
