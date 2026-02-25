@@ -108,3 +108,7 @@ plan*
 
 # uv
 uv.lock
+
+
+# slides
+*.tex
