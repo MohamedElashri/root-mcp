@@ -34,9 +34,10 @@ repos:
 
       - id: build
         name: build
-        entry: .venv/bin/python -m build
+        entry: bash -c 'if [ -d "dist" ]; then rm -rf dist; fi && .venv/bin/python -m build --outdir dist'
         language: system
         pass_filenames: false
+        stages: [manual]
 
       - id: twine-check
         name: twine check

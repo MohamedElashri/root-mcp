@@ -2,22 +2,230 @@
 
 `ROOT-MCP` is designed primarily to give LLMs like Claude and Gemini Models through clients capabilities to interact with HEP data. This guide explains how to effectively use `ROOT-MCP` in an agentic workflow.
 
+## Prerequisites
+
+ROOT-MCP is typically installed and run using `uvx` (the recommended method). Before configuring any client:
+
+1. **Install uvx** (if not already installed):
+   ```bash
+   # macOS (Homebrew)
+   brew install uv
+
+   # Or using pip
+   pip install uv
+   ```
+
+2. **Find your uvx path** (important for macOS):
+   ```bash
+   which uvx
+   ```
+   Common locations:
+   - **macOS (Apple Silicon)**: `/opt/homebrew/bin/uvx`
+   - **macOS (Intel)**: `/usr/local/bin/uvx`
+   - **Linux**: `/usr/local/bin/uvx` or `~/.local/bin/uvx`
+   - **Windows**: `uvx` (typically in PATH, or find with `where uvx`)
+
+3. **Use full paths in configurations**:
+   - **macOS/Linux**: Always use the full path (e.g., `/opt/homebrew/bin/uvx`) instead of `~` or relative paths
+   - **Windows**: You can typically use `uvx` directly if it's in your PATH
+
 ## Setup with Different LLM Clients
 
-### Claude Desktop
+### Claude Code
 
-Add to your Claude Desktop configuration file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS).
+Claude Code (available at [claude.ai/code](https://claude.ai/code)) provides both automatic MCP server installation and manual configuration options.
 
-#### Quickest setup — no config file needed
+#### Automatic Installation (Recommended)
 
-Pass `--data-path` directly so Claude can access your data with zero additional setup:
+The easiest way to set up ROOT-MCP with Claude Code is using the built-in `claude mcp add` command:
+
+```bash
+# Basic setup with data path
+claude mcp add root-mcp --data-path /path/to/your/data
+
+# With native ROOT support
+claude mcp add root-mcp --data-path /path/to/your/data --enable-root
+
+# With additional configuration
+claude mcp add root-mcp \
+  --data-path /data/cms \
+  --mode extended \
+  --enable-root \
+  --allowed-root /data/cms \
+  --export-path /tmp/exports \
+  --log-level WARNING
+```
+
+This command automatically installs ROOT-MCP and updates your Claude Code configuration.
+
+**Note:** The `claude mcp add` command typically configures `uvx` to run root-mcp, which is the recommended approach.
+
+#### Manual Configuration (User Scope - All Projects)
+
+To configure ROOT-MCP globally for all Claude Code projects, edit the user-scope config file.
+
+**macOS/Linux:** `/Users/username/.config/claude-code/mcp_config.json` (use full path, not `~`)
+
+**Find the correct uvx path:**
+```bash
+which uvx  # On macOS, typically /opt/homebrew/bin/uvx or /usr/local/bin/uvx
+```
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "uvx",
+      "args": ["root-mcp", "--data-path", "/path/to/your/data"]
+    }
+  }
+}
+```
+
+**With explicit uvx path (MUST be used for macOS):**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp", "--data-path", "/path/to/your/data"]
+    }
+  }
+}
+```
+
+**Extended configuration with additional arguments:**
 
 ```json
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "root-mcp",
-      "args": ["--data-path", "/path/to/your/data"]
+      "command": "/opt/homebrew/bin/uvx",
+      "args": [
+        "root-mcp",
+        "--data-path", "/data/cms",
+        "--mode", "extended",
+        "--enable-root",
+        "--allowed-root", "/data/cms",
+        "--export-path", "/tmp/exports",
+        "--root-timeout", "120",
+        "--max-rows", "2000000",
+        "--max-bins-1d", "5000",
+        "--plot-dpi", "150",
+        "--log-level", "WARNING"
+      ]
+    }
+  }
+}
+```
+
+**Using environment variables:**
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp"],
+      "env": {
+        "ROOT_MCP_DATA_PATH": "/path/to/your/data",
+        "ROOT_MCP_MODE": "extended",
+        "ROOT_MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+#### Manual Configuration (Project Scope)
+
+To configure ROOT-MCP for a specific project only, create `.claude/mcp_config.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "uvx",
+      "args": [
+        "root-mcp",
+        "--data-path", ".",
+        "--export-path", "./exports"
+      ]
+    }
+  }
+}
+```
+
+**With full path (recommended for macOS):**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": [
+        "root-mcp",
+        "--data-path", ".",
+        "--export-path", "./exports"
+      ]
+    }
+  }
+}
+```
+
+Project-scope configuration takes precedence over user-scope configuration.
+
+### Claude Desktop
+
+Add to your Claude Desktop configuration file:
+- **macOS**: `/Users/username/Library/Application Support/Claude/claude_desktop_config.json` (use full path)
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `/home/username/.config/Claude/claude_desktop_config.json` (use full path)
+
+**Find the correct uvx path first:**
+```bash
+# macOS/Linux
+which uvx  # On macOS with Homebrew: typically /opt/homebrew/bin/uvx
+
+# Windows (PowerShell)
+where.exe uvx
+```
+
+#### Quickest setup — no config file needed
+
+Pass `--data-path` directly so Claude can access your data with zero additional setup:
+
+**macOS/Linux:**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "uvx",
+      "args": ["root-mcp", "--data-path", "/path/to/your/data"]
+    }
+  }
+}
+```
+
+**Windows:**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "uvx",
+      "args": ["root-mcp", "--data-path", "C:\\path\\to\\your\\data"]
+    }
+  }
+}
+```
+
+**With explicit path (MUST be used for macOS):**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp", "--data-path", "/path/to/your/data"]
     }
   }
 }
@@ -29,7 +237,8 @@ Or use an environment variable instead of a command-line flag:
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "root-mcp",
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp"],
       "env": {
         "ROOT_MCP_DATA_PATH": "/path/to/your/data"
       }
@@ -47,16 +256,44 @@ the server from the JSON block without writing any additional files:
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "root-mcp",
+      "command": "/opt/homebrew/bin/uvx",
       "args": [
+        "root-mcp",
         "--data-path", "/data/cms",
         "--mode", "extended",
         "--enable-root",
         "--allowed-root", "/data/cms",
         "--export-path", "/tmp/exports",
         "--root-timeout", "120",
+        "--max-rows", "2000000",
+        "--max-bins-1d", "5000",
+        "--cache-size", "100",
+        "--plot-dpi", "150",
+        "--plot-format", "png",
         "--log-level", "WARNING"
       ]
+    }
+  }
+}
+```
+
+**With environment variables for cleaner config:**
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp", "--enable-root"],
+      "env": {
+        "ROOT_MCP_DATA_PATH": "/data/cms",
+        "ROOT_MCP_MODE": "extended",
+        "ROOT_MCP_ALLOWED_ROOTS": "/data/cms:/data/run3",
+        "ROOT_MCP_EXPORT_PATH": "/tmp/exports",
+        "ROOT_MCP_ROOT_TIMEOUT": "120",
+        "ROOT_MCP_MAX_ROWS": "2000000",
+        "ROOT_MCP_LOG_LEVEL": "WARNING"
+      }
     }
   }
 }
@@ -68,11 +305,14 @@ With a remote XRootD resource:
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "root-mcp",
+      "command": "/opt/homebrew/bin/uvx",
       "args": [
+        "root-mcp",
         "--resource", "cms=root://xrootd.cern.ch//store/data|CMS open data",
         "--allow-remote",
-        "--mode", "extended"
+        "--mode", "extended",
+        "--max-rows", "1000000",
+        "--export-path", "/tmp/cms_exports"
       ]
     }
   }
@@ -84,7 +324,7 @@ With a remote XRootD resource:
 For more control (remote resources, custom limits, native ROOT), generate a config file first:
 
 ```bash
-root-mcp init --permissive   # creates config.yaml pre-filled with your cwd
+uvx root-mcp init --permissive   # creates config.yaml pre-filled with your cwd
 ```
 
 Then reference it:
@@ -93,7 +333,8 @@ Then reference it:
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "root-mcp",
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp"],
       "env": {
         "ROOT_MCP_CONFIG": "/path/to/config.yaml"
       }
@@ -106,9 +347,14 @@ Then reference it:
 
 Gemini CLI supports MCP servers through settings files. You can configure ROOT-MCP either globally or per-project.
 
+**Find the correct uvx path first:**
+```bash
+which uvx  # On macOS: typically /opt/homebrew/bin/uvx
+```
+
 #### Global Configuration (All Sessions)
 
-Add to `~/.gemini/settings.json`.
+Add to `/Users/username/.gemini/settings.json` (use full path, not `~`).
 
 **Quickest setup — no config file needed:**
 
@@ -116,8 +362,20 @@ Add to `~/.gemini/settings.json`.
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "root-mcp",
-      "args": ["--data-path", "/path/to/your/data"]
+      "command": "uvx",
+      "args": ["root-mcp", "--data-path", "/path/to/your/data"]
+    }
+  }
+}
+```
+
+**With explicit path (recommended for macOS):**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp", "--data-path", "/path/to/your/data"]
     }
   }
 }
@@ -129,7 +387,8 @@ Or use an environment variable:
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "root-mcp",
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp"],
       "env": {
         "ROOT_MCP_DATA_PATH": "/path/to/your/data"
       }
@@ -144,7 +403,8 @@ Or use an environment variable:
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "root-mcp",
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp"],
       "env": {
         "ROOT_MCP_CONFIG": "/path/to/your/config.yaml"
       }
@@ -159,14 +419,42 @@ Or use an environment variable:
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "root-mcp",
+      "command": "/opt/homebrew/bin/uvx",
       "args": [
+        "root-mcp",
         "--data-path", "/data",
         "--mode", "extended",
         "--allowed-root", "/data",
         "--export-path", "/tmp/exports",
+        "--max-rows", "1500000",
+        "--max-bins-1d", "8000",
+        "--plot-width", "12.0",
+        "--plot-height", "8.0",
+        "--cache-size", "75",
         "--log-level", "WARNING"
       ]
+    }
+  }
+}
+```
+
+**Using environment variables:**
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp"],
+      "env": {
+        "ROOT_MCP_DATA_PATH": "/data",
+        "ROOT_MCP_MODE": "extended",
+        "ROOT_MCP_ALLOWED_ROOTS": "/data",
+        "ROOT_MCP_EXPORT_PATH": "/tmp/exports",
+        "ROOT_MCP_MAX_ROWS": "1500000",
+        "ROOT_MCP_CACHE_SIZE": "75",
+        "ROOT_MCP_LOG_LEVEL": "INFO"
+      }
     }
   }
 }
@@ -183,7 +471,30 @@ Add to `/path/to/your/project/.gemini/settings.json`:
   "mcpServers": {
     "root-mcp": {
       "command": "root-mcp",
-      "args": ["--data-path", "."],
+      "args": [
+        "--data-path", ".",
+        "--export-path", "./exports"
+      ]
+    }
+  }
+}
+```
+
+**With additional arguments for project-specific tuning:**
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": [
+        "root-mcp",
+        "--data-path", ".",
+        "--mode", "extended",
+        "--export-path", "./exports",
+        "--max-rows", "500000",
+        "--plot-format", "pdf"
+      ],
       "env": {
         "ROOT_MCP_DATA_PATH": "."
       }
@@ -196,7 +507,26 @@ This makes ROOT-MCP available only in Gemini CLI sessions created under that pro
 
 **Recommended Configuration (Virtual Environment):**
 
-For production use, we recommend explicitly specifying all paths for better control and debugging:
+For production use, we recommend explicitly specifying all paths for better control and debugging.
+
+**Option 1: Using uvx (Recommended):**
+
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": [
+        "root-mcp",
+        "--data-path",
+        "/path/to/data"
+      ]
+    }
+  }
+}
+```
+
+**Option 2: Using virtual environment's Python directly:**
 
 ```json
 {
@@ -214,8 +544,58 @@ For production use, we recommend explicitly specifying all paths for better cont
 }
 ```
 
+**With additional arguments for production:**
+
+**Using uvx:**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": [
+        "root-mcp",
+        "--data-path", "/path/to/data",
+        "--mode", "extended",
+        "--allowed-root", "/path/to/data",
+        "--max-rows", "2000000",
+        "--max-export-rows", "5000000",
+        "--cache-size", "100",
+        "--export-path", "/var/exports/root_mcp",
+        "--plot-dpi", "200",
+        "--log-level", "INFO"
+      ]
+    }
+  }
+}
+```
+
+**Using venv Python:**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/path/to/venv/bin/python",
+      "args": [
+        "-m",
+        "root_mcp.server",
+        "--data-path", "/path/to/data",
+        "--mode", "extended",
+        "--allowed-root", "/path/to/data",
+        "--max-rows", "2000000",
+        "--max-export-rows", "5000000",
+        "--cache-size", "100",
+        "--export-path", "/var/exports/root_mcp",
+        "--plot-dpi", "200",
+        "--log-level", "INFO"
+      ]
+    }
+  }
+}
+```
+
 This format:
-- Uses the virtual environment's Python interpreter explicitly
+- Uses `uvx` to automatically manage the root-mcp installation (Option 1)
+- Or uses the virtual environment's Python interpreter explicitly (Option 2)
 - Passes the data path as a command-line argument (no config file required)
 - Makes debugging easier by showing all paths clearly
 
@@ -225,8 +605,8 @@ This format:
 {
   "mcpServers": {
     "root-mcp": {
-      "command": "/path/to/venv/bin/python",
-      "args": ["-m", "root_mcp.server"],
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp"],
       "env": {
         "ROOT_MCP_CONFIG": "/path/to/config.yaml"
       }
@@ -241,6 +621,188 @@ After configuration, restart Gemini CLI and verify ROOT-MCP tools are available 
 ```
 What MCP tools are available?
 ```
+
+---
+
+## Configuration Arguments Reference
+
+ROOT-MCP supports ~29 configuration arguments that can be passed via CLI flags or environment variables. These can be used in **any** client configuration to customize behavior without needing a `config.yaml` file.
+
+### Core Arguments
+
+| CLI Flag | Environment Variable | Description | Default |
+|----------|---------------------|-------------|---------|
+| `--data-path DIR` | `ROOT_MCP_DATA_PATH` | Local directory with ROOT files (can repeat) | None |
+| `--mode MODE` | `ROOT_MCP_MODE` | Server mode: `core` or `extended` | `extended` |
+| `--config PATH` | `ROOT_MCP_CONFIG` | Path to config.yaml file | Auto-detected |
+| `--log-level LEVEL` | `ROOT_MCP_LOG_LEVEL` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO` |
+
+### Security & Access Control
+
+| CLI Flag | Environment Variable | Description | Default |
+|----------|---------------------|-------------|---------|
+| `--allowed-root DIR` | `ROOT_MCP_ALLOWED_ROOTS` | Restrict access to directory (colon-separated for env) | Empty (permissive) |
+| `--allow-remote` | `ROOT_MCP_ALLOW_REMOTE` | Allow remote (non-file://) URIs | `false` |
+| `--allowed-protocols PROTOS` | `ROOT_MCP_ALLOWED_PROTOCOLS` | Comma-separated allowed protocols | `file` |
+| `--max-path-depth N` | `ROOT_MCP_MAX_PATH_DEPTH` | Maximum directory depth | `10` |
+
+### Data Limits
+
+| CLI Flag | Environment Variable | Description | Default |
+|----------|---------------------|-------------|---------|
+| `--max-rows N` | `ROOT_MCP_MAX_ROWS` | Max rows per read call | `1000000` |
+| `--max-export-rows N` | `ROOT_MCP_MAX_EXPORT_ROWS` | Max rows per export | `10000000` |
+
+### Cache Settings
+
+| CLI Flag | Environment Variable | Description | Default |
+|----------|---------------------|-------------|---------|
+| `--no-cache` | `ROOT_MCP_CACHE` | Disable file metadata cache | Enabled |
+| `--cache-size N` | `ROOT_MCP_CACHE_SIZE` | Number of cached file entries | `50` |
+
+### Export Settings
+
+| CLI Flag | Environment Variable | Description | Default |
+|----------|---------------------|-------------|---------|
+| `--export-path DIR` | `ROOT_MCP_EXPORT_PATH` | Directory for exported files | `/tmp/root_mcp_output` |
+| `--export-formats FMTS` | `ROOT_MCP_EXPORT_FORMATS` | Comma-separated allowed formats | `json,csv,parquet` |
+| `--no-export` | `ROOT_MCP_ENABLE_EXPORT` | Disable export feature | Enabled |
+
+### Histogram & Analysis
+
+| CLI Flag | Environment Variable | Description | Default |
+|----------|---------------------|-------------|---------|
+| `--max-bins-1d N` | `ROOT_MCP_MAX_BINS_1D` | Max bins for 1D histograms | `10000` |
+| `--max-bins-2d N` | `ROOT_MCP_MAX_BINS_2D` | Max bins for 2D histograms | `1000` |
+| `--fitting-iterations N` | `ROOT_MCP_FITTING_ITERATIONS` | Max fitting iterations | `10000` |
+
+### Plotting
+
+| CLI Flag | Environment Variable | Description | Default |
+|----------|---------------------|-------------|---------|
+| `--plot-dpi N` | `ROOT_MCP_PLOT_DPI` | Plot resolution in DPI | `100` |
+| `--plot-format FMT` | `ROOT_MCP_PLOT_FORMAT` | Default format: `png`, `pdf`, `svg` | `png` |
+| `--plot-width N` | `ROOT_MCP_PLOT_WIDTH` | Figure width in inches | `10.0` |
+| `--plot-height N` | `ROOT_MCP_PLOT_HEIGHT` | Figure height in inches | `6.0` |
+
+### Native ROOT Execution
+
+| CLI Flag | Environment Variable | Description | Default |
+|----------|---------------------|-------------|---------|
+| `--enable-root` | N/A | Enable native ROOT/PyROOT tools | `false` |
+| `--root-timeout N` | `ROOT_MCP_ROOT_TIMEOUT` | Execution timeout in seconds | `60` |
+| `--root-workdir DIR` | `ROOT_MCP_ROOT_WORKDIR` | Working directory for ROOT | `/tmp/root_mcp_native` |
+| `--root-max-output N` | `ROOT_MCP_ROOT_MAX_OUTPUT` | Max output size in bytes | `10000000` |
+| `--root-max-code N` | `ROOT_MCP_ROOT_MAX_CODE` | Max script length in chars | `100000` |
+
+### Remote Resources
+
+| CLI Flag | Environment Variable | Description | Default |
+|----------|---------------------|-------------|---------|
+| `--resource SPEC` | `ROOT_MCP_RESOURCES` | Named resource: `NAME=URI\|DESC` (semicolon-sep for env) | None |
+
+### Usage Examples
+
+**Important for macOS users:** Use the full path to `uvx` rather than relying on `~` or relative paths:
+```bash
+# Find your uvx path
+which uvx
+# Common locations:
+# - Homebrew (Apple Silicon): /opt/homebrew/bin/uvx
+# - Homebrew (Intel): /usr/local/bin/uvx
+```
+
+**Combining multiple arguments (CLI):**
+```bash
+uvx root-mcp \
+  --data-path /data/cms \
+  --mode extended \
+  --enable-root \
+  --max-rows 2000000 \
+  --cache-size 100 \
+  --plot-dpi 150 \
+  --export-path /exports \
+  --log-level WARNING
+```
+
+**Combining multiple arguments (JSON config):**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "uvx",
+      "args": [
+        "root-mcp",
+        "--data-path", "/data/cms",
+        "--mode", "extended",
+        "--enable-root",
+        "--max-rows", "2000000",
+        "--cache-size", "100",
+        "--plot-dpi", "150",
+        "--export-path", "/exports",
+        "--log-level", "WARNING"
+      ]
+    }
+  }
+}
+```
+
+**Or with full path (macOS):**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": [
+        "root-mcp",
+        "--data-path", "/data/cms",
+        "--mode", "extended",
+        "--enable-root",
+        "--max-rows", "2000000",
+        "--cache-size", "100",
+        "--plot-dpi", "150",
+        "--export-path", "/exports",
+        "--log-level", "WARNING"
+      ]
+    }
+  }
+}
+```
+
+**Using environment variables:**
+```json
+{
+  "mcpServers": {
+    "root-mcp": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["root-mcp", "--enable-root"],
+      "env": {
+        "ROOT_MCP_DATA_PATH": "/data/cms",
+        "ROOT_MCP_MODE": "extended",
+        "ROOT_MCP_MAX_ROWS": "2000000",
+        "ROOT_MCP_CACHE_SIZE": "100",
+        "ROOT_MCP_PLOT_DPI": "150",
+        "ROOT_MCP_EXPORT_PATH": "/exports",
+        "ROOT_MCP_LOG_LEVEL": "WARNING"
+      }
+    }
+  }
+}
+```
+
+### Configuration Priority
+
+When the same setting is specified in multiple places, the priority (highest to lowest) is:
+
+1. **CLI flags** (e.g., `--data-path`)
+2. **Environment variables** (e.g., `ROOT_MCP_DATA_PATH`)
+3. **config.yaml file**
+4. **Built-in defaults**
+
+This allows you to:
+- Set global defaults in `config.yaml`
+- Override per-session with environment variables
+- Override per-invocation with CLI flags
 
 ---
 
