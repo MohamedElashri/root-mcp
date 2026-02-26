@@ -46,13 +46,17 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
+    "pytest-timeout>=2.0.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
+    "mypy>=1.0.0",
     "ty>=0.0.2",
     "types-PyYAML>=6.0.0.0",
     "pre-commit>=3.0.0",
     "build>=1.0.0",
     "twine>=4.0.0",
+    "wheel>=0.40.0",
+    "setuptools>=68.0.0",
 ]
 
 xrootd = [
@@ -104,6 +108,11 @@ possibly-missing-import = "error"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-v --strict-markers"
+markers = [
+    "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+]
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
