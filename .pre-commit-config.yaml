@@ -3,20 +3,26 @@ repos:
     rev: v5.0.0
     hooks:
       - id: check-yaml
+        stages: [commit]
       - id: check-toml
+        stages: [commit]
       - id: end-of-file-fixer
+        stages: [commit]
       - id: trailing-whitespace
+        stages: [commit]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.0
     hooks:
       - id: ruff
         args: [--fix]
+        stages: [commit]
 
   - repo: https://github.com/psf/black
     rev: 26.1.0
     hooks:
       - id: black
+        stages: [commit]
 
   - repo: local
     hooks:
@@ -25,12 +31,14 @@ repos:
         entry: ty check --python .venv/bin/python src
         language: system
         pass_filenames: false
+        stages: [commit]
 
       - id: pytest
         name: pytest
         entry: .venv/bin/python -m pytest -q
         language: system
         pass_filenames: false
+        stages: [commit]
 
       - id: build
         name: build
@@ -44,3 +52,4 @@ repos:
         entry: .venv/bin/python -m twine check dist/*
         language: system
         pass_filenames: false
+        stages: [manual]
