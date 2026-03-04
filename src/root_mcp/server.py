@@ -988,7 +988,6 @@ class ROOTMCPServer:
         self,
         host: str = "127.0.0.1",
         port: int = 8000,
-        stateless_http: bool = False,
     ) -> None:
         """Run the MCP server."""
         import uvicorn
@@ -1008,7 +1007,7 @@ class ROOTMCPServer:
 
         session_manager = StreamableHTTPSessionManager(
             app=self.server,
-            stateless=stateless_http,
+            stateless=True,
         )
         http_app = _StreamableHTTPASGIApp(session_manager)
 
@@ -1180,13 +1179,6 @@ def main() -> None:
         dest="port",
         metavar="PORT",
         help="HTTP bind port for streamable MCP transport (default: 8000).",
-    )
-    parser.add_argument(
-        "--stateless-http",
-        action="store_true",
-        default=False,
-        dest="stateless_http",
-        help="Enable stateless HTTP mode (new session per request).",
     )
     # Security
     parser.add_argument(
@@ -1490,7 +1482,6 @@ def main() -> None:
             server.run(
                 host=args.host,
                 port=args.port,
-                stateless_http=args.stateless_http,
             )
         )
     except KeyboardInterrupt:
