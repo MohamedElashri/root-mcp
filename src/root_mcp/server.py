@@ -988,7 +988,6 @@ class ROOTMCPServer:
         self,
         host: str = "127.0.0.1",
         port: int = 8000,
-        mcp_path: str = "/mcp",
         stateless_http: bool = False,
     ) -> None:
         """Run the MCP server."""
@@ -1007,29 +1006,16 @@ class ROOTMCPServer:
         logger.info(f"Mode: {self.current_mode}")
         logger.info(f"Resources configured: {len(self.config.resources)}")
 
-        if not mcp_path.startswith("/"):
-            mcp_path = f"/{mcp_path}"
-
         session_manager = StreamableHTTPSessionManager(
             app=self.server,
             stateless=stateless_http,
         )
         http_app = _StreamableHTTPASGIApp(session_manager)
 
-        routes = [Route("/", endpoint=http_app)]
-        if mcp_path != "/":
-            routes.append(Route(mcp_path, endpoint=http_app))
-
-        if mcp_path == "/":
-            logger.info(f"Transport: streamable-http on http://{host}:{port}/")
-        else:
-            logger.info(
-                f"Transport: streamable-http on http://{host}:{port}/ "
-                f"(alias: http://{host}:{port}{mcp_path})"
-            )
+        logger.info(f"Transport: streamable-http on http://{host}:{port}/")
 
         app = Starlette(
-            routes=routes,
+            routes=[Route("/", endpoint=http_app)],
             lifespan=lambda app: session_manager.run(),
         )
 
@@ -1194,14 +1180,6 @@ def main() -> None:
         dest="port",
         metavar="PORT",
         help="HTTP bind port for streamable MCP transport (default: 8000).",
-    )
-    parser.add_argument(
-        "--mcp-path",
-        type=str,
-        default="/mcp",
-        dest="mcp_path",
-        metavar="PATH",
-        help="HTTP path for streamable MCP endpoint (default: /mcp).",
     )
     parser.add_argument(
         "--stateless-http",
@@ -1512,7 +1490,6 @@ def main() -> None:
             server.run(
                 host=args.host,
                 port=args.port,
-                mcp_path=args.mcp_path,
                 stateless_http=args.stateless_http,
             )
         )
