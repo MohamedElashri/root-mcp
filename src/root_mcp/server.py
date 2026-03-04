@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 from typing import Any, cast
 from mcp.server import Server
+from mcp.server.stdio import stdio_server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import Resource, Tool, TextContent
 from starlette.applications import Starlette
@@ -986,10 +987,25 @@ class ROOTMCPServer:
 
     async def run(
         self,
+        transport: str = "http",
         host: str = "127.0.0.1",
         port: int = 8000,
     ) -> None:
         """Run the MCP server."""
+        logger.info(f"Starting {self.config.server.name} v{self.config.server.version}")
+        logger.info(f"Mode: {self.current_mode}")
+        logger.info(f"Resources configured: {len(self.config.resources)}")
+
+        if transport == "stdio":
+            logger.info("Transport: stdio")
+            async with stdio_server() as (read_stream, write_stream):
+                await self.server.run(
+                    read_stream,
+                    write_stream,
+                    self.server.create_initialization_options(),
+                )
+            return
+
         import uvicorn
 
         class _StreamableHTTPASGIApp:
@@ -1001,14 +1017,7 @@ class ROOTMCPServer:
             async def __call__(self, scope, receive, send):
                 await self._session_manager.handle_request(scope, receive, send)
 
-        logger.info(f"Starting {self.config.server.name} v{self.config.server.version}")
-        logger.info(f"Mode: {self.current_mode}")
-        logger.info(f"Resources configured: {len(self.config.resources)}")
-
-        session_manager = StreamableHTTPSessionManager(
-            app=self.server,
-            stateless=True,
-        )
+        session_manager = StreamableHTTPSessionManager(app=self.server, stateless=True)
         http_app = _StreamableHTTPASGIApp(session_manager)
 
         logger.info(f"Transport: streamable-http on http://{host}:{port}/")
@@ -1163,6 +1172,14 @@ def main() -> None:
             "Override the MCP server name reported to clients. "
             "Overrides config.yaml and ROOT_MCP_SERVER_NAME."
         ),
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["http", "stdio"],
+        default="http",
+        dest="transport",
+        metavar="TRANSPORT",
+        help="MCP transport to use: http or stdio (default: http).",
     )
     parser.add_argument(
         "--host",
@@ -1480,6 +1497,7 @@ def main() -> None:
     try:
         asyncio.run(
             server.run(
+                transport=args.transport,
                 host=args.host,
                 port=args.port,
             )
