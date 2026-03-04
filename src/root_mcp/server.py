@@ -9,8 +9,10 @@ from pathlib import Path
 import sys
 from typing import Any, cast
 from mcp.server import Server
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import Resource, Tool, TextContent
-from mcp.server.stdio import stdio_server
+from starlette.applications import Starlette
+from starlette.routing import Route
 
 from root_mcp.config import Config, load_config, _CONFIG_TEMPLATE
 from root_mcp.common.root_availability import is_root_available, get_root_version, get_root_features
@@ -18,7 +20,7 @@ from root_mcp.core.io import FileManager, PathValidator, TreeReader, HistogramRe
 from root_mcp.core.operations import BasicStatistics
 from root_mcp.core.tools import DiscoveryTools, DataAccessTools
 
-# Setup logging - must use stderr to avoid interfering with stdio MCP protocol
+# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -982,18 +984,63 @@ class ROOTMCPServer:
 
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
-    async def run(self) -> None:
+    async def run(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8000,
+        mcp_path: str = "/mcp",
+        stateless_http: bool = False,
+    ) -> None:
         """Run the MCP server."""
+        import uvicorn
+
+        class _StreamableHTTPASGIApp:
+            """ASGI adapter that forwards requests to the MCP HTTP session manager."""
+
+            def __init__(self, session_manager: StreamableHTTPSessionManager):
+                self._session_manager = session_manager
+
+            async def __call__(self, scope, receive, send):
+                await self._session_manager.handle_request(scope, receive, send)
+
         logger.info(f"Starting {self.config.server.name} v{self.config.server.version}")
         logger.info(f"Mode: {self.current_mode}")
         logger.info(f"Resources configured: {len(self.config.resources)}")
 
-        async with stdio_server() as (read_stream, write_stream):
-            await self.server.run(
-                read_stream,
-                write_stream,
-                self.server.create_initialization_options(),
+        if not mcp_path.startswith("/"):
+            mcp_path = f"/{mcp_path}"
+
+        session_manager = StreamableHTTPSessionManager(
+            app=self.server,
+            stateless=stateless_http,
+        )
+        http_app = _StreamableHTTPASGIApp(session_manager)
+
+        routes = [Route("/", endpoint=http_app)]
+        if mcp_path != "/":
+            routes.append(Route(mcp_path, endpoint=http_app))
+
+        if mcp_path == "/":
+            logger.info(f"Transport: streamable-http on http://{host}:{port}/")
+        else:
+            logger.info(
+                f"Transport: streamable-http on http://{host}:{port}/ "
+                f"(alias: http://{host}:{port}{mcp_path})"
             )
+
+        app = Starlette(
+            routes=routes,
+            lifespan=lambda app: session_manager.run(),
+        )
+
+        uvicorn_config = uvicorn.Config(
+            app,
+            host=host,
+            port=port,
+            log_level=logging.getLevelName(logger.getEffectiveLevel()).lower(),
+        )
+        uvicorn_server = uvicorn.Server(uvicorn_config)
+        await uvicorn_server.serve()
 
 
 def _run_init(argv: list[str]) -> None:
@@ -1131,6 +1178,37 @@ def main() -> None:
             "Override the MCP server name reported to clients. "
             "Overrides config.yaml and ROOT_MCP_SERVER_NAME."
         ),
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        dest="host",
+        metavar="HOST",
+        help="HTTP bind host for streamable MCP transport (default: 127.0.0.1).",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        dest="port",
+        metavar="PORT",
+        help="HTTP bind port for streamable MCP transport (default: 8000).",
+    )
+    parser.add_argument(
+        "--mcp-path",
+        type=str,
+        default="/mcp",
+        dest="mcp_path",
+        metavar="PATH",
+        help="HTTP path for streamable MCP endpoint (default: /mcp).",
+    )
+    parser.add_argument(
+        "--stateless-http",
+        action="store_true",
+        default=False,
+        dest="stateless_http",
+        help="Enable stateless HTTP mode (new session per request).",
     )
     # Security
     parser.add_argument(
@@ -1430,7 +1508,14 @@ def main() -> None:
     server = ROOTMCPServer(config)
 
     try:
-        asyncio.run(server.run())
+        asyncio.run(
+            server.run(
+                host=args.host,
+                port=args.port,
+                mcp_path=args.mcp_path,
+                stateless_http=args.stateless_http,
+            )
+        )
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception as e:
