@@ -109,6 +109,6 @@ Full behavior is controlled through `config.yaml` — but a config file is not r
 
 ## Version Information
 
-This documentation is for ROOT-MCP v0.1.5+
+This documentation is for ROOT-MCP v0.1.6+
 
 For older versions, see the [changelog](../CHANGELOG.md).

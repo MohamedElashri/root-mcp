@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
-## [0.1.5] - 2026-02-23
+## [0.1.6] - 2026-03-10
+
+### Added
+- **root-cli**: New command-line interface for direct interaction with ROOT files without needing the full MCP server. Supports all supported tools and features, with output to console or files.
+- **skill files**: Added `skills/` directory with example skill definitions for AI agents to use `root-cli` tools in a structured way.
 
 ### Added
 - **Optional Native ROOT/PyROOT Support**: When a native ROOT installation is available, three new tools become accessible:
