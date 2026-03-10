@@ -39,6 +39,7 @@ dependencies = [
     "xxhash>=3.0.0",
     "scipy>=1.10.0",
     "matplotlib>=3.7.0",
+    "click>=8.0.0",
 ]
 
 [project.optional-dependencies]
@@ -77,6 +78,7 @@ root = []
 
 [project.scripts]
 root-mcp = "root_mcp.server:main"
+root-cli = "root_cli.main:main"
 
 [project.urls]
 Homepage = "https://github.com/MohamedElashri/root-mcp"
