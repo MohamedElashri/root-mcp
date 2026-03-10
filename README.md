@@ -80,7 +80,7 @@ export ROOT_MCP_DATA_PATH=/path/to/your/data
 
 ## ROOT CLI (Recommended for LLM Interaction)
 
-The CLI provides a **token-efficient**, human-readable interface that saves ~60% tokens compared to the MCP JSON protocol.
+The CLI provides a **token-efficient**, human-readable interface that provides significant token savings compared to the MCP JSON protocol.
 
 ### Basic Usage
 
