@@ -19,6 +19,9 @@ Connect Claude (or any MCP-capable agent) to your ROOT files and ask it to:
    # Zero-config start — no YAML required
    root-mcp --data-path /path/to/your/data
 
+   # Token-efficient CLI for LLM interaction
+   root-cli -d /path/to/your/data ls
+
 ----
 
 .. toctree::
@@ -31,6 +34,7 @@ Connect Claude (or any MCP-capable agent) to your ROOT files and ask it to:
    user/configuration
    user/llm_integration
    user/tools_reference
+   user/cli_reference
 
 .. toctree::
    :maxdepth: 1
@@ -55,7 +59,8 @@ Connect Claude (or any MCP-capable agent) to your ROOT files and ask it to:
 
    * :doc:`user/installation` — get up and running in minutes
    * :doc:`user/quickstart` — zero-config walkthrough and first queries
-   * :doc:`user/tools_reference` — complete tool catalogue (20 tools)
+   * :doc:`user/tools_reference` — complete tool catalogue
+   * :doc:`user/cli_reference` — root-cli command reference
    * :doc:`user/llm_integration` — prompting strategies for Claude and others
 
    **Contributors**

@@ -83,7 +83,7 @@ Controls server identity and operational mode.
 ```yaml
 server:
   name: "root-mcp"        # Server name (shown to AI)
-  version: "0.1.5"        # Version (auto-detected if omitted)
+  version: "0.1.6"        # Version (auto-detected if omitted)
   mode: "extended"        # "core" or "extended" - see Mode Selection below
 ```
 
