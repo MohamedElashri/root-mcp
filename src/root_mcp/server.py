@@ -280,7 +280,7 @@ class ROOTMCPServer:
             ),
             Tool(
                 name="list_branches",
-                description="List branches in a TTree",
+                description="List branches in a TTree or RNTuple",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -305,7 +305,7 @@ class ROOTMCPServer:
             # Data access tools
             Tool(
                 name="read_branches",
-                description="Read branch data from a TTree",
+                description="Read branch data from a TTree or RNTuple",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -748,7 +748,7 @@ class ROOTMCPServer:
                         },
                         "tree_name": {
                             "type": "string",
-                            "description": "Name of the TTree",
+                            "description": "Name of the TTree or RNTuple",
                         },
                         "branch": {
                             "type": "string",

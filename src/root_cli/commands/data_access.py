@@ -16,7 +16,7 @@ from pathlib import Path
 @click.option("--defines", "-d", multiple=True, help="Derived variables (name=expr)")
 @click.pass_context
 def read(ctx, root_file, tree_name, branches, selection, limit, offset, flatten, defines):
-    """Read branch data from TTree."""
+    """Read branch data from TTree or RNTuple."""
     from root_mcp.core.tools.data_access import DataAccessTools
 
     # Parse defines
@@ -190,7 +190,7 @@ def export(ctx, root_file, tree_name, branches, output, fmt, selection, limit):
 @click.option("--seed", type=int, help="Random seed (for random sampling)")
 @click.pass_context
 def sample(ctx, root_file, tree_name, size, method, branches, seed):
-    """Get a sample from a TTree."""
+    """Get a sample from a TTree or RNTuple."""
     from root_mcp.core.tools.data_access import DataAccessTools
 
     config = ctx.obj["config"]

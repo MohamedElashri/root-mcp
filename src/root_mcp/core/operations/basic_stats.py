@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class BasicStatistics:
     """
-    Compute basic statistics for TTree branches.
+    Compute basic statistics for TTree or RNTuple branches.
 
     Provides min, max, mean, std, median, and percentiles without
     requiring scipy or other analysis dependencies.

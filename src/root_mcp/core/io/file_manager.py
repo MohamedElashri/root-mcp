@@ -174,7 +174,7 @@ class FileManager:
 
     def list_trees(self, path: str | Path) -> list[dict[str, Any]]:
         """
-        List all TTrees in a ROOT file.
+        List all TTrees and RNTuples in a ROOT file.
 
         Args:
             path: File path
@@ -191,9 +191,9 @@ class FileManager:
                 obj = directory[key]
                 full_path = f"{current_path}/{key}" if current_path else key
 
-                # Check if it's a TTree
+                # Check if it's a TTree or RNTuple
                 classname = directory.classname_of(key)
-                if "TTree" in classname:
+                if "TTree" in classname or "RNTuple" in classname:
                     tree_info = {
                         "name": key,
                         "path": full_path,
@@ -422,7 +422,7 @@ class FileManager:
 
     def get_tree_info(self, path: str | Path, tree_name: str) -> dict[str, Any]:
         """
-        Get comprehensive metadata about a TTree.
+        Get comprehensive metadata about a TTree or RNTuple.
 
         Args:
             path: File path

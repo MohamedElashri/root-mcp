@@ -344,9 +344,16 @@ class TreeReader:
         # Read data (all entries, but only requested branches)
         arrays = tree.arrays(
             filter_name=branches,
-            cut=selection,
+            cut=None if "RNTuple" in str(type(tree)) else selection,
             library="ak",
         )
+
+        # Apply selection manually for RNTuples if uproot cut wasn't used
+        if selection and "RNTuple" in str(type(tree)):
+            from root_mcp.extended.analysis.operations import _evaluate_selection_any
+
+            mask = _evaluate_selection_any(arrays, selection)
+            arrays = arrays[mask]
 
         stats = {}
         for branch in branches:
@@ -429,11 +436,19 @@ class TreeReader:
             try:
                 arrays = tree.arrays(
                     filter_name=branches,
-                    cut=selection,
+                    cut=None if "RNTuple" in str(type(tree)) else selection,
                     entry_start=entry_start,
                     entry_stop=entry_stop,
                     library="ak",
                 )
+
+                # Apply selection manually for RNTuples
+                if selection and "RNTuple" in str(type(tree)):
+                    from root_mcp.extended.analysis.operations import _evaluate_selection_any
+
+                    mask = _evaluate_selection_any(arrays, selection)
+                    arrays = arrays[mask]
+
                 yield arrays
             except Exception as e:
                 logger.error(f"Failed to read chunk {entry_start}:{entry_stop}: {e}")
