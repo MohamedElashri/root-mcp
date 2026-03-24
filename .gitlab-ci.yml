@@ -41,7 +41,7 @@ pages:
     - build-docs
   script:
     - echo "Deploying to GitLab Pages..."
-    - echo "Site will be available at: https://itgpt.gitlab-pages.cern.ch/root-mcp-server/"
+    - echo "Site will be available at https://itgpt.gitlab-pages.cern.ch/root-mcp-server/"
   environment:
     name: production
     url: "https://itgpt.gitlab-pages.cern.ch/root-mcp-server/"
