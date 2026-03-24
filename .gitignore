@@ -94,6 +94,7 @@ data/
 !.github/**
 !.pre-commit-config.yaml
 !.gitignore
+!.gitlab-ci.yml
 
 # examples tests
 examples/config.yaml
