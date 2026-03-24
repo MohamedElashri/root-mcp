@@ -14,6 +14,8 @@
 [![License](https://img.shields.io/pypi/l/root-mcp.svg)](LICENSE)
 [![Language](https://img.shields.io/badge/language-Python-blue.svg)](https://www.python.org/)
 
+> **Repository Mirror**: This repository is mirrored to [CERN GitLab](https://gitlab.cern.ch/itgpt/root-mcp-server) for CERN users. PyPI releases are published via GitHub Actions using attestation-based trusted publishing.
+
 **ROOT-MCP** empowers Large Language Models (LLMs) to natively understand and analyze CERN ROOT files.
 
 By exposing a set of specialized tools via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) or a token-efficient <strong>CLI interface</strong>, it turns Claude (and other MCP-compliant agents) into capable physics research assistants that can:
