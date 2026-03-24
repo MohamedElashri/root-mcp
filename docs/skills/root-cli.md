@@ -45,7 +45,7 @@ Found 5 ROOT files in /data:
 ---
 
 #### `inspect` - Inspect ROOT File
-Show file structure including TTrees, branches, and histograms.
+Show file structure including TTrees and RNTuples, branches, and histograms.
 
 **Usage:**
 ```bash
@@ -66,7 +66,7 @@ root-cli inspect /data/sample.root
 File: /data/sample.root
 Size: 1.1 MB
 
-TTrees (2):
+TTrees and RNTuples (2):
   events;1             10,000 entries, 26 branches
   metadata;1              1 entries, 2 branches
 
@@ -76,7 +76,7 @@ JSON: /tmp/root_mcp/sample_info.json
 ---
 
 #### `branches` - List Branches
-List branches in a TTree with type information.
+List branches in a TTree or RNTuple with type information.
 
 **Usage:**
 ```bash
@@ -140,7 +140,7 @@ Trees: 2
 ### Data Access
 
 #### `read` - Read Branch Data
-Read data from TTree branches with optional selection.
+Read data from a TTree or RNTuple branches with optional selection.
 
 **Usage:**
 ```bash
@@ -211,7 +211,7 @@ JSON: /tmp/root_mcp/events_stats.json
 ---
 
 #### `sample` - Sample Data
-Get a sample from a TTree.
+Get a sample from a TTree or RNTuple.
 
 **Usage:**
 ```bash

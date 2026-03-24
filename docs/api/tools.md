@@ -146,7 +146,7 @@ Inspect ROOT file structure including trees, histograms, and directories.
 
 ### `list_branches`
 
-List branches in a TTree with type information.
+List branches in a TTree or RNTuple with type information.
 
 **Mode**: Core (always available)
 

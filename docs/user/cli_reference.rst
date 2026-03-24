@@ -47,7 +47,7 @@ File Operations
 
 .. cmdoption:: inspect <file.root>
 
-   Inspect ROOT file structure (TTrees, branches, histograms).
+   Inspect ROOT file structure (TTrees and RNTuples, branches, histograms).
 
    **Example:**
 
@@ -57,7 +57,7 @@ File Operations
 
 .. cmdoption:: branches <file.root> <tree>
 
-   List branches in a TTree with type information.
+   List branches in a TTree or RNTuple with type information.
 
    .. option:: -p, --pattern
 
@@ -93,7 +93,7 @@ Data Access
 
 .. cmdoption:: read <file.root> <tree> <branches...>
 
-   Read branch data from TTree with optional selection.
+   Read branch data from a TTree or RNTuple with optional selection.
 
    .. option:: -s, --selection
 
@@ -138,7 +138,7 @@ Data Access
 
 .. cmdoption:: sample <file.root> <tree>
 
-   Get a sample from a TTree.
+   Get a sample from a TTree or RNTuple.
 
    .. option:: --size
 

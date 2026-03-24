@@ -250,7 +250,7 @@ class DiscoveryTools:
         include_stats: bool = False,
     ) -> dict[str, Any]:
         """
-        List branches in a TTree.
+        List branches in a TTree or RNTuple.
 
         Args:
             path: File path

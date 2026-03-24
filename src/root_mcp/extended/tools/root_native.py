@@ -120,7 +120,7 @@ class RootNativeTools:
         file_path : str
             Path to the ROOT file.
         tree_name : str
-            Name of the TTree.
+            Name of the TTree or RNTuple.
         branch : str
             Branch to histogram.
         bins : int

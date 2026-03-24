@@ -137,7 +137,7 @@ modification times. No file access happens until you ask.
 
    *"What's in analysis.root? Show me the TTree structure."*
 
-Claude calls ``inspect_file`` and returns a tree of objects — TTrees,
+Claude calls ``inspect_file`` and returns a tree of objects, TTrees and RNTuples,
 branches, histograms — with their types and sizes.
 
 **Read and summarise branch data**

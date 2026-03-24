@@ -28,7 +28,7 @@ def rdataframe_histogram(
     file_path : str
         Path to the ROOT file.
     tree_name : str
-        Name of the TTree.
+        Name of the TTree or RNTuple.
     branch : str
         Branch to histogram.
     bins : int
@@ -113,7 +113,7 @@ def rdataframe_snapshot(
     file_path : str
         Input ROOT file path.
     tree_name : str
-        Input TTree name.
+        Input TTree or RNTuple name.
     branches : list[str]
         Branches to include in output.
     output_path : str
@@ -189,7 +189,7 @@ def tcanvas_plot(
     file_path : str
         Path to the ROOT file.
     tree_name : str
-        Name of the TTree.
+        Name of the TTree or RNTuple.
     draw_expr : str
         TTree::Draw expression (e.g. "px:py", "mass>>h(100,0,200)").
     output_path : str

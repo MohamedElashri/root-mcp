@@ -1,4 +1,4 @@
-"""Data access tools for reading TTree data."""
+"""Data access tools for reading TTree or RNTuple data."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class DataAccessTools:
-    """Tools for accessing TTree data."""
+    """Tools for accessing TTree or RNTuple data."""
 
     def __init__(
         self,
@@ -52,7 +52,7 @@ class DataAccessTools:
         defines: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """
-        Read branch data from a TTree.
+        Read branch data from a TTree or RNTuple.
 
         Args:
             path: File path

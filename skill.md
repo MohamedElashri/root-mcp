@@ -2,6 +2,9 @@
 name: root-cli
 description: >
   Analyze CERN ROOT files using the root-cli command-line tool. Use this skill
+  for any task involving ROOT files (.root), TTree/RNTuple inspection, branch reading,
+  histogram computation, kinematic reconstruction, fitting, correlation analysis,
+  or exporting HEP data. Trigger whenever the user mentions ROOT files, TTrees, RNTuples,
   for any task involving ROOT files (.root), TTree inspection, branch reading,
   histogram computation, kinematic reconstruction, fitting, correlation analysis,
   or exporting HEP data. Trigger whenever the user mentions ROOT files, TTrees,
@@ -39,6 +42,7 @@ All commands accept `--json` for machine-readable output piped into other tools.
 | Command | Purpose |
 |---|---|
 | `root-cli ls [pattern] [--limit N]` | List ROOT files in data dir |
+| `root-cli inspect <file.root>` | Show TTrees, RNTuples, histograms, directories |
 | `root-cli inspect <file.root>` | Show TTrees, histograms, directories |
 | `root-cli branches <file.root> <tree> [-p pattern] [-s]` | List branches + types; `-s` adds stats |
 | `root-cli validate <file.root>` | Check file integrity |

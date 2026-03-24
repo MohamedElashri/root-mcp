@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.1.7] - 2026-03-24
+
+### Added
+- **RNTuple Support**: Native support for reading `ROOT::Experimental::RNTuple` datasets alongside standard `TTree` representations natively through both MCP Server tools and `root-cli`.
+  - `list_trees`: Now discovers and reports `RNTuple` objects transparently.
+  - `inspect`: Generalized properties reporting (rows, fields/branches) using the `Tabular Data (TTrees/RNTuples)` label.
+  - Data access tools (`read_branches`, `sample_tree`, etc.) dynamically detect `RNTuple` versus `TTree` and bypass local limitations in uproot, like effectively evaluating complex queries locally for `RNTuple`.
+
 ## [0.1.6] - 2026-03-10
 
 ### Added

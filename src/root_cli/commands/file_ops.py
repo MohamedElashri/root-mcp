@@ -74,7 +74,7 @@ def inspect(ctx, root_file, no_trees, no_histograms):
         click.echo(f"Size: {format_size(data.get('size_bytes', 0))}")
 
         if data.get("trees"):
-            click.echo(f"\nTTrees ({len(data['trees'])}):")
+            click.echo(f"\nTabular Data (TTrees/RNTuples) ({len(data['trees'])}):")
             for tree in data["trees"]:
                 click.echo(
                     f"  {tree['name']:<20} {tree.get('entries', 'N/A'):>12,} entries, "
@@ -105,7 +105,7 @@ def inspect(ctx, root_file, no_trees, no_histograms):
 @click.option("--stats", "-s", is_flag=True, help="Compute statistics (slower)")
 @click.pass_context
 def branches(ctx, root_file, tree_name, pattern, limit, stats):
-    """List branches in a TTree."""
+    """List branches in a TTree or RNTuple."""
     from root_mcp.core.tools.discovery import DiscoveryTools
 
     config = ctx.obj["config"]

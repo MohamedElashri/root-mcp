@@ -19,7 +19,7 @@
 **ROOT-MCP** empowers Large Language Models (LLMs) to natively understand and analyze CERN ROOT files.
 
 By exposing a set of specialized tools via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) or a token-efficient <strong>CLI interface</strong>, it turns Claude (and other MCP-compliant agents) into capable physics research assistants that can:
-- **Inspect** ROOT file structures (Trees, Branches, Histograms)
+- **Inspect** ROOT file structures (Trees, RNTuples, Branches, Histograms)
 - **Analyze** data distributions (Compute Histograms, Statistics)
 - **Compute** kinematic quantities (Invariant Mass)
 - **Visualize** results (Plot 1D/2D histograms directly)
