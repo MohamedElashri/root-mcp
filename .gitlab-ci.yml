@@ -1,23 +1,15 @@
-# GitLab CI/CD configuration for building and deploying Sphinx documentation
-# to GitLab Pages at CERN
-#
-# Default Pages URL: https://itgpt.gitlab-pages.cern.ch/root-mcp-server/
-
 stages:
   - build
   - deploy
 
-# Variables
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   PYTHON_VERSION: "3.12"
 
-# Cache dependencies to speed up subsequent runs
 cache:
   paths:
     - .cache/pip
 
-# Build job - runs on every push and merge request
 build-docs:
   stage: build
   image: python:${PYTHON_VERSION}-slim
@@ -31,16 +23,14 @@ build-docs:
     - pip install --upgrade pip
     - pip install -e ".[docs]"
   script:
-    # Regenerate sphinx-apidoc stubs
     - sphinx-apidoc --output-dir docs/apidoc/root_mcp --module-first --separate --force src/root_mcp
-    # Build HTML docs to 'public' directory (GitLab Pages convention)
     - sphinx-build -b html --keep-going docs public
   artifacts:
     paths:
       - public
     expire_in: 1 week
 
-# Deploy job - only runs on default branch (main/master)
+
 deploy-pages:
   stage: deploy
   image: python:${PYTHON_VERSION}-slim
@@ -52,10 +42,10 @@ deploy-pages:
     - apt-get update && apt-get install -y --no-install-recommends git
   script:
     - echo "Deploying to GitLab Pages..."
-    - echo "Site will be available at: https://itgpt.gitlab-pages.cern.ch/root-mcp-server/"
+    - echo "Site will be available at https://itgpt.gitlab-pages.cern.ch/root-mcp-server/"
   environment:
     name: production
-    url: https://itgpt.gitlab-pages.cern.ch/root-mcp-server/
+    url: "https://itgpt.gitlab-pages.cern.ch/root-mcp-server/"
   artifacts:
     paths:
       - public
