@@ -2,20 +2,14 @@ stages:
   - build
   - deploy
 
-
-# Variables
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   PYTHON_VERSION: "3.12"
 
-
-# Cache dependencies to speed up subsequent runs
 cache:
   paths:
     - .cache/pip
 
-
-# Build job - runs on every push, merge request, and manual trigger
 build-docs:
   stage: build
   image: python:${PYTHON_VERSION}-slim
@@ -37,9 +31,7 @@ build-docs:
       - public
     expire_in: 1 week
 
-
-# Deploy job - only runs on default branch or manual trigger
-deploy-pages:
+pages:
   stage: deploy
   image: python:${PYTHON_VERSION}-slim
   rules:
@@ -47,11 +39,9 @@ deploy-pages:
     - if: $CI_PIPELINE_SOURCE == "web"
   dependencies:
     - build-docs
-  before_script:
-    - apt-get update && apt-get install -y --no-install-recommends git
   script:
     - echo "Deploying to GitLab Pages..."
-    - echo "Site will be available at https://itgpt.gitlab-pages.cern.ch/root-mcp-server/"
+    - echo "Site will be available at: https://itgpt.gitlab-pages.cern.ch/root-mcp-server/"
   environment:
     name: production
     url: "https://itgpt.gitlab-pages.cern.ch/root-mcp-server/"
