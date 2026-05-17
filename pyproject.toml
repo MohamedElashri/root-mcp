@@ -27,7 +27,8 @@ classifiers = [
 dependencies = [
     "uproot>=5.0.0,<6.0.0",
     "awkward>=2.0.0,<3.0.0",
-    "numpy>=1.24.0,<3.0.0",
+    "numpy>=1.24.0,<3.0.0; python_version < '3.13'",
+    "numpy>=2.1.0,<3.0.0; python_version >= '3.13'",
     "pandas>=2.0.0,<3.0.0",
     "mcp>=1.8.0",
     "pydantic>=2.0.0,<3.0.0",
@@ -122,6 +123,7 @@ asyncio_default_fixture_loop_scope = "function"
 addopts = "-v --strict-markers"
 markers = [
     "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+    "slow: marks tests that are too expensive for the pre-commit fast path",
 ]
 testpaths = ["tests"]
 python_files = "test_*.py"

@@ -33,12 +33,26 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
-      - id: pytest
-        name: pytest
-        entry: .venv/bin/python -m pytest -q
+      - id: pytest-fast
+        name: pytest fast
+        entry: >-
+          .venv/bin/python -m pytest -q
+          tests/test_smoke.py
+          tests/test_deployment_config.py
+          tests/test_policy_engine.py
+          tests/test_http_startup_validation.py
+          tests/test_central_examples.py
+          tests/test_central_tool_visibility.py
         language: system
         pass_filenames: false
         stages: [pre-commit]
+
+      - id: pytest
+        name: pytest full
+        entry: .venv/bin/python -m pytest -q
+        language: system
+        pass_filenames: false
+        stages: [manual]
 
       - id: build
         name: build

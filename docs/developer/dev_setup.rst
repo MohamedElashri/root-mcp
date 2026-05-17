@@ -80,12 +80,26 @@ Linting and formatting
    uv run ruff check --fix src/   # auto-fix safe violations
    uv run black src/              # format
 
-Pre-commit hooks (run all checks on every commit):
+Pre-commit hooks
+----------------
+
+The commit hook runs formatting, linting, type checks for ``src``, and a fast
+pytest subset. The full test suite is run by CI and can be run locally when a
+change is ready for review.
 
 .. code-block:: bash
 
    pre-commit install             # install hooks once
    pre-commit run --all-files     # run manually on all files
+   pre-commit run pytest --hook-stage manual  # full test hook
+
+Python 3.13+ requires NumPy 2.1 or newer. If an existing virtual environment
+imports NumPy 1.26 and fails with ``libopenblas.so.0`` errors, recreate or sync
+the environment so the Python-version-specific dependency markers are applied:
+
+.. code-block:: bash
+
+   uv pip install -e ".[dev]"
 
 ----
 
