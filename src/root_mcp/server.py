@@ -981,7 +981,7 @@ class ROOTMCPServer:
                 e.code,
             )
             result = e.to_error(request_ctx.request_id)
-        except TimeoutError:
+        except (asyncio.TimeoutError, TimeoutError):
             policy_decision = "request_timeout"
             status = "timeout"
             self.metrics.increment("timeout_count")
