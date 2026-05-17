@@ -195,7 +195,7 @@ def _ensure_probed() -> None:
     logger.info("Probing for native ROOT/PyROOT installation...")
     result = _probe_root_subprocess()
 
-    _root_available = result.get("available", False)
+    _root_available = bool(result.get("available", False))
     _root_version = result.get("version")
     _root_features = result.get("features", {})
 
@@ -212,7 +212,7 @@ def is_root_available() -> bool:
     Result is cached after the first call.
     """
     _ensure_probed()
-    return _root_available  # type: ignore[return-value]
+    return _root_available is True
 
 
 def get_root_version() -> str | None:
