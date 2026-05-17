@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from root_mcp.config import Config, ResourceConfig
+    from root_mcp.security.context import RequestContext
 
 
 class SecurityError(Exception):
@@ -227,6 +228,47 @@ class PathValidator:
 
         return resolved
 
+    def resolve_output_path(
+        self,
+        path: str,
+        ctx: RequestContext | None = None,
+    ) -> Path:
+        """
+        Normalize an output path for a local or central request.
+
+        Local deployments keep path behavior compatible: absolute paths stay
+        absolute and relative paths resolve from the current working directory.
+        Central deployments treat the requested path as a relative artifact name
+        inside ``export_base_path / tenant / principal / session``.
+        """
+        if ctx is None or ctx.deployment_profile != "central":
+            return Path(path).resolve(strict=False)
+
+        relative = Path(path)
+        if relative.is_absolute():
+            raise SecurityError("Central output paths must be relative artifact names")
+        if not path.strip() or ".." in relative.parts:
+            raise SecurityError("Central output paths must not contain path traversal")
+
+        scoped_base = self.scoped_export_base_path(ctx)
+        resolved = (scoped_base / relative).resolve(strict=False)
+        try:
+            resolved.relative_to(scoped_base)
+        except ValueError as e:
+            raise SecurityError("Output path must stay within the scoped export directory") from e
+        return resolved
+
+    def scoped_export_base_path(self, ctx: RequestContext | None = None) -> Path:
+        """Return the export base path for local or central request context."""
+        export_base = Path(self.config.output.export_base_path).resolve()
+        if ctx is None or ctx.deployment_profile != "central":
+            return export_base
+
+        tenant = self._scope_component(ctx.tenant_id or "unknown_tenant")
+        principal = self._scope_component(ctx.principal_id or "anonymous")
+        session = self._scope_component(ctx.session_id or ctx.request_id)
+        return (export_base / tenant / principal / session).resolve(strict=False)
+
     def validate_write_operation(
         self,
         input_path: str,
@@ -282,3 +324,9 @@ class PathValidator:
         )
 
         return validated_input, validated_output
+
+    @staticmethod
+    def _scope_component(value: str) -> str:
+        """Return a filesystem-safe scope component."""
+        safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._-")
+        return safe or "unknown"

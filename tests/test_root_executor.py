@@ -348,6 +348,7 @@ class TestRootNativeConfig:
 
     def test_default_config(self):
         config = Config()
+        assert config.root_native.execution_backend == "local_subprocess"
         assert config.root_native.execution_timeout == 60
         assert config.root_native.max_output_size == 10_000_000
         assert config.root_native.working_directory == "/tmp/root_mcp_native"

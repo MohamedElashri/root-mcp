@@ -128,6 +128,9 @@ See [`docs/skills/root-cli.md`](docs/skills/root-cli.md) for complete command re
 # Core mode (lightweight, no scipy/matplotlib needed)
 root-mcp --data-path /data --mode core
 
+# Explicit stdio transport (same runtime as the compatibility default)
+root-mcp serve-stdio --data-path /data
+
 # Extended mode with native ROOT, restricted to one directory
 root-mcp --data-path /data --enable-root --allowed-root /data
 
@@ -140,6 +143,23 @@ ROOT_MCP_DATA_PATH=/data ROOT_MCP_MODE=extended ROOT_MCP_EXPORT_PATH=/exports ro
 # Quiet server (only warnings+) with a cache increase
 root-mcp --data-path /data --log-level WARNING --cache-size 100
 ```
+
+`root-mcp serve-http` serves the MCP Streamable HTTP endpoint for central
+deployments. It requires explicit auth, Origin validation, restrictive central
+policy, and safe bind-address settings before it starts.
+
+For shared deployments, start with the operator docs:
+[`docs/operator/central_deployment.md`](docs/operator/central_deployment.md)
+and [`docs/operator/security_checklist.md`](docs/operator/security_checklist.md).
+Restrictive starter configs and Kubernetes manifests live in
+[`examples/central/`](examples/central/).
+
+Operators can preview and apply export retention with
+`root-mcp cleanup-exports --config /etc/root-mcp/config.yaml --dry-run`.
+The external HTTP smoke script at
+[`scripts/smoke_external_http_client.py`](scripts/smoke_external_http_client.py)
+starts a temporary central server and checks it with the MCP Streamable HTTP
+client.
 
 **Generate a starter config (optional):**
 
@@ -161,6 +181,11 @@ resources:
 security:
   allowed_roots: []  # empty = any local path is accessible (permissive)
 ```
+
+> **Local-use warning**: The permissive `allowed_roots: []` default is intended
+> for trusted local stdio sessions. Do not expose that configuration as a shared
+> HTTP service; restrict roots and require an authenticated deployment profile
+> before central or multi-user use.
 
 **Mode Selection:**
 - `mode: "core"` — Lightweight: file operations and basic statistics
@@ -202,7 +227,7 @@ Or with a persistent config file:
 
 ## Architecture
 
-ROOT-MCP features a **dual-mode architecture**:
+ROOT-MCP organizes analysis capabilities into **analysis tiers**:
 
 - **Core Mode**: File I/O, data reading, and basic statistics
 - **Extended Mode**: Full analysis capabilities including fitting, kinematics, and correlations

@@ -629,7 +629,7 @@ def fit_histogram_2d(
     p0_free = [initial_params[i] for i in free_indices]
 
     # Handle bounds
-    fit_bounds = (-np.inf, np.inf)
+    fit_bounds: tuple[Any, Any] = (-np.inf, np.inf)
     if bounds is not None:
         lower_free = [bounds[0][i] for i in free_indices]
         upper_free = [bounds[1][i] for i in free_indices]

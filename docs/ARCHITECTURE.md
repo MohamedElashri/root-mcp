@@ -2,7 +2,13 @@
 
 ## Overview
 
-ROOT-MCP is a production-grade Model Context Protocol (MCP) server that enables AI assistants to interact with CERN `ROOT` files. It features a **dual-mode architecture** that balances simplicity and power, allowing users to choose between lightweight file operations and comprehensive physics analysis capabilities.
+ROOT-MCP is a production-grade Model Context Protocol (MCP) server that enables AI assistants to interact with CERN `ROOT` files. It organizes capabilities into **analysis tiers** that balance simplicity and power, allowing users to choose between lightweight file operations and comprehensive physics analysis capabilities.
+
+## Glossary
+
+- **Analysis tier**: The tool capability level selected by `server.mode`, currently `core` or `extended`, with optional native ROOT tools when `features.enable_root` is true and ROOT is available.
+- **Deployment profile**: The trust and operations profile for running ROOT-MCP: `local` for trusted single-user use or `central` for shared service deployments.
+- **Transport**: The MCP message channel, either `stdio` or `streamable_http`.
 
 ## Design Philosophy
 
@@ -10,11 +16,11 @@ ROOT-MCP is a production-grade Model Context Protocol (MCP) server that enables 
 2. **Configuration-Driven**: Full control available through `config.yaml` for advanced use cases
 3. **Lazy Loading**: Components loaded only when needed for memory efficiency
 4. **Runtime Flexibility**: Switch between modes without server restart
-5. **Security First**: All file operations validated through security checks; permissive-by-default for local use
+5. **Security First**: All file operations validated through security checks; permissive-by-default only for trusted local use
 6. **Pure Python Core**: Uses `uproot` for crash-resistant ROOT file access without requiring a ROOT installation
 7. **Optional Native ROOT**: When a ROOT installation is available, additional tools unlock automatically
 
-## Architecture Tiers
+## Analysis Tiers
 
 ### Core Mode
 **Purpose**: Lightweight file operations and basic statistics
@@ -43,7 +49,7 @@ features:
   enable_root: true  # optional — unlocks ROOT native tools
 ```
 
-Runtime switching available via `switch_mode` tool without restart. Native ROOT tools appear automatically when both `enable_root: true` and a ROOT installation are detected.
+Runtime switching is available through the `switch_mode` tool in local deployments. Central deployments should pin the analysis tier with `deployment.fixed_analysis_tier: true` and deny `switch_mode`.
 
 ## System Architecture
 
@@ -357,7 +363,7 @@ Both are called in `main()` after `load_config()` and `apply_data_paths()` — e
 first, then CLI flags, so CLI always wins.  Log level is the exception: it is applied
 before `load_config()` so that config-loading messages also respect the requested verbosity.
 
-### Full Configuration Structure
+### Configuration Shape
 
 ```yaml
 # QUICK START
@@ -401,9 +407,14 @@ output:
   allowed_formats: ["json", "csv", "parquet"]
 
 root_native:          # only relevant when enable_root: true
+  execution_backend: "local_subprocess"
   execution_timeout: 60
   working_directory: "/tmp/root_mcp_native"
 ```
+
+Shared HTTP deployments also configure `deployment`, `auth`, `policy`, `http`,
+`quotas`, and `audit`. See `docs/guides/configuration.md` and
+`docs/operator/central_deployment.md` for the current central profile shape.
 
 ## Security Model
 
@@ -414,6 +425,8 @@ root_native:          # only relevant when enable_root: true
 4. **Write Protection**: Input and output paths must differ
 5. **Code Sandbox**: Native ROOT code execution validated via AST analysis before subprocess launch — blocks dangerous imports, builtins, and attribute access
 
+Permissive local defaults are not suitable for shared HTTP deployments. A central deployment uses named resources, authenticated callers, restrictive policy, quotas, scoped exports, and audit records before exposing ROOT-MCP beyond a trusted local stdio client.
+
 ### Resource Limits
 1. **Row Limits**: Maximum rows per read operation
 2. **Export Limits**: Maximum rows for export operations
@@ -421,9 +434,9 @@ root_native:          # only relevant when enable_root: true
 4. **Cache Limits**: Maximum open file handles
 
 ### Audit Trail
-- All write operations logged
-- Mode switches logged
-- Failed validation attempts logged
+- Central tool calls emit structured audit records.
+- Denied calls, failures, quota denials, and timeouts are included.
+- Optional JSONL output is available through the `audit` config.
 
 ## Performance Considerations
 

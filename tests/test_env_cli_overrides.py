@@ -171,6 +171,59 @@ def test_env_overrides_returns_same_object(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# apply_env_overrides : deployment/auth/policy
+# ---------------------------------------------------------------------------
+
+
+def test_env_deployment_profile_central(monkeypatch):
+    """ROOT_MCP_DEPLOYMENT_PROFILE=central sets deployment.profile."""
+    monkeypatch.setenv("ROOT_MCP_DEPLOYMENT_PROFILE", "central")
+    config = _default_config()
+    apply_env_overrides(config)
+    assert config.deployment.profile == "central"
+
+
+def test_env_transport_accepts_hyphenated_http(monkeypatch):
+    """ROOT_MCP_TRANSPORT accepts streamable-http and stores streamable_http."""
+    monkeypatch.setenv("ROOT_MCP_TRANSPORT", "streamable-http")
+    config = _default_config()
+    apply_env_overrides(config)
+    assert config.deployment.transport == "streamable_http"
+
+
+def test_env_auth_required_truthy(monkeypatch):
+    """ROOT_MCP_AUTH_REQUIRED uses the standard truthy env spellings."""
+    monkeypatch.setenv("ROOT_MCP_AUTH_REQUIRED", "yes")
+    config = _default_config()
+    apply_env_overrides(config)
+    assert config.auth.required is True
+
+
+def test_env_auth_provider_accepts_hyphenated_value(monkeypatch):
+    """ROOT_MCP_AUTH_PROVIDER accepts external-bearer and stores external_bearer."""
+    monkeypatch.setenv("ROOT_MCP_AUTH_PROVIDER", "external-bearer")
+    config = _default_config()
+    apply_env_overrides(config)
+    assert config.auth.provider == "external_bearer"
+
+
+def test_env_policy_default_tool_action_deny(monkeypatch):
+    """ROOT_MCP_POLICY_DEFAULT_TOOL_ACTION sets policy.default_tool_action."""
+    monkeypatch.setenv("ROOT_MCP_POLICY_DEFAULT_TOOL_ACTION", "deny")
+    config = _default_config()
+    apply_env_overrides(config)
+    assert config.policy.default_tool_action == "deny"
+
+
+def test_env_deployment_invalid_value_raises(monkeypatch):
+    """Invalid deployment env values raise ValueError."""
+    monkeypatch.setenv("ROOT_MCP_DEPLOYMENT_PROFILE", "shared")
+    config = _default_config()
+    with pytest.raises(ValueError, match="ROOT_MCP_DEPLOYMENT_PROFILE"):
+        apply_env_overrides(config)
+
+
+# ---------------------------------------------------------------------------
 # apply_cli_overrides : server.mode
 # ---------------------------------------------------------------------------
 
@@ -220,6 +273,48 @@ def test_cli_server_name_none_is_noop():
     config = _default_config()
     apply_cli_overrides(config, _make_args(server_name=None))
     assert config.server.name == "root-mcp"
+
+
+# ---------------------------------------------------------------------------
+# apply_cli_overrides : deployment/auth
+# ---------------------------------------------------------------------------
+
+
+def test_cli_profile_central():
+    """--profile central sets deployment.profile."""
+    config = _default_config()
+    apply_cli_overrides(config, _make_args(profile="central"))
+    assert config.deployment.profile == "central"
+
+
+def test_cli_transport_streamable_http_normalized():
+    """--transport streamable-http stores streamable_http."""
+    config = _default_config()
+    apply_cli_overrides(config, _make_args(transport="streamable-http"))
+    assert config.deployment.transport == "streamable_http"
+
+
+def test_cli_auth_required_true():
+    """--auth-required sets auth.required=True."""
+    config = _default_config()
+    apply_cli_overrides(config, _make_args(auth_required=True))
+    assert config.auth.required is True
+
+
+def test_cli_auth_provider_trusted_headers_normalized():
+    """--auth-provider trusted-headers stores trusted_headers."""
+    config = _default_config()
+    apply_cli_overrides(config, _make_args(auth_provider="trusted-headers"))
+    assert config.auth.provider == "trusted_headers"
+
+
+def test_cli_profile_overrides_env(monkeypatch):
+    """CLI --profile wins over ROOT_MCP_DEPLOYMENT_PROFILE."""
+    monkeypatch.setenv("ROOT_MCP_DEPLOYMENT_PROFILE", "central")
+    config = _default_config()
+    apply_env_overrides(config)
+    apply_cli_overrides(config, _make_args(profile="local"))
+    assert config.deployment.profile == "local"
 
 
 # ---------------------------------------------------------------------------
@@ -1388,6 +1483,35 @@ def test_cli_plot_dpi_overrides_env(monkeypatch):
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
+# apply_env_overrides — execution_backend
+# ---------------------------------------------------------------------------
+
+
+def test_env_root_backend(monkeypatch):
+    """ROOT_MCP_ROOT_BACKEND sets root_native.execution_backend."""
+    monkeypatch.setenv("ROOT_MCP_ROOT_BACKEND", "disabled")
+    config = _default_config()
+    apply_env_overrides(config)
+    assert config.root_native.execution_backend == "disabled"
+
+
+def test_env_root_backend_invalid_raises(monkeypatch):
+    """An unsupported ROOT_MCP_ROOT_BACKEND raises ValueError."""
+    monkeypatch.setenv("ROOT_MCP_ROOT_BACKEND", "docker")
+    config = _default_config()
+    with pytest.raises(ValueError, match="ROOT_MCP_ROOT_BACKEND"):
+        apply_env_overrides(config)
+
+
+def test_env_root_backend_unset_is_noop(monkeypatch):
+    """Missing ROOT_MCP_ROOT_BACKEND leaves the local backend default."""
+    monkeypatch.delenv("ROOT_MCP_ROOT_BACKEND", raising=False)
+    config = _default_config()
+    apply_env_overrides(config)
+    assert config.root_native.execution_backend == "local_subprocess"
+
+
+# ---------------------------------------------------------------------------
 # apply_env_overrides — execution_timeout
 # ---------------------------------------------------------------------------
 
@@ -1521,6 +1645,20 @@ def test_cli_root_timeout_none_is_noop():
     assert config.root_native.execution_timeout == 60
 
 
+def test_cli_root_backend():
+    """--root-backend sets root_native.execution_backend."""
+    config = _default_config()
+    apply_cli_overrides(config, _make_args(root_backend="disabled"))
+    assert config.root_native.execution_backend == "disabled"
+
+
+def test_cli_root_backend_none_is_noop():
+    """args.root_backend=None leaves execution_backend unchanged."""
+    config = _default_config()
+    apply_cli_overrides(config, _make_args(root_backend=None))
+    assert config.root_native.execution_backend == "local_subprocess"
+
+
 def test_cli_root_workdir():
     """--root-workdir sets root_native.working_directory."""
     config = _default_config()
@@ -1583,6 +1721,16 @@ def test_cli_root_timeout_overrides_env(monkeypatch):
     assert config.root_native.execution_timeout == 30
     apply_cli_overrides(config, _make_args(root_timeout=180))
     assert config.root_native.execution_timeout == 180
+
+
+def test_cli_root_backend_overrides_env(monkeypatch):
+    """CLI --root-backend wins over ROOT_MCP_ROOT_BACKEND."""
+    monkeypatch.setenv("ROOT_MCP_ROOT_BACKEND", "disabled")
+    config = _default_config()
+    apply_env_overrides(config)
+    assert config.root_native.execution_backend == "disabled"
+    apply_cli_overrides(config, _make_args(root_backend="local_subprocess"))
+    assert config.root_native.execution_backend == "local_subprocess"
 
 
 def test_cli_root_workdir_overrides_env(monkeypatch):

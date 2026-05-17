@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: root-mcp
+  labels:
+    app.kubernetes.io/name: root-mcp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: root-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: root-mcp
+    spec:
+      serviceAccountName: root-mcp
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: root-mcp
+          image: ghcr.io/example/root-mcp:replace-me
+          imagePullPolicy: IfNotPresent
+          args:
+            - "serve-http"
+            - "--config"
+            - "/etc/root-mcp/config.yaml"
+            - "--profile"
+            - "central"
+            - "--auth-required"
+            - "--auth-provider"
+            - "external-bearer"
+            - "--allow-public-bind"
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: root-mcp-auth
+          volumeMounts:
+            - name: config
+              mountPath: /etc/root-mcp
+              readOnly: true
+            - name: exports
+              mountPath: /srv/root-mcp/exports
+            - name: audit
+              mountPath: /var/log/root-mcp
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          readinessProbe:
+            httpGet:
+              path: /mcp
+              port: http
+              httpHeaders:
+                - name: Accept
+                  value: application/json
+                - name: Origin
+                  value: https://analysis.example.org
+            initialDelaySeconds: 10
+            periodSeconds: 20
+      volumes:
+        - name: config
+          configMap:
+            name: root-mcp-config
+        - name: exports
+          emptyDir:
+            sizeLimit: 10Gi
+        - name: audit
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi

@@ -1,6 +1,6 @@
 # Configuration Guide
 
-ROOT-MCP is configured through a YAML file that controls server behavior, mode selection, resource limits, and security constraints.
+ROOT-MCP is configured through a YAML file that controls server behavior, analysis tier selection, resource limits, and security constraints.
 
 ## Quick Start
 
@@ -57,6 +57,11 @@ security:
   #   - /home/user/exports
 ```
 
+> **Shared deployment warning**: Permissive local defaults are not safe for a
+> shared or central HTTP service. Before exposing ROOT-MCP to multiple users or
+> agents, configure explicit `allowed_roots` or named resources, require
+> authentication, and use a restrictive deployment policy.
+
 ---
 
 ## Configuration File Location
@@ -78,7 +83,7 @@ Every field that can appear in `config.yaml` has a corresponding env var and CLI
 
 ### Server Settings
 
-Controls server identity and operational mode.
+Controls server identity and the active analysis tier.
 
 ```yaml
 server:
@@ -91,7 +96,124 @@ server:
 - `core`: Lightweight file operations and basic statistics
 - `extended`: Full physics analysis with fitting, kinematics, correlations
 
-See the [Mode Selection Guide](modes.md) for detailed comparison.
+See the {doc}`Analysis Tiers and Mode Selection Guide </user/modes>` for detailed comparison.
+
+### Deployment, Auth, and Policy
+
+Controls whether ROOT-MCP starts in the existing local stdio profile or the
+central Streamable HTTP service profile.
+
+```yaml
+deployment:
+  profile: "local"        # "local" or "central"
+  transport: "stdio"      # "stdio" or "streamable_http"
+  fixed_analysis_tier: false
+
+auth:
+  required: false
+  provider: "none"        # "none", "external_bearer", or "trusted_headers"
+  audience: null
+  issuer: null
+  jwks_url: null
+  jwt_algorithms: ["RS256"]
+  principal_claim: "sub"
+  tenant_claim: null
+  roles_claim: "roles"
+  scopes_claim: "scope"
+  trusted_identity_headers: []
+  trusted_principal_header: "x-auth-principal"
+  trusted_tenant_header: "x-auth-tenant"
+  trusted_roles_header: "x-auth-roles"
+  trusted_scopes_header: "x-auth-scopes"
+  trusted_proxy_networks: ["127.0.0.0/8", "::1/128"]
+
+policy:
+  default_tool_action: "allow"  # "allow" or "deny"
+  allow_tools: []
+  deny_tools: []
+  require_named_resources: false
+  disable_local_absolute_paths: false
+  allow_central_absolute_paths: false
+
+quotas:
+  max_concurrent_requests_per_principal: 2
+  max_concurrent_requests_per_tenant: 10
+  max_request_seconds: 120
+  max_rows_per_call: null
+  max_output_bytes_per_call: null
+
+audit:
+  sink: "logger"          # "logger", "jsonl", or "both"
+  jsonl_path: null        # required for "jsonl" or "both"
+
+http:
+  host: "127.0.0.1"
+  port: 8000
+  endpoint: "/mcp"
+  origin_allowlist: []
+  require_origin_header: true
+  allow_local_http: false
+  allow_public_bind: false
+```
+
+The default `local` profile preserves the existing Claude Desktop/stdin-stdout
+workflow and permits zero-config local use. The `central` profile validates
+strictly on startup: auth must be required, the provider cannot be `none`,
+native ROOT must remain disabled until isolated execution exists, and
+permissive local filesystem access is rejected.
+
+`root-mcp` still starts stdio by default. `root-mcp serve-stdio` is the
+explicit stdio form. `root-mcp serve-http` serves the configured Streamable HTTP
+endpoint: it requires `streamable_http`, central profile unless
+`http.allow_local_http` is set for local testing, authentication, an Origin
+allow-list, and explicit `--allow-public-bind` before binding to a wildcard or
+non-loopback host. `external_bearer` verifies JWTs through `auth.jwks_url` or
+an injected validator; `trusted_headers` only accepts identity headers from
+configured trusted proxy networks.
+
+Central deployments should pass file inputs as named resources, either
+`@resource/relative/path.root` or structured arguments such as
+`{"resource": "cms", "path": "Run2012/file.root"}`. Raw absolute paths are
+rejected in central mode unless `policy.allow_central_absolute_paths` is set
+explicitly; even then, the path must stay under `security.allowed_roots`.
+
+### Resources
+
+Resources define named data roots and optional central ACLs.
+
+```yaml
+resources:
+  - name: "cms"
+    uri: "file:///data/cms"
+    description: "CMS analysis inputs"
+    allowed_patterns: ["*.root"]
+    excluded_patterns: []
+    allowed_roles: ["cms-reader"]
+    allowed_principals: []
+    allow_listing: true
+    allow_read: true
+    allow_export: false
+```
+
+In the `local` profile, resource ACL fields are permissive to preserve
+backward-compatible workstation behavior. In the `central` profile, callers can
+only list, read, or export from resources allowed by the resource flags and by
+matching `allowed_roles` or `allowed_principals` when those lists are set.
+
+Central write tools scope output under
+`output.export_base_path / tenant_id / principal_id / session_id`. Callers
+should pass relative artifact names such as `plots/mass.png`; absolute paths
+and `..` traversal are rejected before files are written. Central tool calls
+also emit structured JSON audit log records through the
+`root_mcp.security.audit` logger.
+
+Audit records can also be written to JSONL by configuring `audit.sink` as
+`jsonl` or `both` and setting `audit.jsonl_path`.
+
+Central quotas are process-local and keyed by the authenticated tenant and
+principal, not by server-issued MCP sessions. File-handle cache entries are
+also scoped by the central authorization context so one tenant or principal
+cannot observe another caller's cached file object.
 
 ### Core Configuration
 
@@ -216,6 +338,10 @@ security:
 3. **Limit protocols**: Only enable protocols you need
 4. **Monitor logs**: Check for security violations
 
+The default `allowed_roots: []` behavior is a local profile convenience, not a
+central deployment setting. Treat any shared HTTP deployment as a separate
+security profile with authenticated callers and explicit resource boundaries.
+
 **Path Validation**:
 - All file paths validated against `allowed_roots`
 - Path traversal (`..`) blocked
@@ -233,7 +359,8 @@ output:
     - "json"
     - "csv"
     - "parquet"
-  max_file_size_mb: 1000                      # Max export file size (optional)
+  retention_days: null                        # Optional cleanup age
+  max_total_bytes: null                       # Optional cleanup size cap
 ```
 
 **Export Formats**:
@@ -242,9 +369,12 @@ output:
 - **Parquet**: Efficient columnar format, best for large datasets
 
 **Export Path Security**:
-- Must be under `allowed_roots`
+- Must be under `output.export_base_path`
 - Must differ from input file path
 - All exports logged for audit trail
+- Central exports are scoped by tenant, principal, and session
+- Use `root-mcp cleanup-exports --config config.yaml --dry-run` to preview
+  configured retention cleanup
 
 ### Project-Local Output
 
@@ -444,6 +574,37 @@ Every field is configurable from three sources (later wins): YAML â†’ env var â†
 | `server.mode` | `ROOT_MCP_MODE` | `--mode core\|extended` | str | `extended` |
 | `server.name` | `ROOT_MCP_SERVER_NAME` | `--server-name NAME` | str | `root-mcp` |
 
+### Deployment, Auth, and Policy
+
+| Config field | Env var | CLI flag | Type | Default |
+|---|---|---|---|---|
+| `deployment.profile` | `ROOT_MCP_DEPLOYMENT_PROFILE` | `--profile local\|central` | str | `local` |
+| `deployment.transport` | `ROOT_MCP_TRANSPORT` | `--transport stdio\|streamable-http` | str | `stdio` |
+| `auth.required` | `ROOT_MCP_AUTH_REQUIRED` (`1`/`true`/`yes`) | `--auth-required` | bool | `false` |
+| `auth.provider` | `ROOT_MCP_AUTH_PROVIDER` | `--auth-provider none\|external-bearer\|trusted-headers` | str | `none` |
+| `policy.default_tool_action` | `ROOT_MCP_POLICY_DEFAULT_TOOL_ACTION` | Not yet exposed | str | `allow` |
+
+### HTTP Startup
+
+| Config field | Env var | CLI flag | Type | Default |
+|---|---|---|---|---|
+| `http.host` | `ROOT_MCP_HTTP_HOST` | `--host HOST` | str | `127.0.0.1` |
+| `http.port` | `ROOT_MCP_HTTP_PORT` | `--port PORT` | int | `8000` |
+| `http.endpoint` | `ROOT_MCP_HTTP_ENDPOINT` | `--endpoint PATH` | str | `/mcp` |
+| `http.origin_allowlist` | `ROOT_MCP_HTTP_ORIGINS` (`,` sep) | `--origin ORIGIN` (append) | list[str] | `[]` |
+| `http.allow_local_http` | `ROOT_MCP_HTTP_ALLOW_LOCAL` | `--allow-local-http` | bool | `false` |
+| `http.allow_public_bind` | `ROOT_MCP_HTTP_ALLOW_PUBLIC_BIND` | `--allow-public-bind` | bool | `false` |
+
+### Quotas
+
+| Config field | Env var | CLI flag | Type | Default |
+|---|---|---|---|---|
+| `quotas.max_concurrent_requests_per_principal` | Not yet exposed | Not yet exposed | int | `2` |
+| `quotas.max_concurrent_requests_per_tenant` | Not yet exposed | Not yet exposed | int | `10` |
+| `quotas.max_request_seconds` | Not yet exposed | Not yet exposed | int | `120` |
+| `quotas.max_rows_per_call` | Not yet exposed | Not yet exposed | int \| null | `null` |
+| `quotas.max_output_bytes_per_call` | Not yet exposed | Not yet exposed | int \| null | `null` |
+
 ### Security
 
 | Config field | Env var | CLI flag | Type | Default |
@@ -486,10 +647,16 @@ Every field is configurable from three sources (later wins): YAML â†’ env var â†
 
 | Config field | Env var | CLI flag | Type | Default |
 |---|---|---|---|---|
+| `root_native.execution_backend` | `ROOT_MCP_ROOT_BACKEND` | `--root-backend BACKEND` | `local_subprocess` or `disabled` | `local_subprocess` |
 | `root_native.execution_timeout` | `ROOT_MCP_ROOT_TIMEOUT` | `--root-timeout N` | int (s) | `60` |
 | `root_native.working_directory` | `ROOT_MCP_ROOT_WORKDIR` | `--root-workdir DIR` | str | `/tmp/root_mcp_native` |
 | `root_native.max_output_size` | `ROOT_MCP_ROOT_MAX_OUTPUT` | `--root-max-output N` | int (B) | `10_000_000` |
 | `root_native.max_code_length` | `ROOT_MCP_ROOT_MAX_CODE` | `--root-max-code N` | int (chars) | `100_000` |
+
+Native ROOT execution is local-only in this release. Central deployments must
+keep `features.enable_root: false`; the `disabled` backend is the documented
+central posture until a container, batch, or Kubernetes isolated backend is
+implemented.
 
 ### Remote Resources
 
@@ -515,6 +682,11 @@ The server validates configuration on startup:
 
 **Common Errors**:
 - Invalid mode (must be "core" or "extended")
+- Invalid deployment profile (must be "local" or "central")
+- Central profile without required auth, a non-`none` provider, restricted local
+  filesystem access, and an explicit policy shape
+- `serve-http` without Streamable HTTP transport, auth, Origin validation, or
+  safe host-binding settings
 - Invalid URI format in resources
 - Export path not in `allowed_roots` (add the path or set `allowed_roots: []` for permissive mode)
 
@@ -609,6 +781,6 @@ core:
 
 ## See Also
 
-- [Mode Selection Guide](modes.md): Detailed mode comparison
-- [Architecture](../ARCHITECTURE.md): System design details
-- [Tool Reference](../api/tools.md): Available tools per mode
+- {doc}`Mode Selection Guide </user/modes>`: Detailed mode comparison
+- {doc}`Architecture </developer/architecture>`: System design details
+- {doc}`Tool Reference </user/tools_reference>`: Available tools per mode

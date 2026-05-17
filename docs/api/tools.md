@@ -495,6 +495,8 @@ Get server information including current mode and capabilities.
   "server_name": "root-mcp",
   "version": "5",
   "current_mode": "extended",
+  "deployment_profile": "local",
+  "transport": "stdio",
   "extended_components_loaded": true,
   "available_modes": ["core", "extended"],
   "root_native_available": true,
@@ -969,9 +971,9 @@ Generate a 2D histogram plot.
 
 # Native ROOT Tools
 
-Native ROOT tools are **only available when a ROOT/PyROOT installation is detected** and `features.enable_root: true` is set in your config. They run code in a sandboxed subprocess and return structured results.
+Native ROOT tools are **only available for local deployments** when a ROOT/PyROOT installation is detected, `features.enable_root: true` is set, and `root_native.execution_backend: local_subprocess` is configured. They run code in a local subprocess and return structured results.
 
-All code is validated by an AST-based sandbox before execution. Dangerous imports (`os`, `sys`, `subprocess`, `socket`) and builtins (`exec`, `eval`, `__import__`) are blocked.
+All code is validated by an AST-based sandbox before execution. Dangerous imports (`os`, `sys`, `subprocess`, `socket`) and builtins (`exec`, `eval`, `__import__`) are blocked. This validation is not a central-service security boundary; central deployments keep native ROOT disabled until an isolated backend is implemented.
 
 Use `get_server_info` to confirm availability:
 ```json
@@ -1273,7 +1275,7 @@ If arguments are invalid:
 
 # See Also
 
-- [Mode Selection Guide](../guides/modes.md): Detailed mode comparison
-- [Configuration Guide](../guides/configuration.md): Server configuration
-- [Architecture](../ARCHITECTURE.md): System design
-- [LLM Integration](../guides/llm_integration.md): Using with AI assistants
+- {doc}`Mode Selection Guide </user/modes>`: Detailed mode comparison
+- {doc}`Configuration Guide </user/configuration>`: Server configuration
+- {doc}`Architecture </developer/architecture>`: System design
+- {doc}`LLM Integration </user/llm_integration>`: Using with AI assistants
