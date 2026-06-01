@@ -51,6 +51,13 @@ If you want a persistent config with advanced settings:
    # edit config.yaml if needed, then:
    root-mcp --config config.yaml
 
+.. warning::
+
+   The permissive local setup is intended for trusted single-user stdio
+   sessions. Do not expose it as a shared HTTP service with
+   ``security.allowed_roots: []``; central deployments need authentication and
+   explicit resource restrictions.
+
 Mode selection
 --------------
 

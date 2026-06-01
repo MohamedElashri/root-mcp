@@ -94,7 +94,7 @@ class AnalysisOperations:
         import re
 
         # Build dependency graph
-        dependencies = {}
+        dependencies: dict[str, list[str]] = {}
         for name, expr in defines.items():
             # Extract identifiers from expression
             tokens = set(re.findall(r"[A-Za-z_]\w*", expr))
@@ -130,7 +130,7 @@ class AnalysisOperations:
 
         # Topological sort using Kahn's algorithm
         in_degree = {name: 0 for name in defines}
-        dependents_map = {name: [] for name in defines}
+        dependents_map: dict[str, list[str]] = {name: [] for name in defines}
 
         for name, deps in dependencies.items():
             in_degree[name] = len(deps)

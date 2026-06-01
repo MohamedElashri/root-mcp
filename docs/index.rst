@@ -47,6 +47,13 @@ Connect Claude (or any MCP-capable agent) to your ROOT files and ask it to:
 
 .. toctree::
    :maxdepth: 1
+   :caption: Operator Guide
+
+   operator/central_deployment
+   operator/security_checklist
+
+.. toctree::
+   :maxdepth: 1
    :caption: API Reference
 
    apidoc/index
@@ -69,3 +76,8 @@ Connect Claude (or any MCP-capable agent) to your ROOT files and ask it to:
    * :doc:`developer/module_overview` — annotated package tree
    * :doc:`developer/architecture` — three-tier design overview
    * :doc:`developer/contributing` — PR workflow and code style
+
+   **Operators**
+
+   * :doc:`operator/central_deployment` — central HTTP deployment guide and examples
+   * :doc:`operator/security_checklist` — deployment hardening and incident checklist

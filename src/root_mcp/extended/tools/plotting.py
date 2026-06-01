@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any
 
 from root_mcp.config import Config
@@ -11,6 +10,8 @@ from root_mcp.core.io.file_manager import FileManager
 from root_mcp.core.io.validators import PathValidator
 from root_mcp.extended.analysis.histograms import HistogramOperations
 from root_mcp.extended.analysis.plotting import generate_plot
+from root_mcp.security.context import RequestContext
+from root_mcp.security.resources import ResourceAccessDenied, ResourceResolver
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class PlottingTools:
         self.file_manager = file_manager
         self.path_validator = path_validator
         self.histogram_ops = histogram_ops
+        self.resource_resolver = ResourceResolver(config, path_validator)
 
         # Import AnalysisOperations for defines support
         from root_mcp.extended.analysis.operations import AnalysisOperations
@@ -47,7 +49,7 @@ class PlottingTools:
     def plot_histogram_1d(
         self,
         data: dict[str, Any] | None = None,
-        path: str | None = None,
+        path: str | dict[str, Any] | None = None,
         tree_name: str | None = None,
         branch: str | None = None,
         bins: int | None = None,
@@ -61,6 +63,7 @@ class PlottingTools:
         ylabel: str = "Events",
         log_y: bool = False,
         style: str = "default",
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Create a 1D histogram plot.
@@ -90,18 +93,32 @@ class PlottingTools:
             import json
 
             try:
-                defines = json.loads(defines)
+                parsed_defines = json.loads(defines)
             except json.JSONDecodeError as e:
                 return {
                     "error": "invalid_parameter",
                     "message": f"Invalid JSON in defines parameter: {e}",
                 }
+            if not isinstance(parsed_defines, dict) or not all(
+                isinstance(k, str) and isinstance(v, str) for k, v in parsed_defines.items()
+            ):
+                return {
+                    "error": "invalid_parameter",
+                    "message": "defines must be a JSON object mapping strings to strings",
+                }
+            defines = parsed_defines
 
         # Validate path if provided
         validated_path = None
         if path:
             try:
-                validated_path = self.path_validator.validate_path(path)
+                resolved = self.resource_resolver.resolve_path(path, ctx, "export")
+                validated_path = resolved.path
+            except ResourceAccessDenied as e:
+                return {
+                    "error": e.code,
+                    "message": e.message,
+                }
             except Exception as e:
                 return {
                     "error": "invalid_path",
@@ -109,7 +126,13 @@ class PlottingTools:
                 }
 
         # Validate output path
-        output_path_obj = Path(output_path)
+        try:
+            output_path_obj = self.path_validator.resolve_output_path(output_path, ctx)
+        except Exception as e:
+            return {
+                "error": "invalid_output_path",
+                "message": str(e),
+            }
         if not output_path_obj.parent.exists():
             try:
                 output_path_obj.parent.mkdir(parents=True, exist_ok=True)
@@ -229,7 +252,7 @@ class PlottingTools:
     def plot_histogram_2d(
         self,
         data: dict[str, Any] | None = None,
-        path: str | None = None,
+        path: str | dict[str, Any] | None = None,
         tree_name: str | None = None,
         branch_x: str | None = None,
         branch_y: str | None = None,
@@ -247,6 +270,7 @@ class PlottingTools:
         colormap: str = "viridis",
         log_z: bool = False,
         style: str = "default",
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Create a 2D histogram plot.
@@ -280,18 +304,32 @@ class PlottingTools:
             import json
 
             try:
-                defines = json.loads(defines)
+                parsed_defines = json.loads(defines)
             except json.JSONDecodeError as e:
                 return {
                     "error": "invalid_parameter",
                     "message": f"Invalid JSON in defines parameter: {e}",
                 }
+            if not isinstance(parsed_defines, dict) or not all(
+                isinstance(k, str) and isinstance(v, str) for k, v in parsed_defines.items()
+            ):
+                return {
+                    "error": "invalid_parameter",
+                    "message": "defines must be a JSON object mapping strings to strings",
+                }
+            defines = parsed_defines
 
         # Validate path if provided
         validated_path = None
         if path:
             try:
-                validated_path = self.path_validator.validate_path(path)
+                resolved = self.resource_resolver.resolve_path(path, ctx, "export")
+                validated_path = resolved.path
+            except ResourceAccessDenied as e:
+                return {
+                    "error": e.code,
+                    "message": e.message,
+                }
             except Exception as e:
                 return {
                     "error": "invalid_path",
@@ -299,7 +337,13 @@ class PlottingTools:
                 }
 
         # Validate output path
-        output_path_obj = Path(output_path)
+        try:
+            output_path_obj = self.path_validator.resolve_output_path(output_path, ctx)
+        except Exception as e:
+            return {
+                "error": "invalid_output_path",
+                "message": str(e),
+            }
         if not output_path_obj.parent.exists():
             try:
                 output_path_obj.parent.mkdir(parents=True, exist_ok=True)

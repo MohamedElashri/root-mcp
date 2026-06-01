@@ -1,10 +1,10 @@
-# Mode Selection Guide
+# Analysis Tiers and Mode Selection
 
 ## Overview
 
-ROOT-MCP operates in two primary modes plus an optional native ROOT layer. The primary mode is controlled via `config.yaml` (or the `--data-path` / `ROOT_MCP_DATA_PATH` zero-config approach) and can be switched at runtime without restarting the server.
+ROOT-MCP exposes two primary analysis tiers plus an optional native ROOT layer. The active tier is still configured with the backward-compatible `server.mode` value (`core` or `extended`) and can be switched at runtime without restarting the server.
 
-## Modes Explained
+## Analysis Tiers Explained
 
 ### Core Mode
 
@@ -69,6 +69,7 @@ ROOT-MCP operates in two primary modes plus an optional native ROOT layer. The p
 - Extended mode active (`mode: "extended"`)
 - A working ROOT/PyROOT installation (conda-forge, system package, or binary tarball)
 - `features.enable_root: true` in your config
+- Local deployment profile; central deployments keep native ROOT disabled
 
 **Additional Tools** (appear automatically when ROOT is available and enabled):
 - `run_root_code` — execute arbitrary PyROOT/Python code in a sandboxed subprocess
@@ -81,6 +82,7 @@ features:
   enable_root: true
 
 root_native:               # optional tuning
+  execution_backend: "local_subprocess"
   execution_timeout: 60
   working_directory: "/tmp/root_mcp_native"
 ```

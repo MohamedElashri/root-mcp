@@ -4,19 +4,40 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import json
 import logging
 from pathlib import Path
 import sys
+from time import perf_counter
 from typing import Any, cast
+from uuid import uuid4
 from mcp.server import Server
 from mcp.types import Resource, Tool, TextContent
-from mcp.server.stdio import stdio_server
 
-from root_mcp.config import Config, load_config, _CONFIG_TEMPLATE
+from root_mcp.config import (
+    Config,
+    apply_env_overrides,
+    load_config,
+    validate_deployment_config,
+    _CONFIG_TEMPLATE,
+)
+from root_mcp.core.io.retention import cleanup_exports
 from root_mcp.common.root_availability import is_root_available, get_root_version, get_root_features
-from root_mcp.core.io import FileManager, PathValidator, TreeReader, HistogramReader, DataExporter
-from root_mcp.core.operations import BasicStatistics
-from root_mcp.core.tools import DiscoveryTools, DataAccessTools
+from root_mcp.observability import MetricsRegistry
+from root_mcp.security import (
+    AuditLogger,
+    PolicyDenied,
+    PolicyEngine,
+    QuotaExceeded,
+    QuotaManager,
+    RequestContext,
+    ResourceAccessDenied,
+    ResourceResolver,
+    build_audit_event,
+    exported_bytes,
+)
+from root_mcp.transport import HTTPStartupError, run_http, run_stdio
 
 # Setup logging - must use stderr to avoid interfering with stdio MCP protocol
 logging.basicConfig(
@@ -37,9 +58,14 @@ class ROOTMCPServer:
         Args:
             config: Server configuration
         """
+        validate_deployment_config(config)
         self.config = config
         self.server = Server(config.server.name)
         self.current_mode = config.server.mode
+        self.policy_engine = PolicyEngine(config)
+        self.quota_manager = QuotaManager(config)
+        self.metrics = MetricsRegistry()
+        self.audit_logger = AuditLogger(config.audit)
 
         # Initialize core components (always available)
         logger.info(f"Initializing ROOT-MCP server in {self.current_mode} mode...")
@@ -57,10 +83,43 @@ class ROOTMCPServer:
 
         logger.info(f"ROOT-MCP server initialized successfully in {self.current_mode} mode")
 
+    def _create_request_context(self) -> RequestContext:
+        """Create a request context for the current MCP request."""
+        try:
+            mcp_request = self.server.request_context.request
+            http_ctx = getattr(getattr(mcp_request, "state", None), "root_mcp_context", None)
+            if isinstance(http_ctx, RequestContext):
+                return http_ctx
+        except LookupError:
+            pass
+        except AttributeError:
+            pass
+
+        return RequestContext(
+            deployment_profile=self.config.deployment.profile,
+            transport=self.config.deployment.transport,
+            request_id=str(uuid4()),
+        )
+
+    def _debug_errors_enabled(self) -> bool:
+        """Return whether client errors may include internal details."""
+        return logger.isEnabledFor(logging.DEBUG)
+
     def _initialize_core_components(self) -> None:
         """Initialize core components (always available)."""
+        from root_mcp.core.io import (
+            FileManager,
+            PathValidator,
+            TreeReader,
+            HistogramReader,
+            DataExporter,
+        )
+        from root_mcp.core.operations import BasicStatistics
+        from root_mcp.core.tools import DiscoveryTools, DataAccessTools
+
         self.file_manager = FileManager(self.config)
         self.path_validator = PathValidator(self.config)
+        self.resource_resolver = ResourceResolver(self.config, self.path_validator)
         self.tree_reader = TreeReader(self.config, self.file_manager)
         self.histogram_reader = HistogramReader(self.config, self.file_manager)
         self.data_exporter = DataExporter(self.config)
@@ -132,6 +191,11 @@ class ROOTMCPServer:
         """Initialize native ROOT tools if enabled and available."""
         if not self.config.features.enable_root:
             logger.info("Native ROOT support disabled (enable_root=false)")
+            self._root_native_available = False
+            return
+
+        if self.config.root_native.execution_backend == "disabled":
+            logger.info("Native ROOT support disabled (execution_backend=disabled)")
             self._root_native_available = False
             return
 
@@ -823,177 +887,412 @@ class ROOTMCPServer:
             ),
         ]
 
+    def _get_unfiltered_tools(self) -> list[Tool]:
+        """Build the full tool list for the current analysis tier."""
+        tools = self._get_core_tools()
+
+        if self.current_mode == "extended" and self._extended_components_loaded:
+            tools.extend(self._get_extended_tools())
+
+        if self._root_native_available:
+            tools.extend(self._get_root_native_tools())
+
+        return tools
+
+    def list_available_tools(self, ctx: RequestContext | None = None) -> list[Tool]:
+        """List tools visible to the request context after policy filtering."""
+        request_ctx = ctx or self._create_request_context()
+        return self.policy_engine.filter_tools(request_ctx, self._get_unfiltered_tools())
+
+    async def handle_tool_call(
+        self,
+        name: str,
+        arguments: dict[str, Any] | None,
+        ctx: RequestContext | None = None,
+    ) -> list[TextContent]:
+        """Handle a tool call after applying request policy."""
+        import json
+
+        request_ctx = ctx or self._create_request_context()
+        arguments = arguments or {}
+        started = perf_counter()
+        policy_decision = "unknown"
+        status = "error"
+        result: dict[str, Any] | None = None
+
+        try:
+            decision = self.policy_engine.authorize_tool_call(request_ctx, name, arguments)
+            policy_decision = decision.code
+            export_decision = self.policy_engine.require_export_permission(
+                request_ctx,
+                name,
+                arguments,
+            )
+            if export_decision.code != "allowed":
+                policy_decision = export_decision.code
+            logger.info(
+                "Policy allowed tool call request_id=%s profile=%s principal=%s tool=%s",
+                request_ctx.request_id,
+                request_ctx.deployment_profile,
+                request_ctx.principal_id,
+                name,
+            )
+            self.metrics.increment("allowed_calls")
+            async with self.quota_manager.reserve(request_ctx, name, arguments):
+                with self.metrics.running_call():
+                    if request_ctx.deployment_profile == "central":
+                        result = await self._dispatch_tool_with_timeout(
+                            name,
+                            arguments,
+                            request_ctx,
+                        )
+                    else:
+                        with self.file_manager.request_context(request_ctx):
+                            result = self._dispatch_tool(name, arguments, request_ctx)
+                exported_size = exported_bytes(result)
+                self.metrics.add_exported_bytes(exported_size)
+                self.quota_manager.validate_result(result)
+            status = "error" if isinstance(result, dict) and "error" in result else "success"
+            if status == "error":
+                self.metrics.increment("failed_calls")
+        except PolicyDenied as e:
+            policy_decision = e.decision.code
+            status = "denied"
+            self.metrics.increment("denied_calls")
+            logger.warning(
+                "Policy denied tool call request_id=%s profile=%s principal=%s tool=%s reason=%s",
+                request_ctx.request_id,
+                request_ctx.deployment_profile,
+                request_ctx.principal_id,
+                name,
+                e.decision.code,
+            )
+            result = e.to_error(request_ctx.request_id, debug=self._debug_errors_enabled())
+        except QuotaExceeded as e:
+            policy_decision = e.code
+            status = "denied"
+            self.metrics.increment("denied_calls")
+            logger.warning(
+                "Quota denied tool call request_id=%s profile=%s principal=%s tool=%s reason=%s",
+                request_ctx.request_id,
+                request_ctx.deployment_profile,
+                request_ctx.principal_id,
+                name,
+                e.code,
+            )
+            result = e.to_error(request_ctx.request_id)
+        except (asyncio.TimeoutError, TimeoutError):
+            policy_decision = "request_timeout"
+            status = "timeout"
+            self.metrics.increment("timeout_count")
+            logger.warning(
+                "Tool call timed out request_id=%s profile=%s principal=%s tool=%s",
+                request_ctx.request_id,
+                request_ctx.deployment_profile,
+                request_ctx.principal_id,
+                name,
+            )
+            result = {
+                "error": "quota_exceeded",
+                "message": "Tool call exceeded configured timeout",
+                "request_id": request_ctx.request_id,
+                "reason": "request_timeout",
+            }
+        except Exception as e:
+            policy_decision = "allowed"
+            status = "error"
+            self.metrics.increment("failed_calls")
+            logger.error("Tool %s failed: %s", name, e, exc_info=True)
+            if request_ctx.deployment_profile == "central" and not self._debug_errors_enabled():
+                result = {
+                    "error": "internal_error",
+                    "message": "Internal server error",
+                    "request_id": request_ctx.request_id,
+                }
+            else:
+                result = {
+                    "error": "internal_error",
+                    "message": f"Internal error: {e}",
+                    "request_id": request_ctx.request_id,
+                }
+
+        if request_ctx.deployment_profile == "central":
+            self.audit_logger.log_event(
+                build_audit_event(
+                    ctx=request_ctx,
+                    tool_name=name,
+                    arguments=arguments,
+                    result=result,
+                    policy_decision=policy_decision,
+                    status=status,
+                    duration_ms=(perf_counter() - started) * 1000,
+                )
+            )
+
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+    async def _dispatch_tool_with_timeout(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        ctx: RequestContext,
+    ) -> dict[str, Any]:
+        """Dispatch a tool call with central request timeout enforcement."""
+        if ctx.deployment_profile != "central":
+            return self._dispatch_tool(name, arguments, ctx)
+
+        loop = asyncio.get_running_loop()
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="root-mcp-tool")
+        future = loop.run_in_executor(
+            executor,
+            self._dispatch_tool_in_request_context,
+            name,
+            arguments,
+            ctx,
+        )
+        try:
+            await asyncio.sleep(0.01)
+            return await asyncio.wait_for(
+                future,
+                timeout=self.config.quotas.max_request_seconds,
+            )
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+    def _dispatch_tool_in_request_context(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        ctx: RequestContext,
+    ) -> dict[str, Any]:
+        """Dispatch a tool call while applying request-scoped file-cache keys."""
+        with self.file_manager.request_context(ctx):
+            return self._dispatch_tool(name, arguments, ctx)
+
+    def _dispatch_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        ctx: RequestContext,
+    ) -> dict[str, Any]:
+        """Dispatch an already-authorized tool call to its implementation."""
+        import json
+
+        # Mode management tools
+        if name == "switch_mode":
+            return self.switch_mode(arguments["mode"])
+        if name == "get_server_info":
+            root_available = is_root_available() if self.config.features.enable_root else False
+            return {
+                "server_name": self.config.server.name,
+                "version": self.config.server.version,
+                "current_mode": self.current_mode,
+                "deployment_profile": self.config.deployment.profile,
+                "transport": self.config.deployment.transport,
+                "extended_components_loaded": self._extended_components_loaded,
+                "available_modes": ["core", "extended"],
+                "root_native_available": root_available,
+                "root_native_enabled": (
+                    self.config.features.enable_root
+                    and self.config.root_native.execution_backend != "disabled"
+                    and root_available
+                ),
+                "root_native_backend": self.config.root_native.execution_backend,
+                "root_native_central_supported": False,
+                "root_version": get_root_version() if root_available else None,
+                "root_features": get_root_features() if root_available else {},
+                "metrics": self.metrics.snapshot(),
+            }
+
+        # Core tools (always available)
+        if name == "list_files":
+            return self.discovery_tools.list_files(**arguments, ctx=ctx)
+        if name == "inspect_file":
+            return self.discovery_tools.inspect_file(**arguments, ctx=ctx)
+        if name == "list_branches":
+            return self.discovery_tools.list_branches(**arguments, ctx=ctx)
+        if name == "validate_file":
+            try:
+                resolved = self.resource_resolver.resolve_path(arguments["path"], ctx, "read")
+            except ResourceAccessDenied as e:
+                return {"error": e.code, "message": e.message}
+            return self.file_manager.validate_file(resolved.path)
+        if name == "read_branches":
+            return self.data_access_tools.read_branches(**arguments, ctx=ctx)
+        if name == "get_branch_stats":
+            # Handle defines parameter if passed as JSON string
+            defines = arguments.get("defines")
+            if defines is not None and isinstance(defines, str):
+                try:
+                    defines = json.loads(defines)
+                except json.JSONDecodeError:
+                    return {
+                        "error": "invalid_parameter",
+                        "message": "Invalid JSON in defines parameter",
+                    }
+
+            try:
+                resolved = self.resource_resolver.resolve_path(arguments["path"], ctx, "read")
+            except ResourceAccessDenied as e:
+                return {"error": e.code, "message": e.message}
+
+            return self.basic_stats.compute_stats(
+                str(resolved.path),
+                arguments["tree_name"],
+                arguments["branches"],
+                arguments.get("selection"),
+                defines,
+            )
+        if name == "export_data":
+            try:
+                resolved = self.resource_resolver.resolve_path(arguments["path"], ctx, "export")
+                output_path = self.path_validator.resolve_output_path(arguments["output_path"], ctx)
+            except ResourceAccessDenied as e:
+                return {"error": e.code, "message": e.message}
+            except Exception as e:
+                return {"error": "invalid_output_path", "message": str(e)}
+            # Read data directly for export
+            tree = self.file_manager.get_tree(resolved.path, arguments["tree_name"])
+            arrays = tree.arrays(
+                filter_name=arguments["branches"],
+                cut=arguments.get("selection"),
+                library="ak",
+            )
+            return self.data_exporter.export(
+                arrays,
+                output_path,
+                arguments["format"],
+                compress=arguments.get("compress", False),
+            )
+
+        # Extended tools (only in extended mode)
+        if name in [
+            "compute_histogram",
+            "compute_histogram_2d",
+            "fit_histogram",
+            "compute_invariant_mass",
+            "compute_correlation",
+            "plot_histogram_1d",
+            "plot_histogram_2d",
+            "histogram_arithmetic",
+        ]:
+            if self.current_mode != "extended" or not self._extended_components_loaded:
+                return {
+                    "error": "mode_error",
+                    "message": (
+                        f"Tool '{name}' requires extended mode. Current mode: {self.current_mode}"
+                    ),
+                    "hint": "Use switch_mode tool to enable extended mode",
+                }
+
+            # Delegate to appropriate handler
+            if name == "compute_histogram":
+                return self.analysis_tools.compute_histogram(**arguments, ctx=ctx)
+            if name == "compute_histogram_2d":
+                return self.analysis_tools.compute_histogram_2d(**arguments, ctx=ctx)
+            if name == "fit_histogram":
+                return self.analysis_tools.fit_histogram(**arguments, ctx=ctx)
+            if name == "compute_invariant_mass":
+                try:
+                    resolved = self.resource_resolver.resolve_path(arguments["path"], ctx, "read")
+                except ResourceAccessDenied as e:
+                    return {"error": e.code, "message": e.message}
+                arguments = {**arguments, "path": str(resolved.path)}
+                return self.kinematics_ops.compute_invariant_mass(**arguments)
+            if name == "compute_correlation":
+                try:
+                    resolved = self.resource_resolver.resolve_path(arguments["path"], ctx, "read")
+                except ResourceAccessDenied as e:
+                    return {"error": e.code, "message": e.message}
+                arguments = {**arguments, "path": str(resolved.path)}
+                return self.correlation_analysis.compute_correlation(**arguments)
+            if name == "plot_histogram_1d":
+                return self.plotting_tools.plot_histogram_1d(**arguments, ctx=ctx)
+            if name == "plot_histogram_2d":
+                return self.plotting_tools.plot_histogram_2d(**arguments, ctx=ctx)
+            if name == "histogram_arithmetic":
+                return self.analysis_tools.compute_histogram_arithmetic(**arguments)
+
+        # Native ROOT tools
+        if name in ["run_root_code", "run_rdataframe", "run_root_macro"]:
+            if not self._root_native_available:
+                return {
+                    "error": "root_not_available",
+                    "message": (
+                        "Native ROOT tools are not available. "
+                        "Ensure ROOT is installed and enable_root is set to true in config."
+                    ),
+                    "hint": "Use get_server_info to check ROOT availability",
+                }
+            if name == "run_root_code":
+                return self.root_native_tools.run_root_code(**arguments)
+            if name == "run_rdataframe":
+                return self.root_native_tools.run_rdataframe(**arguments)
+            if name == "run_root_macro":
+                return self.root_native_tools.run_root_macro(**arguments)
+
+        return {
+            "error": "unknown_tool",
+            "message": f"Unknown tool: {name}",
+        }
+
     def _register_tools(self) -> None:
         """Register all MCP tools based on current mode."""
 
         @self.server.list_tools()
         async def list_tools() -> list[Tool]:
             """List available tools based on current mode."""
-            tools = self._get_core_tools()
-
-            if self.current_mode == "extended" and self._extended_components_loaded:
-                tools.extend(self._get_extended_tools())
-
-            if self._root_native_available:
-                tools.extend(self._get_root_native_tools())
-
-            return tools
+            return self.list_available_tools()
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             """Handle tool calls with mode awareness."""
-            import json
-
-            try:
-                # Mode management tools
-                if name == "switch_mode":
-                    result = self.switch_mode(arguments["mode"])
-                elif name == "get_server_info":
-                    result = {
-                        "server_name": self.config.server.name,
-                        "version": self.config.server.version,
-                        "current_mode": self.current_mode,
-                        "extended_components_loaded": self._extended_components_loaded,
-                        "available_modes": ["core", "extended"],
-                        "root_native_available": is_root_available(),
-                        "root_native_enabled": (
-                            self.config.features.enable_root and is_root_available()
-                        ),
-                        "root_version": get_root_version(),
-                        "root_features": get_root_features(),
-                    }
-
-                # Core tools (always available)
-                elif name == "list_files":
-                    result = self.discovery_tools.list_files(**arguments)
-                elif name == "inspect_file":
-                    result = self.discovery_tools.inspect_file(**arguments)
-                elif name == "list_branches":
-                    result = self.discovery_tools.list_branches(**arguments)
-                elif name == "validate_file":
-                    result = self.file_manager.validate_file(arguments["path"])
-                elif name == "read_branches":
-                    result = self.data_access_tools.read_branches(**arguments)
-                elif name == "get_branch_stats":
-                    # Handle defines parameter if passed as JSON string
-                    defines = arguments.get("defines")
-                    if defines is not None and isinstance(defines, str):
-                        import json
-
-                        try:
-                            defines = json.loads(defines)
-                        except json.JSONDecodeError:
-                            result = {
-                                "error": "invalid_parameter",
-                                "message": "Invalid JSON in defines parameter",
-                            }
-                            return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-                    result = self.basic_stats.compute_stats(
-                        arguments["path"],
-                        arguments["tree_name"],
-                        arguments["branches"],
-                        arguments.get("selection"),
-                        defines,
-                    )
-                elif name == "export_data":
-                    # Read data directly for export
-                    tree = self.file_manager.get_tree(arguments["path"], arguments["tree_name"])
-                    arrays = tree.arrays(
-                        filter_name=arguments["branches"],
-                        cut=arguments.get("selection"),
-                        library="ak",
-                    )
-                    # Export
-                    result = self.data_exporter.export(
-                        arrays,
-                        arguments["output_path"],
-                        arguments["format"],
-                        compress=arguments.get("compress", False),
-                    )
-
-                # Extended tools (only in extended mode)
-                elif name in [
-                    "compute_histogram",
-                    "compute_histogram_2d",
-                    "fit_histogram",
-                    "compute_invariant_mass",
-                    "compute_correlation",
-                    "plot_histogram_1d",
-                    "plot_histogram_2d",
-                    "histogram_arithmetic",
-                ]:
-                    if self.current_mode != "extended" or not self._extended_components_loaded:
-                        result = {
-                            "error": "mode_error",
-                            "message": f"Tool '{name}' requires extended mode. Current mode: {self.current_mode}",
-                            "hint": "Use switch_mode tool to enable extended mode",
-                        }
-                    else:
-                        # Delegate to appropriate handler
-                        if name == "compute_histogram":
-                            result = self.analysis_tools.compute_histogram(**arguments)
-                        elif name == "compute_histogram_2d":
-                            result = self.analysis_tools.compute_histogram_2d(**arguments)
-                        elif name == "fit_histogram":
-                            result = self.analysis_tools.fit_histogram(**arguments)
-                        elif name == "compute_invariant_mass":
-                            result = self.kinematics_ops.compute_invariant_mass(**arguments)
-                        elif name == "compute_correlation":
-                            result = self.correlation_analysis.compute_correlation(**arguments)
-                        elif name == "plot_histogram_1d":
-                            result = self.plotting_tools.plot_histogram_1d(**arguments)
-                        elif name == "plot_histogram_2d":
-                            result = self.plotting_tools.plot_histogram_2d(**arguments)
-                        elif name == "histogram_arithmetic":
-                            result = self.analysis_tools.compute_histogram_arithmetic(**arguments)
-
-                # Native ROOT tools
-                elif name in ["run_root_code", "run_rdataframe", "run_root_macro"]:
-                    if not self._root_native_available:
-                        result = {
-                            "error": "root_not_available",
-                            "message": (
-                                "Native ROOT tools are not available. "
-                                "Ensure ROOT is installed and enable_root is set to true in config."
-                            ),
-                            "hint": "Use get_server_info to check ROOT availability",
-                        }
-                    else:
-                        if name == "run_root_code":
-                            result = self.root_native_tools.run_root_code(**arguments)
-                        elif name == "run_rdataframe":
-                            result = self.root_native_tools.run_rdataframe(**arguments)
-                        elif name == "run_root_macro":
-                            result = self.root_native_tools.run_root_macro(**arguments)
-
-                else:
-                    result = {
-                        "error": "unknown_tool",
-                        "message": f"Unknown tool: {name}",
-                    }
-
-            except Exception as e:
-                logger.error(f"Tool {name} failed: {e}", exc_info=True)
-                result = {
-                    "error": "internal_error",
-                    "message": f"Internal error: {e}",
-                }
-
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            return await self.handle_tool_call(name, arguments)
 
     async def run(self) -> None:
         """Run the MCP server."""
+        if self.config.deployment.transport != "stdio":
+            raise RuntimeError(
+                "Transport 'streamable_http' is configured but the HTTP runner is not "
+                "available in this stdio path. Use 'root-mcp serve-http' for HTTP."
+            )
+
         logger.info(f"Starting {self.config.server.name} v{self.config.server.version}")
         logger.info(f"Mode: {self.current_mode}")
+        logger.info(f"Deployment profile: {self.config.deployment.profile}")
+        logger.info(f"Transport: {self.config.deployment.transport}")
         logger.info(f"Resources configured: {len(self.config.resources)}")
 
-        async with stdio_server() as (read_stream, write_stream):
-            await self.server.run(
-                read_stream,
-                write_stream,
-                self.server.create_initialization_options(),
-            )
+        await run_stdio(self.server)
+
+
+def _run_cleanup_exports(argv: list[str]) -> None:
+    """Handle the ``root-mcp cleanup-exports`` operator command."""
+    parser = argparse.ArgumentParser(
+        prog="root-mcp cleanup-exports",
+        description="Apply configured export retention policy.",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        help="Path to configuration file (overrides ROOT_MCP_CONFIG env var)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report files that would be removed without deleting them.",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        config = load_config(args.config)
+        apply_env_overrides(config)
+    except Exception as e:
+        print(f"root-mcp cleanup-exports: failed to load configuration: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    result = cleanup_exports(config, dry_run=args.dry_run)
+    print(json.dumps(result, indent=2, sort_keys=True))
 
 
 def _run_init(argv: list[str]) -> None:
@@ -1054,7 +1353,19 @@ def _run_init(argv: list[str]) -> None:
             f"    root-mcp --config {output_path}"
         )
     else:
-        print(f"  → Config is ready. Run:\n" f"    root-mcp --config {output_path}")
+        print(f"  → Config is ready. Run:\n    root-mcp --config {output_path}")
+
+
+def _extract_server_command(argv: list[str]) -> tuple[str, list[str]]:
+    """Return the server command and remaining argv.
+
+    ``root-mcp`` remains the compatibility stdio entrypoint. The explicit
+    transport commands are shallow wrappers over the same parser so existing
+    flags keep working in either position after the command name.
+    """
+    if argv and argv[0] in {"serve-stdio", "serve-http"}:
+        return argv[0], argv[1:]
+    return "serve-stdio-default", argv
 
 
 def main() -> None:
@@ -1065,13 +1376,26 @@ def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "init":
         _run_init(sys.argv[2:])
         return
+    if len(sys.argv) > 1 and sys.argv[1] == "cleanup-exports":
+        _run_cleanup_exports(sys.argv[2:])
+        return
+
+    server_command, parser_argv = _extract_server_command(sys.argv[1:])
 
     parser = argparse.ArgumentParser(
+        prog=(
+            "root-mcp" if server_command == "serve-stdio-default" else f"root-mcp {server_command}"
+        ),
         description="ROOT-MCP Server",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Zero-config quick start:\n"
             "  root-mcp --data-path /path/to/root/files\n\n"
+            "Explicit stdio transport:\n"
+            "  root-mcp serve-stdio --data-path /path/to/root/files\n\n"
+            "HTTP central service:\n"
+            "  root-mcp serve-http --config central.yaml --profile central --auth-required "
+            "--auth-provider external-bearer --origin https://client.example\n\n"
             "With native ROOT support (no config file needed):\n"
             "  root-mcp --data-path /path/to/root/files --enable-root\n\n"
             "Multiple directories:\n"
@@ -1131,6 +1455,96 @@ def main() -> None:
             "Override the MCP server name reported to clients. "
             "Overrides config.yaml and ROOT_MCP_SERVER_NAME."
         ),
+    )
+    # Deployment / Auth
+    parser.add_argument(
+        "--profile",
+        choices=["local", "central"],
+        default=None,
+        dest="profile",
+        metavar="PROFILE",
+        help=(
+            "Deployment profile: local or central (default: local). "
+            "Overrides ROOT_MCP_DEPLOYMENT_PROFILE."
+        ),
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http"],
+        default=None,
+        dest="transport",
+        metavar="TRANSPORT",
+        help=(
+            "MCP transport: stdio or streamable-http. "
+            "streamable-http is used by the serve-http command. "
+            "Overrides ROOT_MCP_TRANSPORT."
+        ),
+    )
+    parser.add_argument(
+        "--auth-required",
+        action="store_true",
+        default=None,
+        dest="auth_required",
+        help=(
+            "Require authenticated callers. Central deployments must set this. "
+            "Overrides ROOT_MCP_AUTH_REQUIRED."
+        ),
+    )
+    parser.add_argument(
+        "--auth-provider",
+        choices=["none", "external-bearer", "trusted-headers"],
+        default=None,
+        dest="auth_provider",
+        metavar="PROVIDER",
+        help=(
+            "Authentication provider: none, external-bearer, or trusted-headers. "
+            "Overrides ROOT_MCP_AUTH_PROVIDER."
+        ),
+    )
+    # HTTP startup
+    parser.add_argument(
+        "--host",
+        default=None,
+        dest="host",
+        metavar="HOST",
+        help="HTTP bind host for serve-http (default: 127.0.0.1).",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        dest="port",
+        metavar="PORT",
+        help="HTTP bind port for serve-http (default: 8000).",
+    )
+    parser.add_argument(
+        "--endpoint",
+        default=None,
+        dest="endpoint",
+        metavar="PATH",
+        help="HTTP MCP endpoint path for serve-http (default: /mcp).",
+    )
+    parser.add_argument(
+        "--origin",
+        action="append",
+        default=None,
+        dest="origin",
+        metavar="ORIGIN",
+        help="Allowed HTTP Origin for serve-http. Repeat to allow multiple origins.",
+    )
+    parser.add_argument(
+        "--allow-public-bind",
+        action="store_true",
+        default=None,
+        dest="allow_public_bind",
+        help="Allow serve-http to bind to 0.0.0.0, ::, or another non-loopback host.",
+    )
+    parser.add_argument(
+        "--allow-local-http",
+        action="store_true",
+        default=None,
+        dest="allow_local_http",
+        help="Allow serve-http with deployment.profile=local for explicit local testing.",
     )
     # Security
     parser.add_argument(
@@ -1219,8 +1633,7 @@ def main() -> None:
         dest="max_rows",
         metavar="N",
         help=(
-            "Maximum rows returned per read call (default: 1_000_000). "
-            "Overrides ROOT_MCP_MAX_ROWS."
+            "Maximum rows returned per read call (default: 1_000_000). Overrides ROOT_MCP_MAX_ROWS."
         ),
     )
     parser.add_argument(
@@ -1319,6 +1732,17 @@ def main() -> None:
         help="ROOT execution timeout in seconds (default: 60). Overrides ROOT_MCP_ROOT_TIMEOUT.",
     )
     parser.add_argument(
+        "--root-backend",
+        choices=["local_subprocess", "disabled"],
+        default=None,
+        dest="root_backend",
+        metavar="BACKEND",
+        help=(
+            "Native ROOT execution backend: local_subprocess or disabled "
+            "(default: local_subprocess for local deployments). Overrides ROOT_MCP_ROOT_BACKEND."
+        ),
+    )
+    parser.add_argument(
         "--root-workdir",
         type=str,
         default=None,
@@ -1367,7 +1791,16 @@ def main() -> None:
             "(default: INFO). Overrides ROOT_MCP_LOG_LEVEL."
         ),
     )
-    args = parser.parse_args()
+    args = parser.parse_args(parser_argv)
+
+    if server_command == "serve-http":
+        if args.transport == "stdio":
+            parser.error("serve-http cannot be combined with --transport stdio")
+        args.transport = "streamable-http"
+    elif server_command == "serve-stdio":
+        if args.transport == "streamable-http":
+            parser.error("serve-stdio cannot be combined with --transport streamable-http")
+        args.transport = "stdio"
 
     # Apply log level as early as possible — before load_config so that
     # config-loading log messages are also at the right verbosity.
@@ -1400,7 +1833,7 @@ def main() -> None:
         logger.info(f"Added {len(cli_paths)} data path(s) from --data-path: {cli_paths}")
 
     # Apply environment variable overrides (priority 3: above YAML, below CLI).
-    from root_mcp.config import apply_env_overrides, apply_cli_overrides
+    from root_mcp.config import apply_cli_overrides
 
     try:
         apply_env_overrides(config)
@@ -1427,12 +1860,25 @@ def main() -> None:
         config.features.enable_root = True
         logger.info("Native ROOT support enabled via --enable-root / ROOT_MCP_ENABLE_ROOT")
 
-    server = ROOTMCPServer(config)
-
     try:
+        if server_command == "serve-http":
+            server = ROOTMCPServer(config)
+            asyncio.run(run_http(server))
+            return
+
+        server = ROOTMCPServer(config)
         asyncio.run(server.run())
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
+    except HTTPStartupError as e:
+        logger.error(f"Invalid HTTP configuration: {e}")
+        sys.exit(1)
+    except ValueError as e:
+        logger.error(f"Invalid deployment configuration: {e}")
+        sys.exit(1)
+    except NotImplementedError as e:
+        logger.error(f"HTTP runner unavailable: {e}")
+        sys.exit(1)
     except Exception as e:
         logger.error(f"Server error: {e}", exc_info=True)
         sys.exit(1)

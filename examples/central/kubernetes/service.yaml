@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: root-mcp
+  labels:
+    app.kubernetes.io/name: root-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: root-mcp
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

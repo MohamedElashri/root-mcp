@@ -52,6 +52,17 @@ Files are created in `data/root_files/` directory.
 - Multiple trees and directories
 - Histograms with various binning schemes
 
+### Central Deployment Examples
+
+**`central/`** - Restrictive central Streamable HTTP examples for operators
+
+Includes:
+- Trusted reverse-proxy header authentication
+- OIDC bearer-token authentication
+- Remote-only XRootD resources
+- Local read-only mounted data volumes
+- Kubernetes Deployment, Service, ConfigMap, Secret reference, and NetworkPolicy samples
+
 ## Using ROOT-MCP
 
 For usage examples, see:

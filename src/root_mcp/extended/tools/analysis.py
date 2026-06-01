@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from root_mcp.extended.analysis.fitting import fit_histogram
 from root_mcp.extended.analysis.plotting import generate_plot
+from root_mcp.security.resources import ResourceAccessDenied, ResourceResolver
 
 if TYPE_CHECKING:
     from root_mcp.config import Config
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
     from root_mcp.core.io.validators import PathValidator
     from root_mcp.extended.analysis.operations import AnalysisOperations
     from root_mcp.core.io.readers import TreeReader
+    from root_mcp.security.context import RequestContext
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +46,11 @@ class AnalysisTools:
         self.path_validator = path_validator
         self.analysis_ops = analysis_ops
         self.tree_reader = tree_reader
+        self.resource_resolver = ResourceResolver(config, path_validator)
 
     def compute_histogram(
         self,
-        path: str,
+        path: str | dict[str, Any],
         tree_name: str,
         branch: str,
         bins: int,
@@ -55,6 +58,7 @@ class AnalysisTools:
         selection: str | None = None,
         weights: str | None = None,
         defines: dict[str, str] | None = None,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Compute a 1D histogram.
@@ -86,7 +90,13 @@ class AnalysisTools:
 
         # Validate path
         try:
-            validated_path = self.path_validator.validate_path(path)
+            resolved = self.resource_resolver.resolve_path(path, ctx, "read")
+            validated_path = resolved.path
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+            }
         except Exception as e:
             return {
                 "error": "invalid_path",
@@ -140,7 +150,7 @@ class AnalysisTools:
 
     def compute_histogram_2d(
         self,
-        path: str,
+        path: str | dict[str, Any],
         tree_name: str,
         x_branch: str,
         y_branch: str,
@@ -150,6 +160,7 @@ class AnalysisTools:
         y_range: tuple[float, float] | None = None,
         selection: str | None = None,
         defines: dict[str, str] | None = None,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Compute a 2D histogram.
@@ -183,7 +194,13 @@ class AnalysisTools:
 
         # Validate path
         try:
-            validated_path = self.path_validator.validate_path(path)
+            resolved = self.resource_resolver.resolve_path(path, ctx, "read")
+            validated_path = resolved.path
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+            }
         except Exception as e:
             return {
                 "error": "invalid_path",
@@ -221,7 +238,7 @@ class AnalysisTools:
         self,
         model: str | list[str | dict[str, Any]] | dict[str, Any],
         data: dict[str, Any] | None = None,
-        path: str | None = None,
+        path: str | dict[str, Any] | None = None,
         tree_name: str | None = None,
         branch: str | None = None,
         bins: int | None = None,
@@ -232,6 +249,7 @@ class AnalysisTools:
         initial_guess: list[float] | None = None,
         bounds: list[list[float]] | None = None,
         fixed_parameters: dict[str | int, float] | None = None,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Fit a histogram to a model. Can either take existing histogram data or
@@ -273,6 +291,7 @@ class AnalysisTools:
                 selection=selection,
                 weights=weights,
                 defines=defines,
+                ctx=ctx,
             )
 
             if "error" in hist_result:
@@ -337,10 +356,11 @@ class AnalysisTools:
 
     def apply_selection(
         self,
-        path: str,
+        path: str | dict[str, Any],
         tree: str,
         selection: str,
         defines: dict[str, str] | None = None,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Count entries passing a selection.
@@ -356,7 +376,13 @@ class AnalysisTools:
         """
         # Validate path
         try:
-            validated_path = self.path_validator.validate_path(path)
+            resolved = self.resource_resolver.resolve_path(path, ctx, "read")
+            validated_path = resolved.path
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+            }
         except Exception as e:
             return {
                 "error": "invalid_path",
@@ -402,13 +428,14 @@ class AnalysisTools:
 
     def export_branches(
         self,
-        path: str,
+        path: str | dict[str, Any],
         tree: str,
         branches: list[str],
         output_path: str,
         output_format: str,
         selection: str | None = None,
         limit: int | None = None,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Export branch data to a file.
@@ -434,8 +461,14 @@ class AnalysisTools:
 
         # Validate paths
         try:
-            validated_input = self.path_validator.validate_path(path)
-            validated_output = self.path_validator.validate_output_path(output_path)
+            resolved = self.resource_resolver.resolve_path(path, ctx, "export")
+            validated_input = resolved.path
+            validated_output = self.path_validator.resolve_output_path(output_path, ctx)
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+            }
         except Exception as e:
             return {
                 "error": "invalid_path",
@@ -501,11 +534,12 @@ class AnalysisTools:
 
     def compute_kinematics(
         self,
-        path: str,
+        path: str | dict[str, Any],
         tree: str,
         computations: list[dict[str, Any]],
         selection: str | None = None,
         limit: int | None = None,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Compute kinematic quantities from four-momenta.
@@ -527,7 +561,13 @@ class AnalysisTools:
         """
         # Validate path
         try:
-            validated_path = self.path_validator.validate_path(path)
+            resolved = self.resource_resolver.resolve_path(path, ctx, "read")
+            validated_path = resolved.path
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+            }
         except Exception as e:
             return {
                 "error": "invalid_path",

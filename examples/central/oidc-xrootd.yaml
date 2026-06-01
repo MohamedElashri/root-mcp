@@ -1,0 +1,93 @@
+server:
+  mode: "extended"
+
+deployment:
+  profile: "central"
+  transport: "streamable_http"
+  fixed_analysis_tier: true
+
+auth:
+  required: true
+  provider: "external_bearer"
+  audience: "root-mcp"
+  issuer: "https://issuer.example.org/"
+  jwks_url: "https://issuer.example.org/.well-known/jwks.json"
+  jwt_algorithms:
+    - "RS256"
+  principal_claim: "sub"
+  tenant_claim: "tenant"
+  roles_claim: "roles"
+  scopes_claim: "scope"
+
+policy:
+  default_tool_action: "deny"
+  allow_tools:
+    - get_server_info
+    - list_files
+    - inspect_file
+    - validate_file
+    - list_branches
+    - read_branches
+    - get_branch_stats
+    - compute_histogram
+    - compute_histogram_2d
+    - plot_histogram_1d
+    - plot_histogram_2d
+  deny_tools:
+    - switch_mode
+    - export_data
+    - run_root_code
+    - run_rdataframe
+    - run_root_macro
+  require_named_resources: true
+  disable_local_absolute_paths: true
+  allow_central_absolute_paths: false
+
+http:
+  host: "127.0.0.1"
+  port: 8000
+  endpoint: "/mcp"
+  origin_allowlist:
+    - "https://analysis.example.org"
+  require_origin_header: true
+  allow_public_bind: false
+
+resources:
+  - name: "cms_open_data"
+    uri: "root://xrootd.example.org//store/cms"
+    description: "Remote XRootD ROOT files"
+    allowed_patterns:
+      - "*.root"
+    excluded_patterns: []
+    allowed_roles:
+      - "cms-reader"
+    allowed_principals: []
+    allow_listing: true
+    allow_read: true
+    allow_export: false
+
+security:
+  allowed_roots: []
+  allow_remote: true
+  allowed_protocols:
+    - "root"
+
+quotas:
+  max_concurrent_requests_per_principal: 2
+  max_concurrent_requests_per_tenant: 10
+  max_request_seconds: 120
+  max_rows_per_call: 1000000
+  max_output_bytes_per_call: 25000000
+
+output:
+  export_base_path: "/srv/root-mcp/exports"
+  allowed_formats:
+    - "json"
+    - "csv"
+
+features:
+  enable_export: true
+  enable_root: false
+
+root_native:
+  execution_backend: "disabled"

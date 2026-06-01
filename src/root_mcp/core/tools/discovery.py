@@ -10,6 +10,9 @@ if TYPE_CHECKING:
     from root_mcp.config import Config
     from root_mcp.core.io.file_manager import FileManager
     from root_mcp.core.io.validators import PathValidator
+    from root_mcp.security.context import RequestContext
+
+from root_mcp.security.resources import ResourceAccessDenied, ResourceResolver
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +37,14 @@ class DiscoveryTools:
         self.config = config
         self.file_manager = file_manager
         self.path_validator = path_validator
+        self.resource_resolver = ResourceResolver(config, path_validator)
 
     def list_files(
         self,
         resource: str | None = None,
         pattern: str | None = None,
         limit: int = 100,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         List ROOT files in a resource.
@@ -52,25 +57,18 @@ class DiscoveryTools:
         Returns:
             List of files with metadata
         """
-        # Get resource config
-        if resource:
-            resource_config = self.config.get_resource(resource)
-            if not resource_config:
-                available = [r.name for r in self.config.resources]
-                return {
-                    "error": "resource_not_found",
-                    "message": f"Resource '{resource}' not found",
-                    "details": {"available_resources": available},
-                    "suggestion": f"Use one of: {available}",
-                }
-        else:
-            resource_config = self.config.get_default_resource()
-            if not resource_config:
-                return {
-                    "error": "no_resources",
-                    "message": "No resources configured",
-                    "suggestion": "Configure at least one resource in config.yaml",
-                }
+        try:
+            resource_config = self.resource_resolver.get_accessible_resource(
+                resource,
+                ctx,
+                "listing",
+            )
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+                "suggestion": "Use list_resources() to see available resources",
+            }
 
         # Parse resource URI to get base path
         uri = resource_config.uri
@@ -110,7 +108,9 @@ class DiscoveryTools:
                 stat = file_path.stat()
                 files.append(
                     {
-                        "path": str(file_path),
+                        "path": self.resource_resolver.reference_for(
+                            file_path, resource_config, ctx
+                        ),
                         "size_bytes": stat.st_size,
                         "modified": stat.st_mtime,
                         "resource": resource_config.name,
@@ -146,9 +146,10 @@ class DiscoveryTools:
 
     def inspect_file(
         self,
-        path: str,
+        path: str | dict[str, Any],
         include_histograms: bool = True,
         include_trees: bool = True,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Inspect a ROOT file's structure.
@@ -162,13 +163,18 @@ class DiscoveryTools:
             File structure and metadata
         """
         try:
-            # Validate path
-            validated_path = self.path_validator.validate_path(path)
+            resolved = self.resource_resolver.resolve_path(path, ctx, "read")
+            validated_path = resolved.path
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+                "suggestion": "Use a named resource path such as @resource/file.root",
+            }
         except Exception as e:
             return {
                 "error": "invalid_path",
                 "message": str(e),
-                "suggestion": "Check path and ensure it's under an allowed root",
             }
 
         # Get file info
@@ -243,11 +249,12 @@ class DiscoveryTools:
 
     def list_branches(
         self,
-        path: str,
+        path: str | dict[str, Any],
         tree_name: str,
         pattern: str | None = None,
         limit: int = 100,
         include_stats: bool = False,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         List branches in a TTree or RNTuple.
@@ -263,7 +270,13 @@ class DiscoveryTools:
             Branch information
         """
         try:
-            validated_path = self.path_validator.validate_path(path)
+            resolved = self.resource_resolver.resolve_path(path, ctx, "read")
+            validated_path = resolved.path
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+            }
         except Exception as e:
             return {
                 "error": "invalid_path",
