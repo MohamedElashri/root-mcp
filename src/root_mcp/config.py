@@ -8,6 +8,7 @@ import logging
 import os
 from pathlib import Path
 import re
+from typing import Literal, TypeVar, cast
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -28,6 +29,68 @@ class ServerConfig(BaseModel):
     mode: str = Field("extended", pattern="^(core|extended)$")
 
 
+class DeploymentConfig(BaseModel):
+    """Operational profile and MCP transport settings."""
+
+    profile: Literal["local", "central"] = "local"
+    transport: Literal["stdio", "streamable_http"] = "stdio"
+    fixed_analysis_tier: bool = False
+
+
+class AuthConfig(BaseModel):
+    """Authentication settings for shared deployments."""
+
+    required: bool = False
+    provider: Literal["none", "external_bearer", "trusted_headers"] = "none"
+    audience: str | None = None
+    issuer: str | None = None
+    jwks_url: str | None = None
+    jwt_algorithms: list[str] = Field(default_factory=lambda: ["RS256"])
+    principal_claim: str = "sub"
+    tenant_claim: str | None = None
+    roles_claim: str = "roles"
+    scopes_claim: str = "scope"
+    trusted_identity_headers: list[str] = Field(default_factory=list)
+    trusted_principal_header: str = "x-auth-principal"
+    trusted_tenant_header: str = "x-auth-tenant"
+    trusted_roles_header: str = "x-auth-roles"
+    trusted_scopes_header: str = "x-auth-scopes"
+    trusted_proxy_networks: list[str] = Field(default_factory=lambda: ["127.0.0.0/8", "::1/128"])
+
+
+class PolicyConfig(BaseModel):
+    """Coarse tool and resource policy settings."""
+
+    default_tool_action: Literal["allow", "deny"] = "allow"
+    allow_tools: list[str] = Field(default_factory=list)
+    deny_tools: list[str] = Field(default_factory=list)
+    require_named_resources: bool = False
+    disable_local_absolute_paths: bool = False
+    allow_central_absolute_paths: bool = False
+
+
+class HTTPConfig(BaseModel):
+    """HTTP transport startup settings."""
+
+    host: str = "127.0.0.1"
+    port: int = Field(8000, ge=1, le=65_535)
+    endpoint: str = "/mcp"
+    origin_allowlist: list[str] = Field(default_factory=list)
+    require_origin_header: bool = True
+    allow_local_http: bool = False
+    allow_public_bind: bool = False
+
+    @field_validator("endpoint")
+    @classmethod
+    def validate_endpoint(cls, v: str) -> str:
+        """Ensure the HTTP endpoint is an absolute path."""
+        if not v.startswith("/"):
+            raise ValueError("HTTP endpoint must start with '/'")
+        if any(ch.isspace() for ch in v):
+            raise ValueError("HTTP endpoint must not contain whitespace")
+        return v
+
+
 class LimitsConfig(BaseModel):
     """Resource limits for safety."""
 
@@ -42,6 +105,23 @@ class CacheConfig(BaseModel):
     file_cache_size: int = Field(50, gt=0)
 
 
+class QuotaConfig(BaseModel):
+    """Per-request and per-identity limits for shared deployments."""
+
+    max_concurrent_requests_per_principal: int = Field(2, gt=0)
+    max_concurrent_requests_per_tenant: int = Field(10, gt=0)
+    max_request_seconds: int = Field(120, gt=0)
+    max_rows_per_call: int | None = Field(default=None, gt=0)
+    max_output_bytes_per_call: int | None = Field(default=None, gt=0)
+
+
+class AuditConfig(BaseModel):
+    """Structured audit event sink settings."""
+
+    sink: Literal["logger", "jsonl", "both"] = "logger"
+    jsonl_path: str | None = None
+
+
 class ResourceConfig(BaseModel):
     """Configuration for a data resource (MCP root)."""
 
@@ -50,6 +130,11 @@ class ResourceConfig(BaseModel):
     description: str = ""
     allowed_patterns: list[str] = Field(default_factory=lambda: ["*.root"])
     excluded_patterns: list[str] = Field(default_factory=list)
+    allowed_roles: list[str] = Field(default_factory=list)
+    allowed_principals: list[str] = Field(default_factory=list)
+    allow_listing: bool = True
+    allow_read: bool = True
+    allow_export: bool = False
 
     @field_validator("name")
     @classmethod
@@ -112,6 +197,8 @@ class OutputConfig(BaseModel):
 
     export_base_path: str = "/tmp/root_mcp_output"
     allowed_formats: list[str] = Field(default_factory=lambda: ["json", "csv", "parquet"])
+    retention_days: int | None = Field(default=None, gt=0)
+    max_total_bytes: int | None = Field(default=None, gt=0)
 
     @field_validator("export_base_path")
     @classmethod
@@ -187,6 +274,7 @@ class AnalysisConfig(BaseModel):
 class RootNativeConfig(BaseModel):
     """Configuration for native ROOT/PyROOT execution."""
 
+    execution_backend: Literal["local_subprocess", "disabled"] = "local_subprocess"
     execution_timeout: int = Field(60, gt=0)
     max_output_size: int = Field(10_000_000, gt=0)
     allowed_output_formats: list[str] = Field(
@@ -213,6 +301,12 @@ class Config(BaseModel):
     cache: CacheConfig = Field(default_factory=CacheConfig)
     resources: list[ResourceConfig] = Field(default_factory=list)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
+    deployment: DeploymentConfig = Field(default_factory=DeploymentConfig)
+    auth: AuthConfig = Field(default_factory=AuthConfig)
+    policy: PolicyConfig = Field(default_factory=PolicyConfig)
+    quotas: QuotaConfig = Field(default_factory=QuotaConfig)
+    audit: AuditConfig = Field(default_factory=AuditConfig)
+    http: HTTPConfig = Field(default_factory=HTTPConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
     root_native: RootNativeConfig = Field(default_factory=RootNativeConfig)
@@ -313,10 +407,66 @@ _CONFIG_TEMPLATE = """\
 server:
   mode: "extended"
 
+deployment:
+  profile: "local"       # "local" or "central"
+  transport: "stdio"     # "stdio" or "streamable_http"
+  fixed_analysis_tier: false
+
+auth:
+  required: false
+  provider: "none"       # "none", "external_bearer", or "trusted_headers"
+  audience: null
+  issuer: null
+  jwks_url: null
+  jwt_algorithms: ["RS256"]
+  principal_claim: "sub"
+  tenant_claim: null
+  roles_claim: "roles"
+  scopes_claim: "scope"
+  trusted_identity_headers: []
+  trusted_principal_header: "x-auth-principal"
+  trusted_tenant_header: "x-auth-tenant"
+  trusted_roles_header: "x-auth-roles"
+  trusted_scopes_header: "x-auth-scopes"
+  trusted_proxy_networks: ["127.0.0.0/8", "::1/128"]
+
+policy:
+  default_tool_action: "allow"
+  allow_tools: []
+  deny_tools: []
+  require_named_resources: false
+  disable_local_absolute_paths: false
+  allow_central_absolute_paths: false
+
+quotas:
+  max_concurrent_requests_per_principal: 2
+  max_concurrent_requests_per_tenant: 10
+  max_request_seconds: 120
+  max_rows_per_call: null
+  max_output_bytes_per_call: null
+
+audit:
+  sink: "logger"         # "logger", "jsonl", or "both"
+  jsonl_path: null       # required for "jsonl" or "both"
+
+http:
+  host: "127.0.0.1"
+  port: 8000
+  endpoint: "/mcp"
+  origin_allowlist: []
+  require_origin_header: true
+  allow_local_http: false
+  allow_public_bind: false
+
 resources:
   - name: "local_data"
     uri: "{uri}"
     description: "Local ROOT files"
+    allowed_roles: []
+    allowed_principals: []
+    allow_listing: true
+    allow_read: true
+    allow_export: false
 
 # Leave allowed_roots empty to allow any directory (permissive / zero-config mode).
 # Add explicit absolute paths here to restrict access.
@@ -353,8 +503,11 @@ extended:
 output:
   export_base_path: "/tmp/root_mcp_output"
   allowed_formats: ["json", "csv", "parquet"]
+  retention_days: null
+  max_total_bytes: null
 
 root_native:
+  execution_backend: "local_subprocess"  # local only; central deployments keep native ROOT disabled
   execution_timeout: 60
   working_directory: "/tmp/root_mcp_native"
 """
@@ -397,6 +550,23 @@ def create_default_config(
 
 #: Log levels accepted by :func:`apply_log_level`.
 _VALID_LOG_LEVELS: tuple[str, ...] = ("DEBUG", "INFO", "WARNING", "ERROR")
+
+_TRUTHY_VALUES: tuple[str, ...] = ("1", "true", "yes")
+_Choice = TypeVar("_Choice", bound=str)
+
+
+def _normalise_choice(value: str, choices: tuple[_Choice, ...], label: str) -> _Choice:
+    """Normalize env/CLI values before checking them against literal choices."""
+    normalised = value.strip().lower().replace("-", "_")
+    if normalised not in choices:
+        joined = ", ".join(repr(choice) for choice in choices)
+        raise ValueError(f"{label} must be one of {joined}, got: {value!r}")
+    return cast(_Choice, normalised)
+
+
+def _env_bool(value: str) -> bool:
+    """Return True for the env-var truthy spellings used throughout ROOT-MCP."""
+    return value.strip().lower() in _TRUTHY_VALUES
 
 
 def apply_log_level(level_str: str) -> None:
@@ -470,6 +640,23 @@ def apply_env_overrides(config: Config) -> Config:
     * ``ROOT_MCP_MODE`` → :attr:`Config.server.mode` (``core`` or ``extended``)
     * ``ROOT_MCP_SERVER_NAME`` → :attr:`Config.server.name`
 
+    ** Deployment / Auth / Policy**:
+
+    * ``ROOT_MCP_DEPLOYMENT_PROFILE`` → :attr:`Config.deployment.profile`
+      (``local`` or ``central``)
+    * ``ROOT_MCP_TRANSPORT`` → :attr:`Config.deployment.transport`
+      (``stdio`` or ``streamable_http``)
+    * ``ROOT_MCP_AUTH_REQUIRED`` → :attr:`Config.auth.required`
+    * ``ROOT_MCP_AUTH_PROVIDER`` → :attr:`Config.auth.provider`
+      (``none``, ``external_bearer``, or ``trusted_headers``)
+    * ``ROOT_MCP_POLICY_DEFAULT_TOOL_ACTION`` →
+      :attr:`Config.policy.default_tool_action` (``allow`` or ``deny``)
+    * ``ROOT_MCP_HTTP_HOST`` → :attr:`Config.http.host`
+    * ``ROOT_MCP_HTTP_PORT`` → :attr:`Config.http.port`
+    * ``ROOT_MCP_HTTP_ENDPOINT`` → :attr:`Config.http.endpoint`
+    * ``ROOT_MCP_HTTP_ORIGINS`` → :attr:`Config.http.origin_allowlist`
+      (comma-separated)
+
     ** Security**:
 
     * ``ROOT_MCP_ALLOWED_ROOTS`` → :attr:`Config.security.allowed_roots`
@@ -510,6 +697,8 @@ def apply_env_overrides(config: Config) -> Config:
 
     ** Native ROOT Execution**:
 
+    * ``ROOT_MCP_ROOT_BACKEND`` → :attr:`Config.root_native.execution_backend`
+      (``local_subprocess`` or ``disabled``)
     * ``ROOT_MCP_ROOT_TIMEOUT`` → :attr:`Config.root_native.execution_timeout` (positive int, seconds)
     * ``ROOT_MCP_ROOT_WORKDIR`` → :attr:`Config.root_native.working_directory` (path string)
     * ``ROOT_MCP_ROOT_MAX_OUTPUT`` → :attr:`Config.root_native.max_output_size` (positive int, bytes)
@@ -541,6 +730,75 @@ def apply_env_overrides(config: Config) -> Config:
     _env_name = os.environ.get("ROOT_MCP_SERVER_NAME", "").strip()
     if _env_name:
         config.server.name = _env_name
+
+    # --- : Deployment / Auth / Policy ---
+    _env_profile = os.environ.get("ROOT_MCP_DEPLOYMENT_PROFILE", "").strip()
+    if _env_profile:
+        config.deployment.profile = _normalise_choice(
+            _env_profile, ("local", "central"), "ROOT_MCP_DEPLOYMENT_PROFILE"
+        )
+
+    _env_transport = os.environ.get("ROOT_MCP_TRANSPORT", "").strip()
+    if _env_transport:
+        config.deployment.transport = _normalise_choice(
+            _env_transport, ("stdio", "streamable_http"), "ROOT_MCP_TRANSPORT"
+        )
+
+    _env_auth_required = os.environ.get("ROOT_MCP_AUTH_REQUIRED", "").strip()
+    if _env_auth_required:
+        config.auth.required = _env_bool(_env_auth_required)
+
+    _env_auth_provider = os.environ.get("ROOT_MCP_AUTH_PROVIDER", "").strip()
+    if _env_auth_provider:
+        config.auth.provider = _normalise_choice(
+            _env_auth_provider,
+            ("none", "external_bearer", "trusted_headers"),
+            "ROOT_MCP_AUTH_PROVIDER",
+        )
+
+    _env_policy_default = os.environ.get("ROOT_MCP_POLICY_DEFAULT_TOOL_ACTION", "").strip()
+    if _env_policy_default:
+        config.policy.default_tool_action = _normalise_choice(
+            _env_policy_default,
+            ("allow", "deny"),
+            "ROOT_MCP_POLICY_DEFAULT_TOOL_ACTION",
+        )
+
+    _env_http_host = os.environ.get("ROOT_MCP_HTTP_HOST", "").strip()
+    if _env_http_host:
+        config.http.host = _env_http_host
+
+    _env_http_port = os.environ.get("ROOT_MCP_HTTP_PORT", "").strip()
+    if _env_http_port:
+        try:
+            port = int(_env_http_port)
+        except ValueError:
+            raise ValueError(f"ROOT_MCP_HTTP_PORT must be an integer, got: {_env_http_port!r}")
+        if not 1 <= port <= 65_535:
+            raise ValueError(f"ROOT_MCP_HTTP_PORT must be between 1 and 65535, got: {port}")
+        config.http.port = port
+
+    _env_http_endpoint = os.environ.get("ROOT_MCP_HTTP_ENDPOINT", "").strip()
+    if _env_http_endpoint:
+        config.http.endpoint = _env_http_endpoint
+
+    _env_http_origins = os.environ.get("ROOT_MCP_HTTP_ORIGINS", "").strip()
+    if _env_http_origins:
+        config.http.origin_allowlist = [
+            origin.strip() for origin in _env_http_origins.split(",") if origin.strip()
+        ]
+
+    _env_http_require_origin = os.environ.get("ROOT_MCP_HTTP_REQUIRE_ORIGIN_HEADER", "").strip()
+    if _env_http_require_origin:
+        config.http.require_origin_header = _env_bool(_env_http_require_origin)
+
+    _env_http_allow_local = os.environ.get("ROOT_MCP_HTTP_ALLOW_LOCAL", "").strip()
+    if _env_http_allow_local:
+        config.http.allow_local_http = _env_bool(_env_http_allow_local)
+
+    _env_http_allow_public = os.environ.get("ROOT_MCP_HTTP_ALLOW_PUBLIC_BIND", "").strip()
+    if _env_http_allow_public:
+        config.http.allow_public_bind = _env_bool(_env_http_allow_public)
 
     # --- : Security ---
     _env_allowed_roots = os.environ.get("ROOT_MCP_ALLOWED_ROOTS", "").strip()
@@ -672,6 +930,17 @@ def apply_env_overrides(config: Config) -> Config:
             _env_root_timeout, "ROOT_MCP_ROOT_TIMEOUT"
         )
 
+    _env_root_backend = os.environ.get("ROOT_MCP_ROOT_BACKEND", "").strip().lower()
+    if _env_root_backend:
+        if _env_root_backend not in ("local_subprocess", "disabled"):
+            raise ValueError(
+                "ROOT_MCP_ROOT_BACKEND must be 'local_subprocess' or "
+                f"'disabled', got: {_env_root_backend!r}"
+            )
+        config.root_native.execution_backend = (
+            "local_subprocess" if _env_root_backend == "local_subprocess" else "disabled"
+        )
+
     _env_root_workdir = os.environ.get("ROOT_MCP_ROOT_WORKDIR", "").strip()
     if _env_root_workdir:
         config.root_native.working_directory = _env_root_workdir
@@ -726,6 +995,18 @@ def apply_cli_overrides(config: Config, args: "argparse.Namespace") -> Config:
     * ``args.mode`` → :attr:`Config.server.mode`
     * ``args.server_name`` → :attr:`Config.server.name`
 
+    ** Deployment / Auth / Policy**:
+
+    * ``args.profile`` → :attr:`Config.deployment.profile`
+    * ``args.transport`` → :attr:`Config.deployment.transport`
+    * ``args.auth_required`` → :attr:`Config.auth.required`
+    * ``args.auth_provider`` → :attr:`Config.auth.provider`
+    * ``args.host`` → :attr:`Config.http.host`
+    * ``args.port`` → :attr:`Config.http.port`
+    * ``args.endpoint`` → :attr:`Config.http.endpoint`
+    * ``args.origin`` → :attr:`Config.http.origin_allowlist`
+    * ``args.allow_public_bind`` → :attr:`Config.http.allow_public_bind`
+
     ** Security**:
 
     * ``args.allowed_root`` → :attr:`Config.security.allowed_roots` (list; replaces)
@@ -761,6 +1042,7 @@ def apply_cli_overrides(config: Config, args: "argparse.Namespace") -> Config:
 
     ** Native ROOT Execution**:
 
+    * ``args.root_backend`` → :attr:`Config.root_native.execution_backend`
     * ``args.root_timeout`` → :attr:`Config.root_native.execution_timeout`
     * ``args.root_workdir`` → :attr:`Config.root_native.working_directory`
     * ``args.root_max_output`` → :attr:`Config.root_native.max_output_size`
@@ -793,6 +1075,57 @@ def apply_cli_overrides(config: Config, args: "argparse.Namespace") -> Config:
     _cli_name = getattr(args, "server_name", None)
     if _cli_name is not None:
         config.server.name = _cli_name
+
+    # --- Deployment / Auth / Policy ---
+    _cli_profile = getattr(args, "profile", None)
+    if _cli_profile is not None:
+        config.deployment.profile = _normalise_choice(
+            _cli_profile, ("local", "central"), "--profile"
+        )
+
+    _cli_transport = getattr(args, "transport", None)
+    if _cli_transport is not None:
+        config.deployment.transport = _normalise_choice(
+            _cli_transport, ("stdio", "streamable_http"), "--transport"
+        )
+
+    _cli_auth_required = getattr(args, "auth_required", None)
+    if _cli_auth_required is not None:
+        config.auth.required = _cli_auth_required
+
+    _cli_auth_provider = getattr(args, "auth_provider", None)
+    if _cli_auth_provider is not None:
+        config.auth.provider = _normalise_choice(
+            _cli_auth_provider,
+            ("none", "external_bearer", "trusted_headers"),
+            "--auth-provider",
+        )
+
+    _cli_http_host = getattr(args, "host", None)
+    if _cli_http_host is not None:
+        config.http.host = _cli_http_host
+
+    _cli_http_port = getattr(args, "port", None)
+    if _cli_http_port is not None:
+        if not 1 <= _cli_http_port <= 65_535:
+            raise ValueError(f"--port must be between 1 and 65535, got: {_cli_http_port}")
+        config.http.port = _cli_http_port
+
+    _cli_http_endpoint = getattr(args, "endpoint", None)
+    if _cli_http_endpoint is not None:
+        config.http.endpoint = _cli_http_endpoint
+
+    _cli_http_origins = getattr(args, "origin", None)
+    if _cli_http_origins:
+        config.http.origin_allowlist = list(_cli_http_origins)
+
+    _cli_allow_public_bind = getattr(args, "allow_public_bind", None)
+    if _cli_allow_public_bind is not None:
+        config.http.allow_public_bind = _cli_allow_public_bind
+
+    _cli_allow_local_http = getattr(args, "allow_local_http", None)
+    if _cli_allow_local_http is not None:
+        config.http.allow_local_http = _cli_allow_local_http
 
     # --- Security ---
     _cli_allowed_roots = getattr(args, "allowed_root", None)  # list from action="append"
@@ -901,6 +1234,12 @@ def apply_cli_overrides(config: Config, args: "argparse.Namespace") -> Config:
             _cli_root_timeout, "--root-timeout"
         )
 
+    _cli_root_backend = getattr(args, "root_backend", None)
+    if _cli_root_backend is not None:
+        config.root_native.execution_backend = (
+            "local_subprocess" if _cli_root_backend == "local_subprocess" else "disabled"
+        )
+
     _cli_root_workdir = getattr(args, "root_workdir", None)
     if _cli_root_workdir is not None:
         config.root_native.working_directory = _cli_root_workdir
@@ -938,6 +1277,66 @@ def apply_cli_overrides(config: Config, args: "argparse.Namespace") -> Config:
             _existing_names.add(_res.name)
 
     return config
+
+
+def validate_deployment_config(config: Config, *, allow_central_stdio: bool = False) -> None:
+    """Validate local/central deployment safety invariants.
+
+    The local profile keeps the existing permissive stdio experience. The
+    central profile is deliberately strict because the HTTP transport exposes a
+    shared service boundary. Native ROOT isolation is still a later phase.
+
+    Args:
+        config: Fully merged configuration.
+        allow_central_stdio: Test-only escape hatch for validating central
+            policy combinations without starting the HTTP runner.
+
+    Raises:
+        ValueError: When the configuration is unsafe or unsupported for the
+            selected deployment profile.
+    """
+    if config.deployment.profile == "local":
+        return
+
+    errors: list[str] = []
+
+    if not config.auth.required:
+        errors.append("central profile requires auth.required=true")
+    if config.auth.provider == "none":
+        errors.append("central profile requires auth.provider other than 'none'")
+    if config.deployment.transport == "stdio" and not allow_central_stdio:
+        errors.append("central profile requires transport='streamable_http'")
+
+    effective_protocols = set(config.security.effective_protocols(config.resources))
+    local_filesystem_enabled = (
+        "file" in effective_protocols and not config.policy.disable_local_absolute_paths
+    )
+    if not config.security.allowed_roots and local_filesystem_enabled:
+        errors.append(
+            "central profile requires security.allowed_roots or "
+            "policy.disable_local_absolute_paths=true"
+        )
+
+    if config.features.enable_root and config.root_native.execution_backend != "disabled":
+        errors.append(
+            "central profile requires root_native.execution_backend='disabled' until "
+            "an isolated executor backend is configured"
+        )
+
+    if config.features.enable_root:
+        errors.append(
+            "central profile cannot enable native ROOT until an isolated executor "
+            "backend is configured; the supported central posture is "
+            "root_native.execution_backend='disabled'"
+        )
+
+    if config.policy.default_tool_action == "allow" and not config.policy.allow_tools:
+        errors.append(
+            "central profile requires policy.allow_tools when policy.default_tool_action='allow'"
+        )
+
+    if errors:
+        raise ValueError("Invalid deployment configuration: " + "; ".join(errors))
 
 
 def apply_data_paths(config: Config, paths: list[str]) -> Config:

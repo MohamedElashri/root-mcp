@@ -10,6 +10,9 @@ if TYPE_CHECKING:
     from root_mcp.core.io.file_manager import FileManager
     from root_mcp.core.io.validators import PathValidator
     from root_mcp.core.io.readers import TreeReader
+    from root_mcp.security.context import RequestContext
+
+from root_mcp.security.resources import ResourceAccessDenied, ResourceResolver
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +40,11 @@ class DataAccessTools:
         self.file_manager = file_manager
         self.path_validator = path_validator
         self.tree_reader = tree_reader
+        self.resource_resolver = ResourceResolver(config, path_validator)
 
     def read_branches(
         self,
-        path: str,
+        path: str | dict[str, Any],
         tree_name: str,
         branches: list[str],
         selection: str | None = None,
@@ -50,6 +54,7 @@ class DataAccessTools:
         entry_stop: int | None = None,
         flatten: bool = False,
         defines: dict[str, str] | None = None,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Read branch data from a TTree or RNTuple.
@@ -89,7 +94,13 @@ class DataAccessTools:
 
         # Validate path
         try:
-            validated_path = self.path_validator.validate_path(path)
+            resolved = self.resource_resolver.resolve_path(path, ctx, "read")
+            validated_path = resolved.path
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+            }
         except Exception as e:
             return {
                 "error": "invalid_path",
@@ -163,12 +174,13 @@ class DataAccessTools:
 
     def sample_tree(
         self,
-        path: str,
+        path: str | dict[str, Any],
         tree: str,
         size: int = 100,
         method: str = "first",
         branches: list[str] | None = None,
         seed: int | None = None,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Get a sample from a tree.
@@ -186,7 +198,13 @@ class DataAccessTools:
         """
         # Validate path
         try:
-            validated_path = self.path_validator.validate_path(path)
+            resolved = self.resource_resolver.resolve_path(path, ctx, "read")
+            validated_path = resolved.path
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+            }
         except Exception as e:
             return {
                 "error": "invalid_path",
@@ -233,10 +251,11 @@ class DataAccessTools:
 
     def get_branch_stats(
         self,
-        path: str,
+        path: str | dict[str, Any],
         tree: str,
         branches: list[str],
         selection: str | None = None,
+        ctx: RequestContext | None = None,
     ) -> dict[str, Any]:
         """
         Compute statistics for branches.
@@ -252,7 +271,13 @@ class DataAccessTools:
         """
         # Validate path
         try:
-            validated_path = self.path_validator.validate_path(path)
+            resolved = self.resource_resolver.resolve_path(path, ctx, "read")
+            validated_path = resolved.path
+        except ResourceAccessDenied as e:
+            return {
+                "error": e.code,
+                "message": e.message,
+            }
         except Exception as e:
             return {
                 "error": "invalid_path",

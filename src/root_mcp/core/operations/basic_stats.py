@@ -41,7 +41,7 @@ class BasicStatistics:
         branches: list[str],
         selection: str | None = None,
         defines: dict[str, str] | None = None,
-    ) -> dict[str, dict[str, float]]:
+    ) -> dict[str, dict[str, float | int | None]]:
         """
         Compute basic statistics for branches.
 
@@ -102,7 +102,7 @@ class BasicStatistics:
                 library="ak",
             )
 
-        stats = {}
+        stats: dict[str, dict[str, float | int | None]] = {}
         for branch in branches:
             data = arrays[branch]
 

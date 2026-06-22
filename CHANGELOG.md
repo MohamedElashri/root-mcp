@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.2.0] - 2026-05-17
+
+### Added
+- **Central Streamable HTTP deployments**: Added a `central` deployment profile with a Streamable HTTP runner, authenticated request contexts, Origin validation, and conservative startup validation.
+- **Authentication providers**: Added trusted reverse-proxy header authentication and external bearer/JWT authentication support for HTTP deployments.
+- **Policy enforcement**: Added deny-by-default central tool policy, central-safe error shaping, central tool visibility filtering, and fixed analysis-tier controls for shared services.
+- **Named resource ACLs**: Added central resource references, role/principal ACLs, resource-scoped listing/read/export permissions, and central rejection of unsafe raw local paths by default.
+- **Scoped exports and retention**: Added central artifact-relative output paths, tenant/principal/session export scoping, and configurable export cleanup by age or total bytes.
+- **Audit logs and metrics**: Added structured central audit events, optional JSONL audit sinks, quota/timeout/error metrics, and authorization-scoped file-cache keys.
+- **Central quotas**: Added process-local per-principal and per-tenant concurrency limits, row quotas, output-byte quotas, and request timeout handling.
+- **Central deployment examples**: Added restrictive central YAML examples, Kubernetes starter manifests, an external MCP HTTP smoke script, operator deployment docs, and a security checklist.
+
+### Changed
+- Native ROOT execution is now explicitly local-only for shared deployments; central profile validation requires `features.enable_root: false` and `root_native.execution_backend: disabled`.
+- Split stdio and HTTP startup paths while preserving `root-mcp` as the local stdio-compatible default.
+- Reduced pre-commit latency by running a focused fast pytest subset on commit while keeping the full pytest suite as a manual hook and CI gate.
+
+### Fixed
+- Fixed CI type-checking for ROOT availability caching by returning a concrete boolean without `type: ignore`.
+- Fixed central request timeout handling on Python 3.10 so timeouts return the expected `quota_exceeded` response instead of `internal_error`.
+
 ## [0.1.7] - 2026-03-24
 
 ### Added

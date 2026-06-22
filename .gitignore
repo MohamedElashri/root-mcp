@@ -101,6 +101,7 @@ examples/config.yaml
 
 # pdf files
 *.pdf
+docs/developer/plan.md
 plan*
 
 # Jupyter Notebook

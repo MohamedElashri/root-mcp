@@ -4,15 +4,40 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Iterator
+from urllib.parse import unquote, urlparse
 
 import uproot
+from uproot.source.file import MemmapSource
 
 if TYPE_CHECKING:
     from root_mcp.config import Config
+    from root_mcp.security.context import RequestContext
 
 logger = logging.getLogger(__name__)
+
+_CACHE_CONTEXT: ContextVar["RequestContext | None"] = ContextVar(
+    "root_mcp_file_cache_context",
+    default=None,
+)
+
+
+def _as_local_filesystem_path(path: str | Path) -> str | None:
+    """Return a local filesystem path, or None for non-local URIs."""
+    if isinstance(path, Path):
+        return str(path)
+
+    parsed = urlparse(path)
+    if parsed.scheme == "":
+        return path
+    if parsed.scheme == "file":
+        if parsed.netloc not in {"", "localhost"}:
+            return None
+        return unquote(parsed.path)
+    return None
 
 
 class FileCache:
@@ -28,45 +53,45 @@ class FileCache:
         self.max_size = max_size
         self._cache: OrderedDict[str, Any] = OrderedDict()
 
-    def get(self, path: str) -> Any | None:
+    def get(self, key: str) -> Any | None:
         """
         Get file from cache.
 
         Args:
-            path: File path
+            key: File cache key
 
         Returns:
             Open file object or None if not cached
         """
-        if path in self._cache:
+        if key in self._cache:
             # Move to end (most recently used)
-            self._cache.move_to_end(path)
-            logger.debug(f"Cache hit: {path}")
-            return self._cache[path]
-        logger.debug(f"Cache miss: {path}")
+            self._cache.move_to_end(key)
+            logger.debug(f"Cache hit: {key}")
+            return self._cache[key]
+        logger.debug(f"Cache miss: {key}")
         return None
 
-    def put(self, path: str, file_obj: Any) -> None:
+    def put(self, key: str, file_obj: Any) -> None:
         """
         Add file to cache.
 
         Args:
-            path: File path
+            key: File cache key
             file_obj: Open file object
         """
         # If already exists, update and move to end
-        if path in self._cache:
-            self._cache.move_to_end(path)
-            self._cache[path] = file_obj
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            self._cache[key] = file_obj
             return
 
         # Add new entry
-        self._cache[path] = file_obj
+        self._cache[key] = file_obj
 
         # Evict oldest if over limit
         if len(self._cache) > self.max_size:
-            oldest_path, oldest_file = self._cache.popitem(last=False)
-            logger.debug(f"Evicting from cache: {oldest_path}")
+            oldest_key, oldest_file = self._cache.popitem(last=False)
+            logger.debug(f"Evicting from cache: {oldest_key}")
             # Note: uproot files don't need explicit closing
             # They close automatically when garbage collected
 
@@ -96,12 +121,22 @@ class FileManager:
             config: Server configuration
         """
         self.config = config
-        self._cache = FileCache(config.cache.file_cache_size) if config.cache.enabled else None
+        cache_config = config.core.cache
+        self._cache = FileCache(cache_config.file_cache_size) if cache_config.enabled else None
         self._open_files: set[str] = set()
         logger.info(
-            f"FileManager initialized (cache: {config.cache.enabled}, "
-            f"max_files: {config.cache.file_cache_size})"
+            f"FileManager initialized (cache: {cache_config.enabled}, "
+            f"max_files: {cache_config.file_cache_size})"
         )
+
+    @contextmanager
+    def request_context(self, ctx: RequestContext | None) -> Iterator[None]:
+        """Apply request identity to file-cache keys for this execution."""
+        token = _CACHE_CONTEXT.set(ctx)
+        try:
+            yield
+        finally:
+            _CACHE_CONTEXT.reset(token)
 
     def open(self, path: str | Path, **kwargs: Any) -> Any:
         """
@@ -118,18 +153,23 @@ class FileManager:
             FileNotFoundError: If file doesn't exist
             OSError: If file cannot be opened
         """
-        path_str = str(path)
+        local_path = _as_local_filesystem_path(path)
+        path_str = local_path if local_path is not None else str(path)
+        cache_key = self._cache_key(path_str)
 
         # Check cache first
         if self._cache:
-            cached = self._cache.get(path_str)
+            cached = self._cache.get(cache_key)
             if cached is not None:
                 return cached
 
         # Open file
         logger.info(f"Opening ROOT file: {path_str}")
         try:
-            file_obj = uproot.open(path_str, **kwargs)
+            open_kwargs = dict(kwargs)
+            if local_path is not None and "handler" not in open_kwargs:
+                open_kwargs["handler"] = MemmapSource
+            file_obj = uproot.open(path_str, **open_kwargs)
         except FileNotFoundError as e:
             logger.error(f"File not found: {path_str}")
             raise FileNotFoundError(f"ROOT file not found: {path_str}") from e
@@ -139,10 +179,28 @@ class FileManager:
 
         # Add to cache
         if self._cache:
-            self._cache.put(path_str, file_obj)
+            self._cache.put(cache_key, file_obj)
 
-        self._open_files.add(path_str)
+        self._open_files.add(cache_key)
         return file_obj
+
+    def _cache_key(self, path_str: str) -> str:
+        """Return an authorization-scoped cache key for the active request."""
+        ctx = _CACHE_CONTEXT.get()
+        if self.config.deployment.profile != "central":
+            return path_str
+
+        if ctx is None:
+            return f"central|tenant=unknown|principal=unknown|mode=read|{path_str}"
+
+        tenant = ctx.tenant_id or "default"
+        principal = ctx.principal_id or "anonymous"
+        roles = ",".join(sorted(ctx.roles))
+        scopes = ",".join(sorted(ctx.resource_scopes))
+        return (
+            f"central|tenant={tenant}|principal={principal}|roles={roles}|"
+            f"scopes={scopes}|mode=read|{path_str}"
+        )
 
     def get_file_info(self, path: str | Path) -> dict[str, Any]:
         """
@@ -329,7 +387,7 @@ class FileManager:
         """
         return {
             "size": self._cache.size() if self._cache else 0,
-            "max_size": self.config.cache.file_cache_size,
+            "max_size": self.config.core.cache.file_cache_size,
             "open_files": len(self._open_files),
         }
 

@@ -56,6 +56,8 @@ exclude_patterns = [
     # appearing as top-level documents so they don't show up twice.
     "guides/*.md",
     "api/*.md",
+    "skills/*.md",
+    "developer/plan.md",
     "ARCHITECTURE.md",
     "CONTRIBUTING.md",
     "README.md",
@@ -72,7 +74,6 @@ html_theme = "sphinx_rtd_theme"
 
 html_theme_options = {
     "logo_only": False,
-    "display_version": True,
 }
 
 html_css_files = ["custom.css"]

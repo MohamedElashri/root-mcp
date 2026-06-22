@@ -6,7 +6,11 @@ import logging
 from typing import Any
 
 from root_mcp.config import Config
-from root_mcp.extended.root_native.executor import RootCodeExecutor
+from root_mcp.extended.root_native.backends import (
+    LocalSubprocessBackend,
+    NativeExecutionRequest,
+    build_native_execution_backend,
+)
 from root_mcp.extended.root_native.sandbox import CodeValidator
 from root_mcp.extended.root_native import templates
 
@@ -33,12 +37,9 @@ class RootNativeTools:
         self.validator = CodeValidator(
             max_code_length=root_cfg.max_code_length,
         )
-        self.executor = RootCodeExecutor(
-            execution_timeout=root_cfg.execution_timeout,
-            max_output_size=root_cfg.max_output_size,
-            allowed_output_formats=root_cfg.allowed_output_formats,
-            working_directory=root_cfg.working_directory,
-            validator=self.validator,
+        self.backend = build_native_execution_backend(config, validator=self.validator)
+        self.executor = (
+            self.backend.executor if isinstance(self.backend, LocalSubprocessBackend) else None
         )
 
     def run_root_code(
@@ -68,11 +69,13 @@ class RootNativeTools:
         """
         logger.info("Executing run_root_code (code length: %d chars)", len(code))
 
-        result = self.executor.execute(
-            code,
-            input_files=input_files,
-            output_dir=output_dir,
-            timeout=timeout,
+        result = self.backend.execute(
+            NativeExecutionRequest(
+                code=code,
+                input_files=input_files,
+                output_dir=output_dir,
+                timeout=timeout,
+            )
         )
 
         # Convert ExecutionResult to dict for JSON serialization
@@ -206,10 +209,12 @@ class RootNativeTools:
         the sandbox validation to avoid false positives from the templates
         using constructs like json.dumps internally.
         """
-        result = self.executor.execute(
-            code,
-            timeout=timeout,
-            skip_validation=True,
+        result = self.backend.execute(
+            NativeExecutionRequest(
+                code=code,
+                timeout=timeout,
+                skip_validation=True,
+            )
         )
 
         response: dict[str, Any] = {
