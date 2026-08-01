@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
-from importlib.metadata import PackageNotFoundError, version as _dist_version
 import logging
 import os
-from pathlib import Path
 import re
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+from pathlib import Path
 from typing import Literal, TypeVar, cast
 
 import yaml
@@ -983,7 +984,7 @@ def apply_env_overrides(config: Config) -> Config:
     return config
 
 
-def apply_cli_overrides(config: Config, args: "argparse.Namespace") -> Config:
+def apply_cli_overrides(config: Config, args: argparse.Namespace) -> Config:
     """Apply parsed CLI arguments onto *config* in-place.
 
     CLI flags are the highest-priority source — they override both YAML and

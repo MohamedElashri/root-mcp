@@ -5,7 +5,6 @@ from __future__ import annotations
 import tempfile
 from unittest.mock import patch
 
-
 from root_mcp.config import Config, FeatureFlags, RootNativeConfig
 from root_mcp.extended.tools.root_native import RootNativeTools
 

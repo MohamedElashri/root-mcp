@@ -17,8 +17,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .sandbox import CodeValidator, ValidationResult
 from root_mcp.common.root_availability import _build_root_env
+
+from .sandbox import CodeValidator, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +206,7 @@ class RootCodeExecutor:
                 timeout=effective_timeout,
                 cwd=work_dir,
                 env=self._build_env(),
+                check=False,
             )
             elapsed = time.monotonic() - start_time
 
@@ -245,7 +247,7 @@ class RootCodeExecutor:
                 error=f"Execution timed out after {effective_timeout} seconds",
                 validation=validation,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             elapsed = time.monotonic() - start_time
             logger.error("ROOT code execution failed: %s", e)
             return ExecutionResult(
@@ -313,5 +315,5 @@ class RootCodeExecutor:
                 os.rmdir(work_abs)
             except OSError:
                 pass  # Output files still inside
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug("Cleanup of %s failed: %s", work_dir, e)

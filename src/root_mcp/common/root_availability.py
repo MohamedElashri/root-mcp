@@ -38,7 +38,7 @@ def _get_root_pythonpath() -> str | None:
         if importlib.util.find_spec("ROOT") is not None:
             _root_pythonpath = ""  # already importable, nothing to inject
             return None
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
 
     # Try root-config
@@ -48,13 +48,14 @@ def _get_root_pythonpath() -> str | None:
             capture_output=True,
             text=True,
             timeout=5,
+            check=False,
         )
         if result.returncode == 0:
             libdir = result.stdout.strip()
             if libdir and os.path.isdir(libdir):
                 _root_pythonpath = libdir
                 return libdir
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
 
     return None
@@ -68,13 +69,14 @@ def _get_cppyy_api_path() -> str | None:
             capture_output=True,
             text=True,
             timeout=5,
+            check=False,
         )
         if result.returncode == 0:
             incdir = result.stdout.strip()
             candidate = os.path.join(incdir, "CPyCppyy")
             if os.path.isdir(candidate):
                 return candidate
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
     return None
 
@@ -165,6 +167,7 @@ print(json.dumps(result))
             text=True,
             timeout=30,
             env=_build_root_env(),
+            check=False,
         )
         if proc.returncode == 0 and proc.stdout.strip():
             import json
@@ -180,7 +183,7 @@ print(json.dumps(result))
     except subprocess.TimeoutExpired:
         logger.warning("ROOT probe subprocess timed out after 30s")
         return {"available": False, "version": None, "features": {}}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("ROOT probe subprocess error: %s", e)
         return {"available": False, "version": None, "features": {}}
 

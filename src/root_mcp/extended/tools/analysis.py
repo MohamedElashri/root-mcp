@@ -12,9 +12,9 @@ from root_mcp.security.resources import ResourceAccessDenied, ResourceResolver
 if TYPE_CHECKING:
     from root_mcp.config import Config
     from root_mcp.core.io.file_manager import FileManager
+    from root_mcp.core.io.readers import TreeReader
     from root_mcp.core.io.validators import PathValidator
     from root_mcp.extended.analysis.operations import AnalysisOperations
-    from root_mcp.core.io.readers import TreeReader
     from root_mcp.security.context import RequestContext
 
 logger = logging.getLogger(__name__)
@@ -97,7 +97,7 @@ class AnalysisTools:
                 "error": e.code,
                 "message": e.message,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_path",
                 "message": str(e),
@@ -126,7 +126,7 @@ class AnalysisTools:
                 "message": str(e),
                 "suggestion": "Use list_branches() to see available branches",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to compute histogram: {e}")
             return {
                 "error": "computation_error",
@@ -201,7 +201,7 @@ class AnalysisTools:
                 "error": e.code,
                 "message": e.message,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_path",
                 "message": str(e),
@@ -221,7 +221,7 @@ class AnalysisTools:
                 selection=selection,
                 defines=defines,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "computation_error",
                 "message": f"Failed to compute 2D histogram: {e}",
@@ -301,7 +301,7 @@ class AnalysisTools:
 
         try:
             return fit_histogram(data, model, initial_guess, bounds, fixed_parameters)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "fit_error",
                 "message": f"Fitting failed: {e}",
@@ -323,7 +323,7 @@ class AnalysisTools:
         """
         try:
             return self.analysis_ops.compute_histogram_arithmetic(operation, data1, data2)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Arithmetic failed: {e}")
             return {"error": "arithmetic_error", "message": str(e)}
 
@@ -348,7 +348,7 @@ class AnalysisTools:
         """
         try:
             return generate_plot(data, plot_type, fit_data, options, self.config)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "plot_error",
                 "message": f"Plotting failed: {e}",
@@ -383,7 +383,7 @@ class AnalysisTools:
                 "error": e.code,
                 "message": e.message,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_path",
                 "message": str(e),
@@ -397,7 +397,7 @@ class AnalysisTools:
                 selection=selection,
                 defines=defines,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "computation_error",
                 "message": f"Failed to apply selection: {e}",
@@ -469,7 +469,7 @@ class AnalysisTools:
                 "error": e.code,
                 "message": e.message,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_path",
                 "message": str(e),
@@ -502,7 +502,7 @@ class AnalysisTools:
                 entry_stop=limit,
                 library="ak",
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "read_error",
                 "message": f"Failed to read data for export: {e}",
@@ -515,7 +515,7 @@ class AnalysisTools:
                 output_path=str(validated_output),
                 format=output_format,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "export_error",
                 "message": f"Failed to export data: {e}",
@@ -568,7 +568,7 @@ class AnalysisTools:
                 "error": e.code,
                 "message": e.message,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_path",
                 "message": str(e),
@@ -631,7 +631,7 @@ class AnalysisTools:
                 "message": f"Required branch not found: {e}",
                 "suggestion": "Use list_branches() to see available branches",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to compute kinematics: {e}")
             return {
                 "error": "computation_error",

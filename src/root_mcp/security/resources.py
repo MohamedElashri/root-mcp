@@ -284,9 +284,7 @@ class ResourceResolver:
             return True
         if set(resource.allowed_roles) & ctx.roles:
             return True
-        if self._scope_allows(resource, ctx):
-            return True
-        return False
+        return bool(self._scope_allows(resource, ctx))
 
     @staticmethod
     def _scope_allows(resource: ResourceConfig, ctx: RequestContext) -> bool:

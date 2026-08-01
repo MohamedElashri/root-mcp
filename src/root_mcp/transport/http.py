@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-from contextlib import AsyncExitStack
 import ipaddress
 import logging
 import re
+from contextlib import AsyncExitStack
 from typing import Any
 from uuid import uuid4
 
 import anyio
+import uvicorn
 from mcp.server.streamable_http import StreamableHTTPServerTransport
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-import uvicorn
 
 from root_mcp.config import Config, validate_deployment_config
-from root_mcp.security import AuthResult, AuthenticationError, HTTPAuthenticator, RequestContext
+from root_mcp.security import AuthenticationError, AuthResult, HTTPAuthenticator, RequestContext
 from root_mcp.security.auth import BearerValidator
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ def build_streamable_http_app(
     root_server: Any,
     *,
     bearer_validator: BearerValidator | None = None,
-) -> "_RootMCPHTTPApp":
+) -> _RootMCPHTTPApp:
     """Build a Starlette app that serves ROOT-MCP over Streamable HTTP."""
     config: Config = root_server.config
     validate_http_startup_config(config)
@@ -229,14 +229,14 @@ class _RootMCPHTTPApp:
             if message["type"] == "lifespan.startup":
                 try:
                     await self.startup()
-                except Exception as exc:  # pragma: no cover
+                except Exception as exc:  # pragma: no cover  # noqa: BLE001
                     await send({"type": "lifespan.startup.failed", "message": str(exc)})
                 else:
                     await send({"type": "lifespan.startup.complete"})
             elif message["type"] == "lifespan.shutdown":
                 try:
                     await self.shutdown()
-                except Exception as exc:  # pragma: no cover
+                except Exception as exc:  # pragma: no cover  # noqa: BLE001
                     await send({"type": "lifespan.shutdown.failed", "message": str(exc)})
                 else:
                     await send({"type": "lifespan.shutdown.complete"})

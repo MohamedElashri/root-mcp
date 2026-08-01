@@ -92,7 +92,7 @@ class TreeReader:
             # Extract dependencies from all define expressions
             from root_mcp.extended.analysis.operations import _extract_branches_from_expression
 
-            for def_name, def_expr in defines.items():
+            for def_expr in defines.values():
                 # Get branches used in this definition
                 needed = _extract_branches_from_expression(def_expr, list(available_branches))
                 branches_to_read.update(needed)
@@ -298,7 +298,7 @@ class TreeReader:
         tree = self.file_manager.get_tree(path, tree_name)
 
         branches = []
-        for name in tree.keys():
+        for name in tree.keys():  # noqa: SIM118
             # Filter by pattern if provided
             if pattern and not self._matches_glob(name, pattern):
                 continue
@@ -474,8 +474,7 @@ def _unwrap_awkward_layout(layout: Any) -> Any:
                 "BitMaskedArray",
                 "UnmaskedArray",
             }
-            or name.endswith("OptionArray")
-            or name.endswith("MaskedArray")
+            or name.endswith(("OptionArray", "MaskedArray"))
         ) and hasattr(layout, "content"):
             layout = layout.content
             continue
@@ -485,7 +484,7 @@ def _unwrap_awkward_layout(layout: Any) -> Any:
 def _is_list_like(array: ak.Array) -> bool:
     try:
         layout = _unwrap_awkward_layout(ak.to_layout(array))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
     return type(layout).__name__ in {"RegularArray", "ListArray", "ListOffsetArray"} or (
@@ -496,7 +495,7 @@ def _is_list_like(array: ak.Array) -> bool:
 def _is_variable_length_list(array: ak.Array) -> bool:
     try:
         layout = _unwrap_awkward_layout(ak.to_layout(array))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
     name = type(layout).__name__

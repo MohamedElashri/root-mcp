@@ -1,8 +1,9 @@
 """Analysis commands for root-cli - histograms, fitting, kinematics."""
 
 import json
-import click
 from pathlib import Path
+
+import click
 
 
 @click.command()
@@ -251,8 +252,9 @@ def invariant_mass(
     limit,
 ):
     """Compute invariant mass from particle 4-vectors."""
-    from root_mcp.extended.analysis.kinematics import KinematicsOperations
     import numpy as np
+
+    from root_mcp.extended.analysis.kinematics import KinematicsOperations
 
     config = ctx.obj["config"]
     kinematics = KinematicsOperations(config, ctx.obj["file_manager"])
@@ -308,10 +310,11 @@ def invariant_mass(
 @click.pass_context
 def correlation(ctx, root_file, tree_name, branches, method, selection):
     """Compute correlation matrix between branches."""
-    from root_mcp.extended.analysis.correlations import CorrelationAnalysis
     import awkward as ak
     import numpy as np
     from scipy import stats
+
+    from root_mcp.extended.analysis.correlations import CorrelationAnalysis
 
     config = ctx.obj["config"]
     corr_analysis = CorrelationAnalysis(config, ctx.obj["file_manager"])

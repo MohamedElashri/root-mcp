@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from root_mcp.common.root_availability import (
-    is_root_available,
-    get_root_version,
-    get_root_features,
-    reset_cache,
     _probe_root_subprocess,
+    get_root_features,
+    get_root_version,
+    is_root_available,
+    reset_cache,
 )
 from root_mcp.config import Config, FeatureFlags
 

@@ -1,8 +1,9 @@
 """File operations commands for root-cli."""
 
 import json
-import click
 from pathlib import Path
+
+import click
 
 
 def format_size(size_bytes: int) -> str:
@@ -182,7 +183,7 @@ def validate(ctx, root_file):
             click.echo(f"Trees: {len(trees)}")
             for t in trees:
                 click.echo(f"  - {t['name']}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         result = {"error": "validation_failed", "message": str(e)}
         if ctx.obj.get("json_output"):
             click.echo(json.dumps(result, indent=2))

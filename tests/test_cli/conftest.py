@@ -1,7 +1,8 @@
 """Pytest configuration and shared fixtures for root-cli tests."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 from click.testing import CliRunner
 
 # Test data directory

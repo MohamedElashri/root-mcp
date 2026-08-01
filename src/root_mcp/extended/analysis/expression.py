@@ -142,7 +142,7 @@ class SafeExprEvaluator(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> Any:
         if not isinstance(node.func, ast.Name):
-            raise ValueError("Only simple function calls are allowed")
+            raise TypeError("Only simple function calls are allowed")
         fn = self.visit_Name(node.func)
         if fn not in self.funcs.values():
             raise ValueError(f"Function '{node.func.id}' is not allowed")

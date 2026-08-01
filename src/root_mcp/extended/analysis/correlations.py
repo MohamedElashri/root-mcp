@@ -329,5 +329,5 @@ class CorrelationAnalysis:
             if name == "RegularArray":
                 return False
             return "ListArray" in name or "ListOffsetArray" in name
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False

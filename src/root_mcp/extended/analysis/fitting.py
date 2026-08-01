@@ -16,9 +16,10 @@ The public entry point is :class:`HistogramFitter`.
 
 from __future__ import annotations
 
-import logging
 import ast
-from typing import Any, Callable, TypedDict, cast
+import logging
+from collections.abc import Callable
+from typing import Any, TypedDict, cast
 
 import numpy as np
 from scipy.optimize import curve_fit
@@ -320,7 +321,7 @@ def fit_histogram(
                 fit_func = fit_instance
                 param_names = params
 
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # If parsing fails or logic fails, raise original error
                 raise ValueError(
                     f"Unknown model: '{model}'. For custom formulas, use a dictionary "
@@ -434,7 +435,7 @@ def fit_histogram(
             bounds=fit_bounds,
             maxfev=10000,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         raise RuntimeError(f"Fit failed: {e}")
 
     # 6. Reconstruct Full Parameters and Covariance
@@ -647,7 +648,7 @@ def fit_histogram_2d(
             bounds=fit_bounds,
             maxfev=10000,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         raise RuntimeError(f"2D fit failed: {e}")
 
     # Reconstruct full parameters

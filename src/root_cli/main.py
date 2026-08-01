@@ -13,6 +13,8 @@ import click
 
 # Import all commands
 from root_cli.commands import (
+    branches,
+    correlation,
     export,
     fit,
     hist_arithmetic,
@@ -27,8 +29,6 @@ from root_cli.commands import (
     sample,
     stats,
     validate,
-    branches,
-    correlation,
 )
 
 # Output directory
@@ -92,7 +92,7 @@ def cli(ctx, data_path, json_output):
 
     if backend_available:
         from root_mcp.config import Config, ResourceConfig
-        from root_mcp.core.io import FileManager, TreeReader, PathValidator
+        from root_mcp.core.io import FileManager, PathValidator, TreeReader
         from root_mcp.extended.analysis import AnalysisOperations, HistogramOperations
 
         # Create a minimal config based on provided data path

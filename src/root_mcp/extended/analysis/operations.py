@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 import logging
 import re
-import ast
 from typing import TYPE_CHECKING, Any, cast
 
 import awkward as ak
@@ -16,8 +16,8 @@ if TYPE_CHECKING:
 
 from root_mcp.extended.analysis.expression import (
     SafeExprEvaluator,
-    translate_leaf_expr,
     strip_outer_parens,
+    translate_leaf_expr,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class AnalysisOperations:
                 # Add to context
                 names[name] = result
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Failed to define {name} = {expr}: {e}")
                 raise ValueError(f"Failed to define {name}: {e}")
 
@@ -575,8 +575,8 @@ class AnalysisOperations:
             New histogram object with computed values.
         """
         # Normalize input (handle if wrapped in {"data": ...} or direct)
-        d1 = data1["data"] if "data" in data1 else data1
-        d2 = data2["data"] if "data" in data2 else data2
+        d1 = data1.get("data", data1)
+        d2 = data2.get("data", data2)
 
         # Detect dimensionality
         is_1d = "bin_counts" in d1
@@ -946,7 +946,7 @@ class AnalysisOperations:
                 else:
                     raise ValueError(f"Unknown computation type: {comp_type}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Failed to compute {name}: {e}")
                 raise ValueError(f"Failed to compute {name}: {e}")
 
@@ -978,8 +978,8 @@ class AnalysisOperations:
         Returns:
             Export metadata
         """
-        from pathlib import Path
         import json
+        from pathlib import Path
 
         output_path_obj = Path(output_path)
         output_path_obj.parent.mkdir(parents=True, exist_ok=True)
@@ -1030,8 +1030,7 @@ def _unwrap_awkward_layout(layout: Any) -> Any:
                 "BitMaskedArray",
                 "UnmaskedArray",
             }
-            or name.endswith("OptionArray")
-            or name.endswith("MaskedArray")
+            or name.endswith(("OptionArray", "MaskedArray"))
         ) and hasattr(layout, "content"):
             layout = layout.content
             continue
@@ -1041,7 +1040,7 @@ def _unwrap_awkward_layout(layout: Any) -> Any:
 def _is_list_like(array: ak.Array) -> bool:
     try:
         layout = _unwrap_awkward_layout(ak.to_layout(array))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
     return type(layout).__name__ in {"RegularArray", "ListArray", "ListOffsetArray"} or (
@@ -1074,9 +1073,6 @@ def _extract_branches_from_expression(selection: str, available_branches: list[s
         "sinh",
         "cosh",
         "tanh",
-        "arcsin",
-        "arccos",
-        "arctan",
         "arctan2",
     }
     return sorted([t for t in tokens if t in available and t not in reserved])

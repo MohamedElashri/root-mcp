@@ -291,7 +291,7 @@ class BasicStatistics:
                 arrays = ak.with_field(arrays, result, name)
                 # Also add to namespace for subsequent defines
                 namespace[name] = result
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Failed to evaluate define '{name}': {expr} - {e}")
                 raise ValueError(f"Failed to evaluate define '{name}': {e}")
 
@@ -422,7 +422,7 @@ class BasicStatistics:
             if hasattr(mask, "ndim") and len(ak.to_layout(mask).form.fields) > 0:
                 mask = ak.any(mask, axis=-1)
             return mask
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to evaluate selection: {selection} - {e}")
             raise ValueError(f"Failed to evaluate selection: {e}")
 
@@ -435,5 +435,5 @@ class BasicStatistics:
             name = type(layout).__name__
             # ListOffsetArray and ListArray indicate jagged/variable-length arrays
             return "ListArray" in name or "ListOffset" in name
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False

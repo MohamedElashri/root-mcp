@@ -4,26 +4,27 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
-from pathlib import Path
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from time import perf_counter
 from typing import Any, cast
 from uuid import uuid4
-from mcp.server import Server
-from mcp.types import Resource, Tool, TextContent
 
+from mcp.server import Server
+from mcp.types import Resource, TextContent, Tool
+
+from root_mcp.common.root_availability import get_root_features, get_root_version, is_root_available
 from root_mcp.config import (
+    _CONFIG_TEMPLATE,
     Config,
     apply_env_overrides,
     load_config,
     validate_deployment_config,
-    _CONFIG_TEMPLATE,
 )
 from root_mcp.core.io.retention import cleanup_exports
-from root_mcp.common.root_availability import is_root_available, get_root_version, get_root_features
 from root_mcp.observability import MetricsRegistry
 from root_mcp.security import (
     AuditLogger,
@@ -108,14 +109,14 @@ class ROOTMCPServer:
     def _initialize_core_components(self) -> None:
         """Initialize core components (always available)."""
         from root_mcp.core.io import (
+            DataExporter,
             FileManager,
+            HistogramReader,
             PathValidator,
             TreeReader,
-            HistogramReader,
-            DataExporter,
         )
         from root_mcp.core.operations import BasicStatistics
-        from root_mcp.core.tools import DiscoveryTools, DataAccessTools
+        from root_mcp.core.tools import DataAccessTools, DiscoveryTools
 
         self.file_manager = FileManager(self.config)
         self.path_validator = PathValidator(self.config)
@@ -145,9 +146,9 @@ class ROOTMCPServer:
             # Import extended modules
             from root_mcp.extended.analysis import (
                 AnalysisOperations,
+                CorrelationAnalysis,
                 HistogramOperations,
                 KinematicsOperations,
-                CorrelationAnalysis,
             )
             from root_mcp.extended.tools import AnalysisTools, PlottingTools
 
@@ -213,7 +214,7 @@ class ROOTMCPServer:
                 "Native ROOT tools initialized (ROOT %s)",
                 get_root_version() or "unknown version",
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("Failed to initialize native ROOT tools: %s", e)
             self._root_native_available = False
 
@@ -276,7 +277,7 @@ class ROOTMCPServer:
                     "message": f"Switched from {old_mode} to {new_mode} mode",
                     "extended_features_available": True,
                 }
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 return {
                     "status": "error",
                     "current_mode": self.current_mode,
@@ -1002,7 +1003,7 @@ class ROOTMCPServer:
             policy_decision = "allowed"
             status = "error"
             self.metrics.increment("failed_calls")
-            logger.error("Tool %s failed: %s", name, e, exc_info=True)
+            logger.exception("Tool %s failed", name)
             if request_ctx.deployment_profile == "central" and not self._debug_errors_enabled():
                 result = {
                     "error": "internal_error",
@@ -1149,7 +1150,7 @@ class ROOTMCPServer:
                 output_path = self.path_validator.resolve_output_path(arguments["output_path"], ctx)
             except ResourceAccessDenied as e:
                 return {"error": e.code, "message": e.message}
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 return {"error": "invalid_output_path", "message": str(e)}
             # Read data directly for export
             tree = self.file_manager.get_tree(resolved.path, arguments["tree_name"])
@@ -1287,7 +1288,7 @@ def _run_cleanup_exports(argv: list[str]) -> None:
     try:
         config = load_config(args.config)
         apply_env_overrides(config)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"root-mcp cleanup-exports: failed to load configuration: {e}", file=sys.stderr)
         sys.exit(1)
 
@@ -1805,6 +1806,7 @@ def main() -> None:
     # Apply log level as early as possible — before load_config so that
     # config-loading log messages are also at the right verbosity.
     import os as _os
+
     from root_mcp.config import apply_log_level as _apply_log_level
 
     _env_log_level = _os.environ.get("ROOT_MCP_LOG_LEVEL", "").strip().upper()
@@ -1820,7 +1822,7 @@ def main() -> None:
 
     try:
         config = load_config(args.config)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to load configuration: {e}")
         sys.exit(1)
 
@@ -1879,8 +1881,8 @@ def main() -> None:
     except NotImplementedError as e:
         logger.error(f"HTTP runner unavailable: {e}")
         sys.exit(1)
-    except Exception as e:
-        logger.error(f"Server error: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Server error")
         sys.exit(1)
 
 
