@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from root_mcp.config import Config
     from root_mcp.core.io.file_manager import FileManager
-    from root_mcp.core.io.validators import PathValidator
     from root_mcp.core.io.readers import TreeReader
+    from root_mcp.core.io.validators import PathValidator
     from root_mcp.security.context import RequestContext
 
 from root_mcp.security.resources import ResourceAccessDenied, ResourceResolver
@@ -101,7 +101,7 @@ class DataAccessTools:
                 "error": e.code,
                 "message": e.message,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_path",
                 "message": str(e),
@@ -144,7 +144,7 @@ class DataAccessTools:
                 "message": str(e),
                 "suggestion": "Check ROOT expression syntax (e.g., 'pt > 20 && abs(eta) < 2.4')",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to read branches: {e}")
             return {
                 "error": "read_error",
@@ -205,7 +205,7 @@ class DataAccessTools:
                 "error": e.code,
                 "message": e.message,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_path",
                 "message": str(e),
@@ -234,7 +234,7 @@ class DataAccessTools:
                 "error": "invalid_parameter",
                 "message": str(e),
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "read_error",
                 "message": f"Failed to sample tree: {e}",
@@ -278,7 +278,7 @@ class DataAccessTools:
                 "error": e.code,
                 "message": e.message,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_path",
                 "message": str(e),
@@ -292,7 +292,7 @@ class DataAccessTools:
                 branches=branches,
                 selection=selection,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "computation_error",
                 "message": f"Failed to compute statistics: {e}",

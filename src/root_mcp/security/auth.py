@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
 from collections.abc import Awaitable, Callable
 from inspect import isawaitable
-import ipaddress
 from typing import Any, cast
 
 from pydantic import BaseModel, Field

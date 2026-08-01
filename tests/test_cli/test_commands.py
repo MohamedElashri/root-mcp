@@ -1,9 +1,10 @@
 """Unit tests for root-cli commands."""
 
+import json
+from pathlib import Path
+
 import pytest
 from click.testing import CliRunner
-from pathlib import Path
-import json
 
 from root_cli.main import cli
 

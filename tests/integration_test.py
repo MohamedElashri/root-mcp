@@ -12,8 +12,8 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from root_mcp.server import ROOTMCPServer
 from root_mcp.config import load_config
+from root_mcp.server import ROOTMCPServer
 
 
 def print_section(title):
@@ -46,6 +46,7 @@ def test_core_mode():
 
     # Create temporary config file
     import tempfile
+
     import yaml
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -105,6 +106,7 @@ def test_extended_mode():
 
     # Create temporary config file
     import tempfile
+
     import yaml
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -171,6 +173,7 @@ def test_with_real_files():
     }
 
     import tempfile
+
     import yaml
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -186,7 +189,7 @@ def test_with_real_files():
             file_info = server.file_manager.get_file_info(str(test_file))
             passed = "trees" in file_info
             print_result("Inspect file", passed, f"Found {len(file_info.get('trees', []))} trees")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print_result("Inspect file", False, f"Error: {e}")
 
         # Test 2: List branches
@@ -202,7 +205,7 @@ def test_with_real_files():
                 )
             else:
                 print_result("List branches", False, "No trees found")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print_result("List branches", False, f"Error: {e}")
 
         # Test 3: Read branches
@@ -212,7 +215,7 @@ def test_with_real_files():
             )
             passed = "data" in result and result["data"]["entries"] > 0
             print_result("Read branches", passed, f"Read {result['data']['entries']} entries")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print_result("Read branches", False, f"Error: {e}")
 
         # Test 4: Compute statistics
@@ -226,7 +229,7 @@ def test_with_real_files():
                 print_result("Compute statistics", passed, f"Mean muon_pt: {mean_pt:.2f}")
             else:
                 print_result("Compute statistics", False)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print_result("Compute statistics", False, f"Error: {e}")
 
         # Test 5: Compute histogram (extended mode)
@@ -244,7 +247,7 @@ def test_with_real_files():
                 print_result("Compute histogram", passed, f"Total entries: {int(total_entries)}")
             else:
                 print_result("Compute histogram", False)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print_result("Compute histogram", False, f"Error: {e}")
 
         # Test 6: Validate file
@@ -254,7 +257,7 @@ def test_with_real_files():
             print_result(
                 "Validate file", passed, f"Valid: {result['valid']}, Readable: {result['readable']}"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print_result("Validate file", False, f"Error: {e}")
 
         print("\n✓ Real file tests completed")
@@ -276,6 +279,7 @@ def test_mode_switching():
     }
 
     import tempfile
+
     import yaml
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -295,7 +299,7 @@ def test_mode_switching():
             server.switch_mode("extended")
             passed = server.config.server.mode == "extended" and server.histogram_ops is not None
             print_result("Switch to extended mode", passed)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print_result("Switch to extended mode", False, f"Error: {e}")
 
         # Test 3: Switch back to core mode
@@ -303,7 +307,7 @@ def test_mode_switching():
             server.switch_mode("core")
             passed = server.config.server.mode == "core"
             print_result("Switch back to core mode", passed)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print_result("Switch back to core mode", False, f"Error: {e}")
 
         # Test 4: Invalid mode
@@ -312,7 +316,7 @@ def test_mode_switching():
             print_result("Reject invalid mode", False, "Should have raised error")
         except ValueError:
             print_result("Reject invalid mode", True, "Correctly rejected invalid mode")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print_result("Reject invalid mode", False, f"Wrong error type: {e}")
 
         print("\n✓ Mode switching tests completed")

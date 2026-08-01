@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 """Quick acceptance-criteria spot-checks — complement to test_env_cli_overrides.py."""
 
+import logging
 import os
 import sys
-import logging
 import types
 
 sys.path.insert(0, "src")
 from root_mcp.config import (
-    load_config,
-    apply_env_overrides,
     apply_cli_overrides,
+    apply_env_overrides,
     apply_log_level,
+    load_config,
 )
 
 
@@ -31,34 +31,34 @@ def chk(name, val):
 
 
 def make_args(**kw):
-    d = dict(
-        mode=None,
-        server_name=None,
-        allowed_root=None,
-        allow_remote=None,
-        allowed_protocols=None,
-        max_path_depth=None,
-        export_path=None,
-        export_formats=None,
-        enable_export=None,
-        max_rows=None,
-        max_export_rows=None,
-        cache_enabled=None,
-        cache_size=None,
-        max_bins_1d=None,
-        max_bins_2d=None,
-        fitting_iterations=None,
-        plot_dpi=None,
-        plot_format=None,
-        plot_width=None,
-        plot_height=None,
-        root_timeout=None,
-        root_workdir=None,
-        root_max_output=None,
-        root_max_code=None,
-        resource=None,
-        log_level=None,
-    )
+    d = {
+        "mode": None,
+        "server_name": None,
+        "allowed_root": None,
+        "allow_remote": None,
+        "allowed_protocols": None,
+        "max_path_depth": None,
+        "export_path": None,
+        "export_formats": None,
+        "enable_export": None,
+        "max_rows": None,
+        "max_export_rows": None,
+        "cache_enabled": None,
+        "cache_size": None,
+        "max_bins_1d": None,
+        "max_bins_2d": None,
+        "fitting_iterations": None,
+        "plot_dpi": None,
+        "plot_format": None,
+        "plot_width": None,
+        "plot_height": None,
+        "root_timeout": None,
+        "root_workdir": None,
+        "root_max_output": None,
+        "root_max_code": None,
+        "resource": None,
+        "log_level": None,
+    }
     d.update(kw)
     return types.SimpleNamespace(**d)
 

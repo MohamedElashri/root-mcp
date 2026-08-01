@@ -119,7 +119,7 @@ class PlottingTools:
                     "error": e.code,
                     "message": e.message,
                 }
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 return {
                     "error": "invalid_path",
                     "message": str(e),
@@ -128,7 +128,7 @@ class PlottingTools:
         # Validate output path
         try:
             output_path_obj = self.path_validator.resolve_output_path(output_path, ctx)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_output_path",
                 "message": str(e),
@@ -136,7 +136,7 @@ class PlottingTools:
         if not output_path_obj.parent.exists():
             try:
                 output_path_obj.parent.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 return {
                     "error": "invalid_output_path",
                     "message": f"Cannot create output directory: {e}",
@@ -179,7 +179,7 @@ class PlottingTools:
                 if "error" in hist_result:
                     return hist_result
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Failed to compute histogram: {e}")
                 return {
                     "error": "computation_error",
@@ -216,7 +216,7 @@ class PlottingTools:
                 image_data = base64.b64decode(plot_result["image_data"])
                 with open(output_path_obj, "wb") as f:
                     f.write(image_data)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 return {
                     "error": "write_error",
                     "message": f"Failed to write plot to file: {e}",
@@ -242,7 +242,7 @@ class PlottingTools:
                 "message": f"Plot saved to {output_path_obj}",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to generate plot: {e}")
             return {
                 "error": "plot_error",
@@ -330,7 +330,7 @@ class PlottingTools:
                     "error": e.code,
                     "message": e.message,
                 }
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 return {
                     "error": "invalid_path",
                     "message": str(e),
@@ -339,7 +339,7 @@ class PlottingTools:
         # Validate output path
         try:
             output_path_obj = self.path_validator.resolve_output_path(output_path, ctx)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_output_path",
                 "message": str(e),
@@ -347,7 +347,7 @@ class PlottingTools:
         if not output_path_obj.parent.exists():
             try:
                 output_path_obj.parent.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 return {
                     "error": "invalid_output_path",
                     "message": f"Cannot create output directory: {e}",
@@ -395,7 +395,7 @@ class PlottingTools:
                 if "error" in hist_result:
                     return hist_result
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Failed to compute 2D histogram: {e}")
                 return {
                     "error": "computation_error",
@@ -433,7 +433,7 @@ class PlottingTools:
                 image_data = base64.b64decode(plot_result["image_data"])
                 with open(output_path_obj, "wb") as f:
                     f.write(image_data)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 return {
                     "error": "write_error",
                     "message": f"Failed to write plot to file: {e}",
@@ -464,7 +464,7 @@ class PlottingTools:
                 "message": f"Plot saved to {output_path_obj}",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to generate plot: {e}")
             return {
                 "error": "plot_error",

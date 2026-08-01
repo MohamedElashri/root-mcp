@@ -1,8 +1,9 @@
 """Plotting commands for root-cli."""
 
 import json
-import click
 from pathlib import Path
+
+import click
 
 
 @click.command()

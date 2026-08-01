@@ -1,8 +1,9 @@
 """Data access commands for root-cli."""
 
 import json
-import click
 from pathlib import Path
+
+import click
 
 
 @click.command()
@@ -174,7 +175,7 @@ def export(ctx, root_file, tree_name, branches, output, fmt, selection, limit):
             click.echo(f"Format: {fmt}")
             click.echo(f"Output: {output}")
             click.echo(f"File size: {data.get('file_size_bytes', 0):,} bytes")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         click.echo(f"Export failed: {e}", err=True)
         ctx.exit(1)
 

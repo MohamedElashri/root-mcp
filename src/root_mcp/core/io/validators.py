@@ -15,8 +15,6 @@ if TYPE_CHECKING:
 class SecurityError(Exception):
     """Raised when a security constraint is violated."""
 
-    pass
-
 
 class PathValidator:
     """Validates file paths against security constraints."""
@@ -127,9 +125,8 @@ class PathValidator:
             )
 
         # If resource is provided, check if URI matches resource pattern
-        if resource:
-            if not uri.startswith(resource.uri):
-                raise SecurityError(f"URI '{uri}' does not match resource URI '{resource.uri}'")
+        if resource and not uri.startswith(resource.uri):
+            raise SecurityError(f"URI '{uri}' does not match resource URI '{resource.uri}'")
 
         # Return a Path-like object (will be handled specially by file manager)
         # For remote URIs, we don't return a local Path

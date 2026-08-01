@@ -237,36 +237,39 @@ class CodeValidator:
                 elif module_root not in self.allowed_modules:
                     result.add_warning(f"Unknown module: '{alias.name}' — not in allowlist")
 
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                module_root = node.module.split(".")[0]
-                if module_root in self.blocked_modules:
-                    result.add_error(
-                        f"Blocked import: 'from {node.module} import ...' "
-                        f"(module '{module_root}' is not allowed)"
-                    )
-                elif module_root not in self.allowed_modules:
-                    result.add_warning(f"Unknown module: '{node.module}' — not in allowlist")
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            module_root = node.module.split(".")[0]
+            if module_root in self.blocked_modules:
+                result.add_error(
+                    f"Blocked import: 'from {node.module} import ...' "
+                    f"(module '{module_root}' is not allowed)"
+                )
+            elif module_root not in self.allowed_modules:
+                result.add_warning(f"Unknown module: '{node.module}' — not in allowlist")
 
     def _check_attributes(self, node: ast.AST, result: ValidationResult) -> None:
         """Check for blocked attribute accesses."""
-        if isinstance(node, ast.Attribute):
-            if node.attr in self.blocked_attributes:
-                result.add_error(f"Blocked attribute access: '.{node.attr}'")
+        if isinstance(node, ast.Attribute) and node.attr in self.blocked_attributes:
+            result.add_error(f"Blocked attribute access: '.{node.attr}'")
 
     def _check_calls(self, node: ast.AST, result: ValidationResult) -> None:
         """Check for blocked built-in function calls."""
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name):
-                if node.func.id in self.blocked_builtins:
-                    result.add_error(f"Blocked built-in call: '{node.func.id}()'")
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in self.blocked_builtins
+        ):
+            result.add_error(f"Blocked built-in call: '{node.func.id}()'")
 
     def _check_open(self, node: ast.AST, result: ValidationResult) -> None:
         """Check open() calls — allowed but warned about."""
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id == "open":
-                # open() for writing output files is legitimate in ROOT scripts
-                result.add_warning(
-                    "Code uses open() — file access is allowed but limited "
-                    "to the working directory at runtime"
-                )
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "open"
+        ):
+            # open() for writing output files is legitimate in ROOT scripts
+            result.add_warning(
+                "Code uses open() — file access is allowed but limited "
+                "to the working directory at runtime"
+            )

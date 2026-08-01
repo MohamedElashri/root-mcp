@@ -11,6 +11,8 @@ from __future__ import annotations
 import argparse
 import logging as _logging
 import os
+
+import pydantic
 import pytest
 
 from root_mcp.config import (
@@ -34,34 +36,34 @@ def _default_config() -> Config:
 def _make_args(**kwargs) -> argparse.Namespace:
     """Build a minimal Namespace with all attributes set to None,
     then override with any kwargs supplied by the caller."""
-    defaults = dict(
-        mode=None,
-        server_name=None,
-        allowed_root=None,
-        allow_remote=None,
-        allowed_protocols=None,
-        max_path_depth=None,
-        export_path=None,
-        export_formats=None,
-        enable_export=None,
-        max_rows=None,
-        max_export_rows=None,
-        cache_enabled=None,
-        cache_size=None,
-        max_bins_1d=None,
-        max_bins_2d=None,
-        fitting_iterations=None,
-        plot_dpi=None,
-        plot_format=None,
-        plot_width=None,
-        plot_height=None,
-        root_timeout=None,
-        root_workdir=None,
-        root_max_output=None,
-        root_max_code=None,
-        resource=None,
-        log_level=None,
-    )
+    defaults = {
+        "mode": None,
+        "server_name": None,
+        "allowed_root": None,
+        "allow_remote": None,
+        "allowed_protocols": None,
+        "max_path_depth": None,
+        "export_path": None,
+        "export_formats": None,
+        "enable_export": None,
+        "max_rows": None,
+        "max_export_rows": None,
+        "cache_enabled": None,
+        "cache_size": None,
+        "max_bins_1d": None,
+        "max_bins_2d": None,
+        "fitting_iterations": None,
+        "plot_dpi": None,
+        "plot_format": None,
+        "plot_width": None,
+        "plot_height": None,
+        "root_timeout": None,
+        "root_workdir": None,
+        "root_max_output": None,
+        "root_max_code": None,
+        "resource": None,
+        "log_level": None,
+    }
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
 
@@ -1806,7 +1808,7 @@ def test_parse_resource_spec_empty_uri_raises():
 
 def test_parse_resource_spec_invalid_name_raises():
     """Invalid name (spaces) is rejected by ResourceConfig validator."""
-    with pytest.raises(Exception):
+    with pytest.raises(pydantic.ValidationError):
         _parse_resource_spec("bad name=file:///data")
 
 

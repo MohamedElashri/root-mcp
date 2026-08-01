@@ -5,14 +5,15 @@ from __future__ import annotations
 import os
 import tempfile
 
+import pydantic
 import pytest
 
+from root_mcp.config import Config, RootNativeConfig
+from root_mcp.extended.root_native.executor import ExecutionResult, RootCodeExecutor
 from root_mcp.extended.root_native.sandbox import (
     CodeValidator,
     ValidationResult,
 )
-from root_mcp.extended.root_native.executor import RootCodeExecutor, ExecutionResult
-from root_mcp.config import Config, RootNativeConfig
 
 # ---------------------------------------------------------------------------
 # Sandbox / CodeValidator tests
@@ -369,9 +370,9 @@ class TestRootNativeConfig:
         assert config.root_native.working_directory == "/custom/path"
 
     def test_invalid_timeout(self):
-        with pytest.raises(Exception):
+        with pytest.raises(pydantic.ValidationError):
             RootNativeConfig(execution_timeout=0)
 
     def test_invalid_max_output_size(self):
-        with pytest.raises(Exception):
+        with pytest.raises(pydantic.ValidationError):
             RootNativeConfig(max_output_size=-1)

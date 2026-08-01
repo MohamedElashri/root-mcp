@@ -6,13 +6,13 @@ import logging
 from typing import Any
 
 from root_mcp.config import Config
+from root_mcp.extended.root_native import templates
 from root_mcp.extended.root_native.backends import (
     LocalSubprocessBackend,
     NativeExecutionRequest,
     build_native_execution_backend,
 )
 from root_mcp.extended.root_native.sandbox import CodeValidator
-from root_mcp.extended.root_native import templates
 
 logger = logging.getLogger(__name__)
 

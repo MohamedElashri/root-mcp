@@ -371,5 +371,5 @@ class HistogramOperations:
             name = type(layout).__name__
             # ListOffsetArray and ListArray indicate jagged/variable-length arrays
             return "ListArray" in name or "ListOffset" in name
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False

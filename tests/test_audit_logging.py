@@ -9,8 +9,14 @@ from typing import Any
 
 import pytest
 
-from root_mcp.config import AuthConfig, Config, DeploymentConfig, PolicyConfig, SecurityConfig
-from root_mcp.config import AuditConfig
+from root_mcp.config import (
+    AuditConfig,
+    AuthConfig,
+    Config,
+    DeploymentConfig,
+    PolicyConfig,
+    SecurityConfig,
+)
 from root_mcp.security import RequestContext
 from root_mcp.security.audit import AuditEvent, AuditLogger
 from root_mcp.server import ROOTMCPServer

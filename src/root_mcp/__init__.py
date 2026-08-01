@@ -5,7 +5,9 @@ Provides AI models with safe, high-level access to ROOT files through the
 Model Context Protocol.
 """
 
-from importlib.metadata import PackageNotFoundError, version as _dist_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
 from .config import Config, load_config
 
 
@@ -20,4 +22,4 @@ __version__ = _get_version()
 __author__ = "Mohamed Elashri"
 
 
-__all__ = ["Config", "load_config", "__version__"]
+__all__ = ["Config", "__version__", "load_config"]

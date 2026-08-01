@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlparse
 
 import uproot
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_CACHE_CONTEXT: ContextVar["RequestContext | None"] = ContextVar(
+_CACHE_CONTEXT: ContextVar[RequestContext | None] = ContextVar(
     "root_mcp_file_cache_context",
     default=None,
 )
@@ -90,7 +91,7 @@ class FileCache:
 
         # Evict oldest if over limit
         if len(self._cache) > self.max_size:
-            oldest_key, oldest_file = self._cache.popitem(last=False)
+            oldest_key, _oldest_file = self._cache.popitem(last=False)
             logger.debug(f"Evicting from cache: {oldest_key}")
             # Note: uproot files don't need explicit closing
             # They close automatically when garbage collected
@@ -245,7 +246,7 @@ class FileManager:
 
         # Recursively find all TTrees
         def find_trees(directory: Any, current_path: str = "") -> None:
-            for key in directory.keys():
+            for key in directory.keys():  # noqa: SIM118
                 obj = directory[key]
                 full_path = f"{current_path}/{key}" if current_path else key
 
@@ -282,12 +283,12 @@ class FileManager:
         histograms = []
 
         def find_histograms(directory: Any, current_path: str = "") -> None:
-            for key in directory.keys():
+            for key in directory.keys():  # noqa: SIM118
                 classname = directory.classname_of(key)
                 full_path = f"{current_path}/{key}" if current_path else key
 
                 # Check if it's a histogram
-                if classname.startswith("TH") or classname.startswith("TProfile"):
+                if classname.startswith(("TH", "TProfile")):
                     obj = directory[key]
                     hist_info = {
                         "name": key,
@@ -326,7 +327,7 @@ class FileManager:
         objects = []
 
         def find_objects(directory: Any, current_path: str = "") -> None:
-            for key in directory.keys():
+            for key in directory.keys():  # noqa: SIM118
                 classname = directory.classname_of(key)
                 full_path = f"{current_path}/{key}" if current_path else key
 
@@ -431,7 +432,7 @@ class FileManager:
         try:
             file_obj = self.open(path)
             validation["readable"] = True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             validation["errors"].append(f"Cannot open file: {e}")
             return validation
 
@@ -442,7 +443,7 @@ class FileManager:
 
             if len(keys) == 0:
                 validation["warnings"].append("File contains no objects")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             validation["errors"].append(f"Cannot read file keys: {e}")
             return validation
 
@@ -459,18 +460,18 @@ class FileManager:
                     # Try to read first entry
                     if tree.num_entries > 0:
                         _ = tree.arrays(entry_stop=1, library="ak")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     validation["warnings"].append(
                         f"Tree '{tree_info['name']}' may be corrupted: {e}"
                     )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             validation["warnings"].append(f"Cannot validate trees: {e}")
 
         # Check compression
         try:
             if hasattr(file_obj, "compression"):
                 validation["metadata"]["compression"] = str(file_obj.compression)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         # File is valid if readable and no critical errors
@@ -502,7 +503,7 @@ class FileManager:
         try:
             if hasattr(tree, "compression"):
                 info["compression"] = str(tree.compression)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         # Get basket information if available
@@ -510,7 +511,7 @@ class FileManager:
             total_compressed = 0
             total_uncompressed = 0
 
-            for branch_name in tree.keys():
+            for branch_name in tree.keys():  # noqa: SIM118
                 branch = tree[branch_name]
                 if hasattr(branch, "compressed_bytes"):
                     total_compressed += branch.compressed_bytes
@@ -521,7 +522,7 @@ class FileManager:
                 info["total_compressed_bytes"] = total_compressed
                 info["total_uncompressed_bytes"] = total_uncompressed
                 info["compression_ratio"] = total_uncompressed / total_compressed
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         return info
@@ -563,7 +564,7 @@ class FileManager:
                 if hasattr(branch, "interpretation"):
                     try:
                         interpretation = str(branch.interpretation)
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110
                         pass
 
                 schema[name] = {
@@ -579,7 +580,7 @@ class FileManager:
                 if hasattr(branch, "uncompressed_bytes"):
                     schema[name]["uncompressed_bytes"] = branch.uncompressed_bytes
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f"Failed to get schema for branch {name}: {e}")
                 schema[name] = {"error": str(e)}
 

@@ -171,7 +171,7 @@ class DiscoveryTools:
                 "message": e.message,
                 "suggestion": "Use a named resource path such as @resource/file.root",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_path",
                 "message": str(e),
@@ -186,7 +186,7 @@ class DiscoveryTools:
                 "message": f"File not found: {path}",
                 "suggestion": "Use list_files() to see available files",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "file_read_error",
                 "message": f"Failed to open file: {e}",
@@ -197,7 +197,7 @@ class DiscoveryTools:
         if include_trees:
             try:
                 trees = self.file_manager.list_trees(validated_path)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f"Failed to list trees: {e}")
 
         # Get histograms
@@ -205,7 +205,7 @@ class DiscoveryTools:
         if include_histograms:
             try:
                 histograms = self.file_manager.list_histograms(validated_path)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f"Failed to list histograms: {e}")
 
         # Get all objects to find directories
@@ -277,7 +277,7 @@ class DiscoveryTools:
                 "error": e.code,
                 "message": e.message,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "invalid_path",
                 "message": str(e),
@@ -301,7 +301,7 @@ class DiscoveryTools:
 
         try:
             branch_info = reader.get_branch_info(str(validated_path), tree_name, pattern)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "error": "read_error",
                 "message": f"Failed to read branches: {e}",
@@ -324,7 +324,7 @@ class DiscoveryTools:
                 for branch in branch_info:
                     if branch["name"] in stats:
                         branch["stats"] = stats[branch["name"]]
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f"Failed to compute stats: {e}")
 
         # Suggestions

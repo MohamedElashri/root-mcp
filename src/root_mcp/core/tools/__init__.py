@@ -1,9 +1,9 @@
 """Core MCP tools for file operations."""
 
-from .discovery import DiscoveryTools
 from .data_access import DataAccessTools
+from .discovery import DiscoveryTools
 
 __all__ = [
-    "DiscoveryTools",
     "DataAccessTools",
+    "DiscoveryTools",
 ]

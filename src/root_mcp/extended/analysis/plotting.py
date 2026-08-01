@@ -124,7 +124,7 @@ def generate_plot(
 
         return {"image_type": "png", "image_data": img_str}
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         plt.close(fig)
         logger.error(f"Plotting failed: {e}")
         raise RuntimeError(f"Plotting failed: {e}")
@@ -223,10 +223,7 @@ def _plot_histogram_2d(
 ) -> None:
     """Helper to plot 2D histogram."""
     # Handle both formats
-    if "data" in data:
-        hist_data = data["data"]
-    else:
-        hist_data = data
+    hist_data = data.get("data", data)
 
     # Handle different field naming conventions
     # HistogramOperations uses: bin_edges_x, bin_edges_y, bin_counts

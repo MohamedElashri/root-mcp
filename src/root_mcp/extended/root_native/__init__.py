@@ -1,5 +1,6 @@
 """Native ROOT/PyROOT execution support (optional)."""
 
+from . import templates
 from .backends import (
     CentralNativeDisabledBackend,
     LocalSubprocessBackend,
@@ -10,7 +11,6 @@ from .backends import (
 )
 from .executor import RootCodeExecutor
 from .sandbox import CodeValidator, ValidationResult
-from . import templates
 
 __all__ = [
     "CentralNativeDisabledBackend",

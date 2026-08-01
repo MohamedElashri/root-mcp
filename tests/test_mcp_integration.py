@@ -14,8 +14,8 @@ import pytest
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from root_mcp.server import ROOTMCPServer
 from root_mcp.config import load_config
+from root_mcp.server import ROOTMCPServer
 
 
 @pytest.fixture

@@ -1,3 +1,3 @@
 """Core ROOT file operations without analysis dependencies."""
 
-__all__ = ["io", "tools", "operations"]
+__all__ = ["io", "operations", "tools"]

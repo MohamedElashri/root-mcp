@@ -5,17 +5,16 @@ from __future__ import annotations
 import ast
 import tempfile
 
-
+from root_mcp.config import Config, RootNativeConfig
 from root_mcp.extended.root_native.templates import (
     rdataframe_histogram,
     rdataframe_snapshot,
-    tcanvas_plot,
     roofit_fit,
     root_file_write,
     root_macro,
+    tcanvas_plot,
 )
 from root_mcp.extended.tools.root_native import RootNativeTools
-from root_mcp.config import Config, RootNativeConfig
 
 # ---------------------------------------------------------------------------
 # Template generation tests — verify templates produce valid Python
