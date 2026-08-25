@@ -18,7 +18,7 @@ def _ctx(profile: str = "local") -> RequestContext:
 
 
 def _tool(name: str) -> Tool:
-    return Tool(name=name, description=f"{name} tool", inputSchema={"type": "object"})
+    return Tool(name=name, description=f"{name} tool", input_schema={"type": "object"})
 
 
 def test_local_default_allows_tools() -> None:

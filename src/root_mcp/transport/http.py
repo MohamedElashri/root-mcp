@@ -9,9 +9,8 @@ from contextlib import AsyncExitStack
 from typing import Any
 from uuid import uuid4
 
-import anyio
 import uvicorn
-from mcp.server.streamable_http import StreamableHTTPServerTransport
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
@@ -115,17 +114,24 @@ def build_streamable_http_app(
     config: Config = root_server.config
     validate_http_startup_config(config)
 
-    transport = StreamableHTTPServerTransport(
-        mcp_session_id=None,
-        is_json_response_enabled=True,
+    # SDK v2 (2026-07-28 spec): the session manager owns per-connection state.
+    # DNS rebinding protection is intentionally disabled here because the
+    # wrapper below already enforces strict Origin validation and the
+    # deployment may be reached through proxies with arbitrary Host headers.
+    inner = root_server.server.streamable_http_app(
+        streamable_http_path=config.http.endpoint,
+        json_response=True,
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=False,
+        ),
     )
     authenticator = HTTPAuthenticator(config, bearer_validator=bearer_validator)
 
     return _RootMCPHTTPApp(
         config=config,
-        transport=transport,
         authenticator=authenticator,
         root_server=root_server,
+        inner=inner,
     )
 
 
@@ -135,16 +141,15 @@ class _RootMCPHTTPApp:
     def __init__(
         self,
         config: Config,
-        transport: StreamableHTTPServerTransport,
         authenticator: HTTPAuthenticator,
         root_server: Any,
+        inner: Any,
     ):
         self.config = config
-        self.transport = transport
         self.authenticator = authenticator
         self.root_server = root_server
+        self.inner = inner
         self._exit_stack: AsyncExitStack | None = None
-        self._task_group: Any | None = None
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] == "lifespan":
@@ -190,37 +195,21 @@ class _RootMCPHTTPApp:
             request,
             identity,
         )
-        await self.transport.handle_request(request.scope, receive, send)
+        await self.inner(scope, receive, send)
 
     async def startup(self) -> None:
-        """Start the in-process MCP server task."""
+        """Start the MCP session manager."""
         if self._exit_stack is not None:
             return
 
         self._exit_stack = AsyncExitStack()
-        read_stream, write_stream = await self._exit_stack.enter_async_context(
-            self.transport.connect()
-        )
-        self._task_group = await self._exit_stack.enter_async_context(anyio.create_task_group())
-
-        async def run_mcp_server() -> None:
-            await self.root_server.server.run(
-                read_stream,
-                write_stream,
-                self.root_server.server.create_initialization_options(),
-                stateless=True,
-            )
-
-        self._task_group.start_soon(run_mcp_server)
+        await self._exit_stack.enter_async_context(self.root_server.server.session_manager.run())
 
     async def shutdown(self) -> None:
-        """Stop the in-process MCP server task."""
+        """Stop the MCP session manager."""
         if self._exit_stack is None:
             return
-        if self._task_group is not None:
-            self._task_group.cancel_scope.cancel()
         await self._exit_stack.aclose()
-        self._task_group = None
         self._exit_stack = None
 
     async def _handle_lifespan(self, receive: Any, send: Any) -> None:

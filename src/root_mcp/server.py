@@ -14,7 +14,17 @@ from typing import Any, cast
 from uuid import uuid4
 
 from mcp.server import Server
-from mcp.types import Resource, TextContent, Tool
+from mcp.types import (
+    CallToolRequestParams,
+    CallToolResult,
+    ListResourcesResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    Resource,
+    TextContent,
+    Tool,
+    ToolAnnotations,
+)
 
 from root_mcp.common.root_availability import get_root_features, get_root_version, is_root_available
 from root_mcp.config import (
@@ -84,17 +94,15 @@ class ROOTMCPServer:
 
         logger.info(f"ROOT-MCP server initialized successfully in {self.current_mode} mode")
 
-    def _create_request_context(self) -> RequestContext:
-        """Create a request context for the current MCP request."""
-        try:
-            mcp_request = self.server.request_context.request
-            http_ctx = getattr(getattr(mcp_request, "state", None), "root_mcp_context", None)
-            if isinstance(http_ctx, RequestContext):
-                return http_ctx
-        except LookupError:
-            pass
-        except AttributeError:
-            pass
+    def _create_request_context(self, mcp_request: Any | None = None) -> RequestContext:
+        """Create a request context for the current MCP request.
+
+        The MCP request (when provided by the transport) carries an
+        HTTP-scoped RequestContext injected by the Streamable HTTP app.
+        """
+        http_ctx = getattr(getattr(mcp_request, "state", None), "root_mcp_context", None)
+        if isinstance(http_ctx, RequestContext):
+            return http_ctx
 
         return RequestContext(
             deployment_profile=self.config.deployment.profile,
@@ -301,8 +309,9 @@ class ROOTMCPServer:
     def _register_resources(self) -> None:
         """Register MCP resources (file roots)."""
 
-        @self.server.list_resources()
-        async def list_resources() -> list[Resource]:
+        async def list_resources(
+            ctx: Any, params: PaginatedRequestParams | None
+        ) -> ListResourcesResult:
             """List available ROOT file resources."""
             resources = []
             for resource_config in self.config.resources:
@@ -311,10 +320,12 @@ class ROOTMCPServer:
                         uri=cast(Any, f"root-mcp://{resource_config.name}"),
                         name=resource_config.name,
                         description=resource_config.description,
-                        mimeType="application/x-root",
+                        mime_type="application/x-root",
                     )
                 )
-            return resources
+            return ListResourcesResult(resources=resources)
+
+        self.server.add_request_handler("resources/list", PaginatedRequestParams, list_resources)
 
     def _get_core_tools(self) -> list[Tool]:
         """Get core mode tools."""
@@ -323,7 +334,7 @@ class ROOTMCPServer:
             Tool(
                 name="list_files",
                 description="List ROOT files in a resource",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "resource": {"type": "string", "description": "Resource name"},
@@ -335,7 +346,7 @@ class ROOTMCPServer:
             Tool(
                 name="inspect_file",
                 description="Inspect ROOT file structure and contents",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "File path"},
@@ -346,7 +357,7 @@ class ROOTMCPServer:
             Tool(
                 name="list_branches",
                 description="List branches in a TTree or RNTuple",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "File path"},
@@ -359,7 +370,7 @@ class ROOTMCPServer:
             Tool(
                 name="validate_file",
                 description="Validate ROOT file integrity",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "File path"},
@@ -371,7 +382,7 @@ class ROOTMCPServer:
             Tool(
                 name="read_branches",
                 description="Read branch data from a TTree or RNTuple",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "File path"},
@@ -387,7 +398,7 @@ class ROOTMCPServer:
             Tool(
                 name="get_branch_stats",
                 description="Get statistics for branches (supports derived variables via defines)",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "File path"},
@@ -405,7 +416,7 @@ class ROOTMCPServer:
             Tool(
                 name="export_data",
                 description="Export branch data to JSON, CSV, or Parquet",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "File path"},
@@ -423,7 +434,7 @@ class ROOTMCPServer:
             Tool(
                 name="switch_mode",
                 description="Switch between core and extended modes",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "mode": {"type": "string", "enum": ["core", "extended"]},
@@ -434,7 +445,7 @@ class ROOTMCPServer:
             Tool(
                 name="get_server_info",
                 description="Get server mode and capabilities",
-                inputSchema={"type": "object", "properties": {}},
+                input_schema={"type": "object", "properties": {}},
             ),
         ]
 
@@ -444,7 +455,7 @@ class ROOTMCPServer:
             Tool(
                 name="compute_histogram",
                 description="Compute 1D histogram with fitting support",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {
@@ -470,7 +481,7 @@ class ROOTMCPServer:
             Tool(
                 name="compute_histogram_2d",
                 description="Compute 2D histogram (supports derived variables via defines)",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {
@@ -514,7 +525,7 @@ class ROOTMCPServer:
             Tool(
                 name="fit_histogram",
                 description="Fit histogram with model function",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {"type": "string"},
@@ -562,7 +573,7 @@ class ROOTMCPServer:
             Tool(
                 name="compute_invariant_mass",
                 description="Compute invariant mass from 4-vectors",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {"type": "string"},
@@ -584,7 +595,7 @@ class ROOTMCPServer:
             Tool(
                 name="compute_correlation",
                 description="Compute correlation between branches",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "path": {"type": "string"},
@@ -599,7 +610,7 @@ class ROOTMCPServer:
             Tool(
                 name="plot_histogram_1d",
                 description="Create and save a 1D histogram plot. Provide EITHER 'data' (pre-calculated) OR 'path', 'tree_name', 'branch', 'bins' (compute from file).",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "data": {
@@ -653,7 +664,7 @@ class ROOTMCPServer:
             Tool(
                 name="plot_histogram_2d",
                 description="Create and save a 2D histogram plot. Provide EITHER 'data' (pre-calculated) OR 'path', 'tree_name', 'branch_x'...' (compute from file).",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "data": {
@@ -717,7 +728,7 @@ class ROOTMCPServer:
             Tool(
                 name="histogram_arithmetic",
                 description="Perform bin-by-bin arithmetic on two histograms (e.g. asymmetry, difference, ratio)",
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "operation": {
@@ -757,7 +768,7 @@ class ROOTMCPServer:
                     "is a JSON-serializable object, or print JSON to stdout. "
                     "Prefer run_rdataframe for simple histograms."
                 ),
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "code": {
@@ -804,7 +815,7 @@ class ROOTMCPServer:
                     "Selection uses C++ syntax (e.g. 'pt > 20 && abs(eta) < 2.5'). "
                     "Requires native ROOT."
                 ),
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "file_path": {
@@ -867,7 +878,7 @@ class ROOTMCPServer:
                     "For complex analysis, prefer run_root_code with Python. "
                     "Requires native ROOT."
                 ),
-                inputSchema={
+                input_schema={
                     "type": "object",
                     "properties": {
                         "macro_code": {
@@ -888,6 +899,38 @@ class ROOTMCPServer:
             ),
         ]
 
+    # Tools that only read data or compute in-memory results and never
+    # write files or execute code (2026-07-28 spec: ToolAnnotations hints).
+    _READ_ONLY_TOOLS = frozenset(
+        {
+            "list_files",
+            "inspect_file",
+            "list_branches",
+            "validate_file",
+            "read_branches",
+            "get_branch_stats",
+            "get_server_info",
+            "compute_histogram",
+            "compute_histogram_2d",
+            "fit_histogram",
+            "compute_invariant_mass",
+            "compute_correlation",
+            "histogram_arithmetic",
+        }
+    )
+
+    def _annotate_tool(self, tool: Tool) -> Tool:
+        """Attach spec-compliant annotations to a tool definition."""
+        if tool.annotations is not None:
+            return tool
+        read_only = tool.name in self._READ_ONLY_TOOLS
+        tool.annotations = ToolAnnotations(
+            read_only_hint=read_only,
+            destructive_hint=not read_only,
+            idempotent_hint=True,
+        )
+        return tool
+
     def _get_unfiltered_tools(self) -> list[Tool]:
         """Build the full tool list for the current analysis tier."""
         tools = self._get_core_tools()
@@ -898,7 +941,7 @@ class ROOTMCPServer:
         if self._root_native_available:
             tools.extend(self._get_root_native_tools())
 
-        return tools
+        return [self._annotate_tool(tool) for tool in tools]
 
     def list_available_tools(self, ctx: RequestContext | None = None) -> list[Tool]:
         """List tools visible to the request context after policy filtering."""
@@ -910,11 +953,12 @@ class ROOTMCPServer:
         name: str,
         arguments: dict[str, Any] | None,
         ctx: RequestContext | None = None,
+        mcp_request: Any | None = None,
     ) -> list[TextContent]:
         """Handle a tool call after applying request policy."""
         import json
 
-        request_ctx = ctx or self._create_request_context()
+        request_ctx = ctx or self._create_request_context(mcp_request)
         arguments = arguments or {}
         started = perf_counter()
         policy_decision = "unknown"
@@ -1240,15 +1284,34 @@ class ROOTMCPServer:
     def _register_tools(self) -> None:
         """Register all MCP tools based on current mode."""
 
-        @self.server.list_tools()
-        async def list_tools() -> list[Tool]:
+        async def list_tools(ctx: Any, params: PaginatedRequestParams | None) -> ListToolsResult:
             """List available tools based on current mode."""
-            return self.list_available_tools()
+            return ListToolsResult(tools=self.list_available_tools())
 
-        @self.server.call_tool()
-        async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
+        async def call_tool(ctx: Any, params: CallToolRequestParams) -> CallToolResult:
             """Handle tool calls with mode awareness."""
-            return await self.handle_tool_call(name, arguments)
+            content = await self.handle_tool_call(
+                params.name,
+                dict(params.arguments or {}),
+                mcp_request=ctx.request,
+            )
+            structured_content: dict[str, Any] | None = None
+            is_error = False
+            try:
+                payload = json.loads(content[0].text)
+                if isinstance(payload, dict):
+                    structured_content = payload
+                    is_error = "error" in payload
+            except (json.JSONDecodeError, TypeError, IndexError):
+                pass
+            return CallToolResult(
+                content=content,
+                structured_content=structured_content,
+                is_error=is_error,
+            )
+
+        self.server.add_request_handler("tools/list", PaginatedRequestParams, list_tools)
+        self.server.add_request_handler("tools/call", CallToolRequestParams, call_tool)
 
     async def run(self) -> None:
         """Run the MCP server."""

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "root-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "Production-grade MCP server for CERN ROOT file analysis"
 authors = [{name = "Mohamed Elashri"}]
 maintainers = [{name = "Mohamed Elashri"}]
@@ -30,7 +30,7 @@ dependencies = [
     "numpy>=1.24.0,<3.0.0; python_version < '3.13'",
     "numpy>=2.1.0,<3.0.0; python_version >= '3.13'",
     "pandas>=2.0.0,<3.0.0",
-    "mcp>=1.8.0,<2.0.0",
+    "mcp>=2.0.0,<3.0.0",
     "pydantic>=2.0.0,<3.0.0",
     "pydantic-settings>=2.0.0",
     "PyJWT[crypto]>=2.8.0",

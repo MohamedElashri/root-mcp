@@ -46,7 +46,7 @@ def _headers() -> dict[str, str]:
     }
 
 
-async def _initialize(client: httpx.AsyncClient) -> None:
+async def _initialize(client: httpx.AsyncClient) -> str | None:
     response = await client.post(
         "/mcp",
         headers=_headers(),
@@ -62,6 +62,7 @@ async def _initialize(client: httpx.AsyncClient) -> None:
         },
     )
     assert response.status_code == 200
+    return response.headers.get("mcp-session-id")
 
 
 @pytest.mark.asyncio
@@ -76,10 +77,15 @@ async def test_streamable_http_lists_policy_filtered_tools() -> None:
             transport=httpx.ASGITransport(app=app),
             base_url="http://testserver",
         ) as client:
-            await _initialize(client)
+            session_id = await _initialize(client)
+            assert session_id is not None
             response = await client.post(
                 "/mcp",
-                headers={**_headers(), "mcp-protocol-version": "2025-03-26"},
+                headers={
+                    **_headers(),
+                    "mcp-protocol-version": "2025-03-26",
+                    "mcp-session-id": session_id,
+                },
                 json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
             )
     finally:
@@ -113,10 +119,15 @@ async def test_streamable_http_tool_call_uses_authenticated_context(
             transport=httpx.ASGITransport(app=app),
             base_url="http://testserver",
         ) as client:
-            await _initialize(client)
+            session_id = await _initialize(client)
+            assert session_id is not None
             response = await client.post(
                 "/mcp",
-                headers={**_headers(), "mcp-protocol-version": "2025-03-26"},
+                headers={
+                    **_headers(),
+                    "mcp-protocol-version": "2025-03-26",
+                    "mcp-session-id": session_id,
+                },
                 json={
                     "jsonrpc": "2.0",
                     "id": 3,
@@ -146,10 +157,15 @@ async def test_streamable_http_policy_denial_matches_stdio_shape() -> None:
             transport=httpx.ASGITransport(app=app),
             base_url="http://testserver",
         ) as client:
-            await _initialize(client)
+            session_id = await _initialize(client)
+            assert session_id is not None
             response = await client.post(
                 "/mcp",
-                headers={**_headers(), "mcp-protocol-version": "2025-03-26"},
+                headers={
+                    **_headers(),
+                    "mcp-protocol-version": "2025-03-26",
+                    "mcp-session-id": session_id,
+                },
                 json={
                     "jsonrpc": "2.0",
                     "id": 4,

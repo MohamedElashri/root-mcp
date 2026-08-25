@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.3.0] - 2026-08-25
+
+This release migrates the server to the MCP Python SDK v2 and the 2026-07-28
+MCP specification, and is the first release verified against a production MCP
+client (Codex CLI) across all tools over stdio.
+
+### Changed
+- **MCP SDK v2 / 2026-07-28 protocol migration**: Migrated the server implementation from the MCP Python SDK v1 low-level API to SDK v2 (`mcp>=2.0.0,<3.0.0`).
+  - Tool and resource handlers are now registered through the v2 request-handler registry; `tools/list` returns `ListToolsResult` and `tools/call` returns `CallToolResult`.
+  - Tool calls now also return `structuredContent` alongside the JSON text content, with `isError` set for error payloads, matching the modern tool-result shape.
+  - Request contexts are derived from the per-request MCP context passed by the transport instead of the removed v1 `server.request_context` accessor.
+  - Tool definitions now use snake_case schema fields and advertise `ToolAnnotations` hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`) so clients can classify read-only analysis tools.
+- **Session-aware Streamable HTTP**: The Streamable HTTP runner now uses the SDK v2 `StreamableHTTPSessionManager`. Clients complete the standard `initialize` handshake and reuse the returned `Mcp-Session-Id` on subsequent requests.
+  - Origin validation, authentication, session-header checks, and request-context injection are unchanged and still run before the transport.
+
+### Removed
+- Streamable HTTP no longer accepts bare requests that skip the `initialize` handshake; every HTTP client session must initialize first and present its `Mcp-Session-Id`. Stdio behaviour is unchanged.
+
+### Fixed
+- Tool-level failures over HTTP now surface as protocol-level error results (`isError: true` with structured detail) instead of indistinguishable successful responses carrying an `error` payload.
+
 ## [0.2.0] - 2026-05-17
 
 ### Added

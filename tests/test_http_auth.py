@@ -130,16 +130,38 @@ async def test_http_trusted_headers_authenticates_from_trusted_proxy() -> None:
             transport=httpx.ASGITransport(app=app),
             base_url="http://testserver",
         ) as client:
+            trusted_headers = {
+                "origin": "https://client.example",
+                "x-auth-principal": "alice",
+                "x-auth-tenant": "atlas",
+                "accept": "application/json",
+                "content-type": "application/json",
+            }
+            init_response = await client.post(
+                "/mcp",
+                headers=trusted_headers,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-03-26",
+                        "capabilities": {},
+                        "clientInfo": {"name": "pytest", "version": "0"},
+                    },
+                },
+            )
+            assert init_response.status_code == 200
+            session_id = init_response.headers.get("mcp-session-id")
+            assert session_id is not None
             response = await client.post(
                 "/mcp",
                 headers={
-                    "origin": "https://client.example",
-                    "x-auth-principal": "alice",
-                    "x-auth-tenant": "atlas",
-                    "accept": "application/json",
-                    "content-type": "application/json",
+                    **trusted_headers,
+                    "mcp-session-id": session_id,
+                    "mcp-protocol-version": "2025-03-26",
                 },
-                json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
+                json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
             )
     finally:
         await app.shutdown()
