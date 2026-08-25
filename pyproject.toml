@@ -60,6 +60,7 @@ dev = [
     "wheel>=0.40.0",
     "setuptools>=68.0.0",
     "mypy>=2.1.0",
+    "httpx2>=2.0.0",
 ]
 
 xrootd = [
