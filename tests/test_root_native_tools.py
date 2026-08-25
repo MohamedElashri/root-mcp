@@ -193,8 +193,8 @@ class TestToolVisibility:
         assert "run_rdataframe" in names
         assert "run_root_macro" in names
         run_root_code = next(t for t in tools if t.name == "run_root_code")
-        assert "code" in run_root_code.inputSchema["properties"]
-        assert "code" in run_root_code.inputSchema["required"]
+        assert "code" in run_root_code.input_schema["properties"]
+        assert "code" in run_root_code.input_schema["required"]
 
     def test_root_native_tools_unloaded_on_mode_switch(self):
         """Switching to core mode should unload root native tools."""
@@ -231,17 +231,6 @@ class TestToolDispatch:
 
         server = ROOTMCPServer(config)
         assert server._root_native_available is False
-
-        # Simulate calling the tool via the dispatch logic
-        # We test the logic directly rather than through MCP protocol
-
-        async def _call():
-            # Access the registered call_tool handler
-            handlers = server.server._tool_handlers
-            if handlers:
-                handler = handlers[0] if isinstance(handlers, list) else handlers
-                return await handler("run_root_code", {"code": "print('hi')"})
-            return None
 
         # The tool dispatch is registered as a closure, so we test the server's
         # _root_native_available flag instead

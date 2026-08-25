@@ -427,7 +427,7 @@ class TestToolSchemas:
         server = ROOTMCPServer(config)
         tools = server._get_root_native_tools()
         rdf_tool = next(t for t in tools if t.name == "run_rdataframe")
-        required = rdf_tool.inputSchema["required"]
+        required = rdf_tool.input_schema["required"]
         assert "file_path" in required
         assert "tree_name" in required
         assert "branch" in required
@@ -442,5 +442,5 @@ class TestToolSchemas:
         server = ROOTMCPServer(config)
         tools = server._get_root_native_tools()
         macro_tool = next(t for t in tools if t.name == "run_root_macro")
-        required = macro_tool.inputSchema["required"]
+        required = macro_tool.input_schema["required"]
         assert "macro_code" in required
