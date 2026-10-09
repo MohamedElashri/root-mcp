@@ -45,7 +45,10 @@ def _central_config(
     return Config(
         deployment=DeploymentConfig(profile="central", transport="streamable_http"),
         auth=AuthConfig(required=True, provider="external_bearer"),
-        security=SecurityConfig(allowed_roots=[str(data_root)]),
+        security=SecurityConfig(
+            allowed_roots=[str(data_root)],
+            max_path_depth=len(data_root.resolve().parts) + 1,
+        ),
         output=OutputConfig(export_base_path=str(export_root)),
         policy=PolicyConfig(
             default_tool_action="deny",

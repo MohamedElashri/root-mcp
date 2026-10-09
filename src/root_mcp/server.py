@@ -1305,7 +1305,7 @@ class ROOTMCPServer:
             except (json.JSONDecodeError, TypeError, IndexError):
                 pass
             return CallToolResult(
-                content=content,
+                content=[*content],
                 structured_content=structured_content,
                 is_error=is_error,
             )

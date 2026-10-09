@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from threading import Lock
 
@@ -16,7 +16,7 @@ class MetricsRegistry:
         self._counters: Counter[str] = Counter()
 
     @contextmanager
-    def running_call(self) -> Iterator[None]:
+    def running_call(self) -> Generator[None, None, None]:
         """Track one currently running tool call."""
         self.increment("running_calls")
         try:

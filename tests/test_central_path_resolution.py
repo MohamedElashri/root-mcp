@@ -41,7 +41,10 @@ def _central_config(
     return Config(
         deployment=DeploymentConfig(profile="central", transport="streamable_http"),
         auth=AuthConfig(required=True, provider="external_bearer"),
-        security=SecurityConfig(allowed_roots=[str(tmp_path)]),
+        security=SecurityConfig(
+            allowed_roots=[str(tmp_path)],
+            max_path_depth=len(tmp_path.resolve().parts) + 2,
+        ),
         policy=PolicyConfig(
             default_tool_action="deny",
             allow_tools=allow_tools or ["inspect_file", "list_files"],
@@ -106,7 +109,7 @@ def test_central_compat_absolute_path_still_must_be_inside_allowed_root(tmp_path
 
 
 def test_local_absolute_path_stays_backward_compatible(tmp_path: Path) -> None:
-    config = Config()
+    config = Config(security=SecurityConfig(max_path_depth=len(tmp_path.resolve().parts) + 1))
     resolver = ResourceResolver(config, PathValidator(config))
     local_path = tmp_path / "events.root"
 

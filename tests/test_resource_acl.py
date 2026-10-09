@@ -25,7 +25,10 @@ def _ctx(*, roles: set[str] | None = None, principal: str = "alice") -> RequestC
 def _resolver(tmp_path: Path, resource: ResourceConfig) -> ResourceResolver:
     config = Config(
         deployment=DeploymentConfig(profile="central", transport="streamable_http"),
-        security=SecurityConfig(allowed_roots=[str(tmp_path)]),
+        security=SecurityConfig(
+            allowed_roots=[str(tmp_path)],
+            max_path_depth=len(tmp_path.resolve().parts) + 1,
+        ),
         policy=PolicyConfig(default_tool_action="deny", allow_tools=["inspect_file"]),
         resources=[resource],
     )
