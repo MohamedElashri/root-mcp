@@ -1,6 +1,7 @@
 """Unit tests for root-cli commands."""
 
 import json
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
@@ -493,7 +494,7 @@ class TestCLIEntryPoint:
         """Test CLI version."""
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "0.1.0" in result.output
+        assert version("root-mcp") in result.output
 
     def test_command_help(self, runner):
         """Test individual command help."""

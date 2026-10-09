@@ -255,6 +255,11 @@ To add a new MCP tool:
 
 ## Release Process
 
+`pyproject.toml` is the single source of truth for the package version. The MCP
+package, default server configuration, CLI, and Sphinx documentation read the
+installed distribution metadata generated from it. After changing the version
+in an editable checkout, run `pip install --no-deps -e .` to refresh that metadata.
+
 1. Update version in `pyproject.toml`
 2. Update CHANGELOG.md
 3. Tag release: `git tag -a v1.x.x -m "Release 1.x.x"`

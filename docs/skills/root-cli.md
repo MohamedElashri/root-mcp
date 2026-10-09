@@ -607,7 +607,7 @@ root-cli info
 
 **Output:**
 ```
-ROOT CLI v0.1.0
+ROOT CLI v<installed package version>
 Data path: /data
 Output directory: /tmp/root_mcp
 Backend: Available

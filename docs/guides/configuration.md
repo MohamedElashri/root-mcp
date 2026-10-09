@@ -88,9 +88,10 @@ Controls server identity and the active analysis tier.
 ```yaml
 server:
   name: "root-mcp"        # Server name (shown to AI)
-  version: "0.1.6"        # Version (auto-detected if omitted)
   mode: "extended"        # "core" or "extended" - see Mode Selection below
 ```
+
+The server version defaults to the installed package version from `pyproject.toml`.
 
 **Mode Selection**:
 - `core`: Lightweight file operations and basic statistics

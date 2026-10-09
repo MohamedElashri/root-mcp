@@ -6,27 +6,20 @@ import argparse
 import logging
 import os
 import re
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _dist_version
 from pathlib import Path
 from typing import Literal, TypeVar, cast
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
-
-def _package_version() -> str:
-    try:
-        return _dist_version("root-mcp")
-    except PackageNotFoundError:
-        return "0.0.0"
+from root_mcp._version import get_version
 
 
 class ServerConfig(BaseModel):
     """Server-level settings."""
 
     name: str = "root-mcp"
-    version: str = Field(default_factory=_package_version)
+    version: str = Field(default_factory=get_version)
     mode: str = Field("extended", pattern="^(core|extended)$")
 
 

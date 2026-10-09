@@ -12,6 +12,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from root_mcp import __version__
 from root_mcp.config import load_config
 from root_mcp.server import ROOTMCPServer
 
@@ -330,7 +331,7 @@ def main():
     """Run all tests."""
     print("\n" + "=" * 60)
     print("  ROOT-MCP Integration Test Suite")
-    print("  Version 0.1.6 - Dual-Mode Architecture")
+    print(f"  Version {__version__} - Dual-Mode Architecture")
     print("=" * 60)
 
     results = []

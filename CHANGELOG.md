@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.3.1] - 2026-10-09
+
+### Changed
+
+- Centralized runtime version lookup using installed distribution metadata generated from `pyproject.toml`, the single source of truth for the package version. Added release instructions for refreshing editable-install metadata.
+- Updated the CI test matrix and package classifiers to Python 3.11–3.15, replacing Python 3.10 with Python 3.15 in CI.
+- Updated pinned GitHub Actions for CI and documentation builds, including `astral-sh/setup-uv` to v10.2.0 and `actions/deploy-pages` to v5.0.1.
+
+### Fixed
+
+- Fixed stale CLI version reporting in `root_cli.__version__`, `root-cli --version`, and text/JSON `root-cli info` output. These now follow the installed package version, with regression tests to prevent future drift.
+- Removed hardcoded package versions from the manual integration-test banner and current documentation examples.
+- Fixed resource-resolution, ACL, and export-isolation tests on macOS by accounting for deeply nested temporary directories in test path-depth settings.
+- Fixed MCP tool-result content typing and updated synchronous and asynchronous context-manager annotations to pass the latest `ty` checks.
+
 ## [0.3.0] - 2026-08-25
 
 This release migrates the server to the MCP Python SDK v2 and the 2026-07-28
