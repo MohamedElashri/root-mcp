@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -44,7 +44,7 @@ class QuotaManager:
         ctx: RequestContext,
         tool_name: str,
         arguments: dict[str, Any],
-    ) -> AsyncIterator[None]:
+    ) -> AsyncGenerator[None, None]:
         """Reserve concurrency capacity for one central tool call."""
         if ctx.deployment_profile != "central":
             yield
