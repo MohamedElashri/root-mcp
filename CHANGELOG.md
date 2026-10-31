@@ -6,29 +6,10 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [0.3.1] - 2026-10-31
 
-This patch improves MCP tool discovery, validates advertised tool contracts,
-fixes resource-catalog access, and refreshes setup guidance for coding agents.
-
-### Changed
-- Require MCP Python SDK 2.3+ within the 2.x line for current protocol and transport fixes, retaining legacy-client compatibility.
-- Supply versioned server identity and concise analysis instructions for agent tool discovery.
-- Advertise explicit read-only, destructive, idempotency and open-world hints; file writes and native execution are no longer labelled safe to retry automatically.
-- Validate MCP tool arguments against their advertised JSON Schemas before execution, return actionable tool errors, and use JSON-RPC invalid-params errors for unknown/unavailable tools.
-- Advertise bounded discovery and read options, including `list_files.limit` and `read_branches.limit`, `offset`, `flatten` and `defines`.
-- Replace Gemini CLI setup with Antigravity CLI migration guidance and add current VS Code, Cursor, Zed, Antigravity, Codex, Claude Code, Qwen Code, Pi/OMP, OpenCode, Copilot, Cline, Roo Code, Continue and Goose configuration guidance.
-- Use SPDX license metadata supported by setuptools 77+ while retaining the MIT license.
-
-### Fixed
-- Align `root-cli --version` and `root-cli info` with the installed package version.
-- Filter MCP resource catalogs using each authenticated request's ACLs and implement `resources/read` for advertised JSON descriptors without exposing physical storage paths.
-- Include accessible resource names and effective read limits in `get_server_info` for tool-only clients.
-- Explicitly mark catalog caches private with zero freshness, allow modern MCP routing headers in HTTP preflight responses, and return CORS headers for allowed origins.
-
-### Added
-- SDK integration tests for modern and legacy stdio, stateless 2026-07-28 HTTP discovery/calls, tool contracts and per-principal resource isolation.
-- Ready-to-edit client configuration templates for IDEs and terminal agents.
-- Refreshed tool, configuration, installation and contributor documentation for this release.
-- Include release notes, documentation and client configuration examples in the source distribution.
+- Upgrade the MCP SDK and improve tool discovery, input validation and safety annotations.
+- Fix per-user resource catalogs and HTTP/CORS support; expose bounded read options.
+- Align CLI/server versions and refresh IDE and agent setup docs and templates.
+- Include documentation and examples in source packages and modernize package metadata.
 
 ## [0.3.0] - 2026-08-25
 
