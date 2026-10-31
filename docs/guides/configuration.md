@@ -88,7 +88,7 @@ Controls server identity and the active analysis tier.
 ```yaml
 server:
   name: "root-mcp"        # Server name (shown to AI)
-  version: "0.1.6"        # Version (auto-detected if omitted)
+  # version is read from the installed root-mcp package
   mode: "extended"        # "core" or "extended" - see Mode Selection below
 ```
 

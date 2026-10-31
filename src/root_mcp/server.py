@@ -10,20 +10,24 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from time import perf_counter
-from typing import Any, cast
+from typing import Any
 from uuid import uuid4
 
 from mcp.server import Server
+from mcp.shared.exceptions import MCPError
 from mcp.types import (
+    INVALID_PARAMS,
     CallToolRequestParams,
     CallToolResult,
     ListResourcesResult,
     ListToolsResult,
     PaginatedRequestParams,
+    ReadResourceRequestParams,
+    ReadResourceResult,
     Resource,
     TextContent,
+    TextResourceContents,
     Tool,
-    ToolAnnotations,
 )
 
 from root_mcp.common.root_availability import get_root_features, get_root_version, is_root_available
@@ -36,6 +40,7 @@ from root_mcp.config import (
 )
 from root_mcp.core.io.retention import cleanup_exports
 from root_mcp.observability import MetricsRegistry
+from root_mcp.protocol import SERVER_INSTRUCTIONS, argument_error, prepare_tool
 from root_mcp.security import (
     AuditLogger,
     PolicyDenied,
@@ -71,7 +76,12 @@ class ROOTMCPServer:
         """
         validate_deployment_config(config)
         self.config = config
-        self.server = Server(config.server.name)
+        self.server = Server(
+            config.server.name,
+            version=config.server.version,
+            title="CERN ROOT analysis",
+            instructions=SERVER_INSTRUCTIONS,
+        )
         self.current_mode = config.server.mode
         self.policy_engine = PolicyEngine(config)
         self.quota_manager = QuotaManager(config)
@@ -307,25 +317,57 @@ class ROOTMCPServer:
             }
 
     def _register_resources(self) -> None:
-        """Register MCP resources (file roots)."""
+        """Expose readable JSON resource descriptors without disclosing storage paths."""
 
         async def list_resources(
             ctx: Any, params: PaginatedRequestParams | None
         ) -> ListResourcesResult:
             """List available ROOT file resources."""
             resources = []
-            for resource_config in self.config.resources:
+            request_ctx = self._create_request_context(ctx.request)
+            for resource_config in self.resource_resolver.accessible_resources(request_ctx):
                 resources.append(
                     Resource(
-                        uri=cast(Any, f"root-mcp://{resource_config.name}"),
+                        uri=f"root-mcp://{resource_config.name}",
                         name=resource_config.name,
                         description=resource_config.description,
-                        mime_type="application/x-root",
+                        mime_type="application/json",
                     )
                 )
-            return ListResourcesResult(resources=resources)
+            return ListResourcesResult(resources=resources, ttl_ms=0, cache_scope="private")
+
+        async def read_resource(ctx: Any, params: ReadResourceRequestParams) -> ReadResourceResult:
+            request_ctx = self._create_request_context(ctx.request)
+            for resource in self._resource_descriptors(request_ctx):
+                if params.uri == resource["uri"]:
+                    return ReadResourceResult(
+                        contents=[
+                            TextResourceContents(
+                                uri=params.uri,
+                                mime_type="application/json",
+                                text=json.dumps(resource),
+                            )
+                        ],
+                        ttl_ms=0,
+                        cache_scope="private",
+                    )
+            raise MCPError(INVALID_PARAMS, "Resource is not available to this caller")
 
         self.server.add_request_handler("resources/list", PaginatedRequestParams, list_resources)
+        self.server.add_request_handler("resources/read", ReadResourceRequestParams, read_resource)
+
+    def _resource_descriptors(self, ctx: RequestContext) -> list[dict[str, Any]]:
+        """Describe the caller's catalog; reading file contents uses authorized tools."""
+        return [
+            {
+                "name": resource.name,
+                "uri": f"root-mcp://{resource.name}",
+                "description": resource.description,
+                "path_reference": f"@{resource.name}/relative.root",
+                "hint": "Call list_files with this resource name, then inspect a returned path.",
+            }
+            for resource in self.resource_resolver.accessible_resources(ctx)
+        ]
 
     def _get_core_tools(self) -> list[Tool]:
         """Get core mode tools."""
@@ -339,6 +381,7 @@ class ROOTMCPServer:
                     "properties": {
                         "resource": {"type": "string", "description": "Resource name"},
                         "pattern": {"type": "string", "description": "Optional glob pattern"},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100},
                     },
                     "required": ["resource"],
                 },
@@ -388,8 +431,35 @@ class ROOTMCPServer:
                         "path": {"type": "string", "description": "File path"},
                         "tree_name": {"type": "string", "description": "Tree name"},
                         "branches": {"type": "array", "items": {"type": "string"}},
-                        "entry_start": {"type": "integer", "description": "Start entry"},
-                        "entry_stop": {"type": "integer", "description": "Stop entry"},
+                        "entry_start": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Start entry",
+                        },
+                        "entry_stop": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": "Exclusive stop entry",
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": "Maximum rows to return (alternative to entry_stop)",
+                        },
+                        "offset": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Rows to skip (alternative to entry_start)",
+                        },
+                        "flatten": {
+                            "type": "boolean",
+                            "description": "Flatten jagged arrays; loses event boundaries",
+                        },
+                        "defines": {
+                            "type": "object",
+                            "additionalProperties": {"type": "string"},
+                            "description": "Derived branch names mapped to expressions",
+                        },
                         "selection": {"type": "string", "description": "Optional cut expression"},
                     },
                     "required": ["path", "tree_name", "branches"],
@@ -899,37 +969,10 @@ class ROOTMCPServer:
             ),
         ]
 
-    # Tools that only read data or compute in-memory results and never
-    # write files or execute code (2026-07-28 spec: ToolAnnotations hints).
-    _READ_ONLY_TOOLS = frozenset(
-        {
-            "list_files",
-            "inspect_file",
-            "list_branches",
-            "validate_file",
-            "read_branches",
-            "get_branch_stats",
-            "get_server_info",
-            "compute_histogram",
-            "compute_histogram_2d",
-            "fit_histogram",
-            "compute_invariant_mass",
-            "compute_correlation",
-            "histogram_arithmetic",
-        }
-    )
-
     def _annotate_tool(self, tool: Tool) -> Tool:
-        """Attach spec-compliant annotations to a tool definition."""
-        if tool.annotations is not None:
-            return tool
-        read_only = tool.name in self._READ_ONLY_TOOLS
-        tool.annotations = ToolAnnotations(
-            read_only_hint=read_only,
-            destructive_hint=not read_only,
-            idempotent_hint=True,
-        )
-        return tool
+        """Attach schemas, discovery guidance and accurate side-effect hints."""
+        protocols = self.config.security.effective_protocols(self.config.resources)
+        return prepare_tool(tool, remote_access=any(p != "file" for p in protocols))
 
     def _get_unfiltered_tools(self) -> list[Tool]:
         """Build the full tool list for the current analysis tier."""
@@ -1147,6 +1190,20 @@ class ROOTMCPServer:
                 "root_version": get_root_version() if root_available else None,
                 "root_features": get_root_features() if root_available else {},
                 "metrics": self.metrics.snapshot(),
+                "resources": self._resource_descriptors(ctx),
+                "limits": {
+                    "max_rows_per_call": min(
+                        self.config.limits.max_rows_per_call,
+                        self.config.quotas.max_rows_per_call
+                        or self.config.limits.max_rows_per_call,
+                    ),
+                    "default_read_limit": self.config.analysis.default_read_limit,
+                    "max_request_seconds": (
+                        self.config.quotas.max_request_seconds
+                        if ctx.deployment_profile == "central"
+                        else None
+                    ),
+                },
             }
 
         # Core tools (always available)
@@ -1286,10 +1343,25 @@ class ROOTMCPServer:
 
         async def list_tools(ctx: Any, params: PaginatedRequestParams | None) -> ListToolsResult:
             """List available tools based on current mode."""
-            return ListToolsResult(tools=self.list_available_tools())
+            request_ctx = self._create_request_context(ctx.request)
+            return ListToolsResult(
+                tools=self.list_available_tools(request_ctx), ttl_ms=0, cache_scope="private"
+            )
 
         async def call_tool(ctx: Any, params: CallToolRequestParams) -> CallToolResult:
             """Handle tool calls with mode awareness."""
+            tool = next(
+                (tool for tool in self._get_unfiltered_tools() if tool.name == params.name), None
+            )
+            if tool is None:
+                raise MCPError(INVALID_PARAMS, "Unknown or unavailable tool")
+            invalid = argument_error(tool, dict(params.arguments or {}))
+            if invalid is not None:
+                return CallToolResult(
+                    content=[TextContent(type="text", text=json.dumps(invalid))],
+                    structured_content=invalid,
+                    is_error=True,
+                )
             content = await self.handle_tool_call(
                 params.name,
                 dict(params.arguments or {}),
@@ -1305,7 +1377,7 @@ class ROOTMCPServer:
             except (json.JSONDecodeError, TypeError, IndexError):
                 pass
             return CallToolResult(
-                content=content,
+                content=[*content],
                 structured_content=structured_content,
                 is_error=is_error,
             )

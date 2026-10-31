@@ -333,6 +333,7 @@ class AnalysisOperations:
                 global_edges = edges
             else:
                 total_counts += counts
+                assert total_errors_sq is not None
                 total_errors_sq += errors_sq
 
         # Finalize

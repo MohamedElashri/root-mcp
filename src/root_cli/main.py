@@ -11,6 +11,8 @@ from pathlib import Path
 
 import click
 
+from root_cli import __version__
+
 # Import all commands
 from root_cli.commands import (
     branches,
@@ -58,7 +60,7 @@ def get_backend_status():
 @click.option(
     "--json", "-j", "json_output", is_flag=True, help="Output in JSON format (for programmatic use)"
 )
-@click.version_option(version="0.1.0")
+@click.version_option(version=__version__)
 @click.pass_context
 def cli(ctx, data_path, json_output):
     """
@@ -153,7 +155,7 @@ def info(ctx):
 
     result = {
         "name": "root-cli",
-        "version": "0.1.0",
+        "version": __version__,
         "backend_available": ctx.obj.get("backend_available", False),
         "backend_status": backend_status,
         "output_directory": str(OUTPUT_DIR),
@@ -182,7 +184,7 @@ def info(ctx):
     if ctx.obj.get("json_output"):
         click.echo(json.dumps(result, indent=2))
     else:
-        click.echo("ROOT CLI v0.1.0")
+        click.echo(f"ROOT CLI v{__version__}")
         click.echo(f"Data path: {ctx.obj.get('data_path', '.')}")
         click.echo(f"Output directory: {OUTPUT_DIR}")
         click.echo(f"Backend: {backend_status}")

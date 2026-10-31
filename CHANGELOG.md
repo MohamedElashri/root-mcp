@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.3.1] - 2026-10-31
+
+- Upgrade the MCP SDK and improve tool discovery, input validation and safety annotations.
+- Fix per-user resource catalogs and HTTP/CORS support; expose bounded read options.
+- Align CLI/server versions and refresh IDE and agent setup docs and templates.
+- Include documentation and examples in source packages and modernize package metadata.
+
 ## [0.3.0] - 2026-08-25
 
 This release migrates the server to the MCP Python SDK v2 and the 2026-07-28

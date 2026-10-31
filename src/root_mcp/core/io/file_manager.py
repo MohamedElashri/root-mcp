@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
@@ -131,7 +131,7 @@ class FileManager:
         )
 
     @contextmanager
-    def request_context(self, ctx: RequestContext | None) -> Iterator[None]:
+    def request_context(self, ctx: RequestContext | None) -> Generator[None, None, None]:
         """Apply request identity to file-cache keys for this execution."""
         token = _CACHE_CONTEXT.set(ctx)
         try:

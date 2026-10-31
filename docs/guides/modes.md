@@ -2,7 +2,7 @@
 
 ## Overview
 
-ROOT-MCP exposes two primary analysis tiers plus an optional native ROOT layer. The active tier is still configured with the backward-compatible `server.mode` value (`core` or `extended`) and can be switched at runtime without restarting the server.
+ROOT-MCP exposes two primary analysis tiers plus an optional native ROOT layer. The active tier is still configured with the backward-compatible `server.mode` value (`core` or `extended`) and can be switched at runtime in local deployments without restarting the server. Central deployments keep a fixed tier and disable `switch_mode`.
 
 ## Analysis Tiers Explained
 
@@ -15,7 +15,6 @@ ROOT-MCP exposes two primary analysis tiers plus an optional native ROOT layer. 
 - Reading branch data
 - Basic statistics (min, max, mean, std, median)
 - Data export to JSON/CSV/Parquet
-- Simple histogram creation (no fitting)
 - When you want minimal resource usage
 
 **Available Tools**:
@@ -40,11 +39,11 @@ ROOT-MCP exposes two primary analysis tiers plus an optional native ROOT layer. 
 - Particle physics kinematics calculations
 - Statistical correlation analysis
 - Plot generation
-- Advanced 2D histograms and profiles
+- 1D and 2D histograms
 - Complete physics analysis workflows
 
 **Additional Tools** (beyond core):
-- `compute_histogram` - 1D histograms with fitting support
+- `compute_histogram` - 1D branch histograms
 - `compute_histogram_2d` - 2D histograms
 - `fit_histogram` - Model fitting (Gaussian, exponential, Crystal Ball, etc.)
 - `compute_invariant_mass` - 4-vector calculations
@@ -53,7 +52,7 @@ ROOT-MCP exposes two primary analysis tiers plus an optional native ROOT layer. 
 - `plot_histogram_1d` - 1D plot generation
 - `plot_histogram_2d` - 2D plot generation
 
-**Dependencies**: Core + scipy, matplotlib
+**Dependencies**: Core + scipy, matplotlib (included in the standard package installation)
 
 ### Native ROOT (Optional)
 
@@ -72,8 +71,8 @@ ROOT-MCP exposes two primary analysis tiers plus an optional native ROOT layer. 
 - Local deployment profile; central deployments keep native ROOT disabled
 
 **Additional Tools** (appear automatically when ROOT is available and enabled):
-- `run_root_code` — execute arbitrary PyROOT/Python code in a sandboxed subprocess
-- `run_rdataframe` — compute RDataFrame histograms without boilerplate
+- `run_root_code` — execute arbitrary PyROOT/Python code in a local subprocess for trusted code
+- `run_rdataframe` — compute a 1D RDataFrame histogram without boilerplate
 - `run_root_macro` — execute C++ ROOT macros via `gROOT.ProcessLine`
 
 **Enable**:
@@ -140,7 +139,7 @@ extended:
 
 ## Runtime Mode Switching
 
-You can switch modes without restarting the server using the `switch_mode` tool.
+In local deployments, use `switch_mode` without restarting the server. The change affects all calls to the process; refresh `tools/list` afterward. Central deployments deny this tool.
 
 ### Example: Switch to Extended Mode
 
@@ -199,7 +198,7 @@ You can switch modes without restarting the server using the `switch_mode` tool.
 ```json
 {
   "server_name": "root-mcp",
-  "version": "0.1.6",
+  "version": "0.3.1",
   "current_mode": "extended",
   "extended_components_loaded": true,
   "available_modes": ["core", "extended"],
@@ -217,24 +216,19 @@ You can switch modes without restarting the server using the `switch_mode` tool.
 **Core Mode**:
 - All core components loaded immediately
 - Extended components not loaded (saves memory)
-- Attempting to use extended tools returns helpful error
+- Extended tools are omitted from the catalog; calling an unavailable tool produces a JSON-RPC invalid-params error
 
 **Extended Mode**:
 - Core components loaded immediately
-- Extended components lazy-loaded on first use
+- Extended components loaded when the tier is selected
 - If scipy/matplotlib unavailable, gracefully falls back to core mode
 
 ### Error Handling
 
-If you try to use an extended tool in core mode:
-
-```json
-{
-  "error": "mode_error",
-  "message": "Tool 'fit_histogram' requires extended mode. Current mode: core",
-  "hint": "Use switch_mode tool to enable extended mode"
-}
-```
+Unavailable tools are omitted from `tools/list`. A raw call to an unknown or
+unavailable tool receives a JSON-RPC error with code `-32602`. For local use,
+switch to extended mode and refresh the catalog before calling an extended tool.
+Central policy errors remain tool results with `isError: true`.
 
 ### Graceful Degradation
 
@@ -338,18 +332,18 @@ server:
 ### Startup Time
 
 **Core Mode**:
-- Fast initialization (~1 second)
+- Starts without importing the extended analysis components
 - No scipy/matplotlib import overhead
 
 **Extended Mode**:
-- Slightly slower initialization (~2-3 seconds)
-- Extended components lazy-loaded on first use
+- Imports scipy/matplotlib when the tier is selected
+- Extended components loaded when the tier is selected
 - Subsequent operations are fast
 
 ### Switching Overhead
 
-- Core → Extended: ~1-2 seconds (load scipy/matplotlib)
-- Extended → Core: Immediate (unload components)
+- Core → Extended: imports and initializes extended components
+- Extended → Core: releases the server's extended component references
 - No server restart required
 
 ## Best Practices
@@ -397,7 +391,7 @@ If a tool fails due to mode mismatch, switch modes and retry:
 ```
 1. Try extended tool
 2. If mode_error, call switch_mode
-3. Retry the tool
+3. Refresh the tool list and retry; central deployments require an operator-approved tier
 ```
 
 ## Troubleshooting
@@ -438,7 +432,7 @@ pip install --upgrade --force-reinstall root-mcp
 **Solution**:
 1. Check current mode with `get_server_info`
 2. Switch to extended mode with `switch_mode`
-3. Retry the tool
+3. Refresh the tool list and retry; central deployments require an operator-approved tier
 
 ## Summary
 
@@ -447,9 +441,9 @@ pip install --upgrade --force-reinstall root-mcp
 | **Purpose** | File I/O & basic stats | Full physics analysis | Arbitrary ROOT code |
 | **Dependencies** | Minimal | + scipy, matplotlib | + ROOT installation |
 | **Memory** | Low | Moderate | Moderate + subprocess |
-| **Startup** | Fast (~1s) | Moderate (~2-3s) | Same as Extended |
+| **Startup** | Core components | Core + extended components | Extended + ROOT availability checks |
 | **Tools** | 9 core tools | Core + 8 extended tools | + 3 ROOT native tools |
 | **Use Case** | Exploration, reading | Analysis, fitting, plotting | Custom macros, RDataFrame |
-| **Enable** | default | `mode: extended` | + `enable_root: true` |
+| **Enable** | `mode: core` | Default: `mode: extended` | + `enable_root: true` locally |
 
-Choose the mode that fits your workflow, and remember you can always switch at runtime!
+Local deployments can switch tiers at runtime; shared central deployments keep the tier fixed.

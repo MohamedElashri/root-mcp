@@ -68,7 +68,8 @@ To start in lightweight core mode:
 
    root-mcp --data-path /data --mode core
 
-You can switch modes at runtime via the ``switch_mode`` tool without restarting.
+In local deployments, ``switch_mode`` changes the server-wide tier; refresh
+the tool list afterward. Central deployments keep the configured tier fixed.
 
 See :doc:`modes` for full details on what each mode provides.
 
@@ -121,37 +122,37 @@ Restart Claude Desktop after editing the JSON file.
 Connecting to other MCP clients
 ---------------------------------
 
-ROOT-MCP speaks the standard `MCP stdio transport
-<https://modelcontextprotocol.io/docs/concepts/transports>`_.
-Any MCP-compatible client can use it with the same ``command`` + ``args`` pattern.
-Check your client's documentation for the exact JSON key names.
+ROOT-MCP supports local stdio and authenticated Streamable HTTP. For Codex,
+Claude Code, Antigravity, Qwen Code, Pi/OMP, VS Code, Cursor, Zed and other
+harnesses, use the client-specific configuration in :doc:`llm_integration`.
+Server discovery and client approval behavior vary by client.
 
 ----
 
 First queries
 -------------
 
-Once Claude Desktop is running with ROOT-MCP connected, try these prompts:
+Once your client is connected to ROOT-MCP, try these prompts:
 
 **List files**
 
    *"List the ROOT files available to you."*
 
-Claude calls ``list_files`` and returns a table of file names, sizes, and
-modification times. No file access happens until you ask.
+The agent calls ``list_files`` and returns a table of file names, sizes, and
+modification times. It uses a configured resource name from ``get_server_info``.
 
 **Inspect a file structure**
 
    *"What's in analysis.root? Show me the TTree structure."*
 
-Claude calls ``inspect_file`` and returns a tree of objects, TTrees and RNTuples,
+The agent calls ``inspect_file`` and returns a tree of objects, TTrees and RNTuples,
 branches, histograms — with their types and sizes.
 
 **Read and summarise branch data**
 
    *"Read the muon_pt branch from the Events tree and give me basic statistics."*
 
-Claude calls ``read_branches`` followed by ``get_branch_stats``, returning
+The agent calls ``read_branches`` followed by ``get_branch_stats``, returning
 min, max, mean, standard deviation, and median.
 
 **Compute a histogram with fit**
@@ -159,25 +160,26 @@ min, max, mean, standard deviation, and median.
    *"Compute a histogram of muon_pt with 50 bins between 0 and 200 GeV
    and fit a Gaussian to the peak."*
 
-Claude calls ``compute_histogram`` (extended mode) followed by
-``fit_histogram``, returning bin counts, a fitted mean and sigma, and a
-summary plot.
+The agent calls ``compute_histogram`` (extended mode) followed by
+``fit_histogram``, returning bin counts and fit parameters. A separate
+``plot_histogram_1d`` call creates a plot file when requested.
 
 **Kinematic calculation**
 
-   *"Compute the invariant mass of the di-muon system using the four
-   leading muons."*
+   *"Compute the invariant mass of the two muon candidates using their
+   momentum and mass branches."*
 
-Claude calls ``compute_invariant_mass`` with the relevant branch names and
-returns a histogram of the invariant mass distribution — the Z peak should
-appear around 91 GeV if the data contains Z→μμ events.
+The agent calls ``compute_invariant_mass`` with the relevant branch names and
+returns invariant mass values and summary statistics. Confirm that all input
+branches use consistent units before interpreting the result.
 
 **Export for further analysis**
 
-   *"Export the first 10,000 events from the Events tree to a CSV file."*
+   *"Export muon_pt and muon_eta from the Events tree to selected_muons.csv."*
 
-Claude calls ``export_data`` and writes a ``.csv`` to the server's export
-path, then tells you where to find it.
+The agent calls ``export_data`` with explicit branches, ``format: csv`` and
+``output_path``. The file is written under the permitted export location;
+existing files can be overwritten.
 
 ----
 
@@ -187,4 +189,4 @@ Next steps
 - :doc:`modes` — understand core vs extended vs native ROOT capabilities
 - :doc:`configuration` — full ``config.yaml`` reference
 - :doc:`llm_integration` — prompting strategies and advanced LLM workflows
-- :doc:`tools_reference` — complete catalogue of all 20 tools and their arguments
+- :doc:`tools_reference` — catalogue of the 17 standard and 3 optional native tools
