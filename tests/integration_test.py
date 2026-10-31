@@ -330,7 +330,9 @@ def main():
     """Run all tests."""
     print("\n" + "=" * 60)
     print("  ROOT-MCP Integration Test Suite")
-    print("  Version 0.1.6 - Dual-Mode Architecture")
+    from root_mcp import __version__
+
+    print(f"  Version {__version__} - Analysis Tiers")
     print("=" * 60)
 
     results = []

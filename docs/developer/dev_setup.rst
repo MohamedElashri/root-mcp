@@ -28,7 +28,7 @@ Create a virtual environment and install dev dependencies
 
 .. code-block:: bash
 
-   uv sync --all-extras          # creates .venv and installs all deps including dev
+   uv sync --extra dev --extra docs  # optional XRootD/native ROOT installed separately
 
 **With pip:**
 
@@ -59,8 +59,8 @@ Running the test suite
    pytest --cov=src/root_mcp --cov-report=term-missing   # with coverage
 
 Tests that require a ROOT installation are automatically skipped when ROOT is
-not present. No test fixtures need ROOT files — the ``data/root_files/`` sample
-files cover all file-level tests.
+not present. The ``data/root_files/`` sample files support file-level tests; some tests also
+create synthetic ROOT fixtures in temporary directories.
 
 Running type checks
 --------------------

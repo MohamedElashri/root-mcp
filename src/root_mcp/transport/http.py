@@ -11,6 +11,7 @@ from uuid import uuid4
 
 import uvicorn
 from mcp.server.transport_security import TransportSecuritySettings
+from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
@@ -114,7 +115,8 @@ def build_streamable_http_app(
     config: Config = root_server.config
     validate_http_startup_config(config)
 
-    # SDK v2 (2026-07-28 spec): the session manager owns per-connection state.
+    # SDK v2 dispatches 2026-07-28 requests without a handshake or session;
+    # its compatibility runner still supports older clients that initialize.
     # DNS rebinding protection is intentionally disabled here because the
     # wrapper below already enforces strict Origin validation and the
     # deployment may be reached through proxies with arbitrary Host headers.
@@ -177,6 +179,22 @@ class _RootMCPHTTPApp:
         if origin_response is not None:
             await _send_response(origin_response, scope, receive, send)
             return
+
+        origin = request.headers.get("origin")
+        if origin:
+            original_send = send
+
+            async def cors_send(message: dict[str, Any]) -> None:
+                if message["type"] == "http.response.start":
+                    headers = MutableHeaders(scope=message)
+                    headers["Access-Control-Allow-Origin"] = origin
+                    headers["Access-Control-Expose-Headers"] = (
+                        "Mcp-Session-Id, Mcp-Protocol-Version"
+                    )
+                    headers.add_vary_header("Origin")
+                await original_send(message)
+
+            send = cors_send
 
         session_response = _validate_session_id_header(request)
         if session_response is not None:
@@ -330,11 +348,12 @@ def _preflight_response(config: Config, request: Request) -> Response:
         "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": (
             "Authorization, Content-Type, Accept, Origin, MCP-Protocol-Version, "
-            "Mcp-Session-Id, X-Request-Id"
+            "Mcp-Session-Id, Mcp-Method, Mcp-Name, X-Request-Id"
         ),
     }
     if origin:
         headers["Access-Control-Allow-Origin"] = origin
+        headers["Vary"] = "Origin"
     return Response(status_code=204, headers=headers)
 
 

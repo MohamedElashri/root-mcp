@@ -135,8 +135,10 @@ def read_branches(
 
 Example:
 ```python
-import pytest
-from root_mcp.io import FileManager
+from root_mcp.config import Config
+from root_mcp.core.io import FileManager
+
+config = Config()
 
 def test_file_manager_open():
     """Test FileManager can open ROOT files."""
@@ -180,9 +182,11 @@ root-mcp/
 ├── src/root_mcp/
 │   ├── server.py           # Main MCP server
 │   ├── config.py           # Configuration
-│   ├── io/                 # I/O layer
-│   ├── analysis/           # Analysis operations
-│   └── tools/              # MCP tool handlers
+│   ├── protocol.py         # Agent guidance and MCP contracts
+│   ├── core/               # Shared I/O, basic operations and core tools
+│   ├── extended/           # Extended analysis and optional native ROOT
+│   ├── security/           # Authentication, policy and resource ACLs
+│   └── transport/          # Stdio and Streamable HTTP
 ├── tests/                  # Test suite
 ├── examples/               # Usage examples
 ├── docs/                   # Documentation
@@ -194,9 +198,9 @@ root-mcp/
 To add a new MCP tool:
 
 1. **Define the tool in the appropriate module**:
-   - Discovery tools → `src/root_mcp/tools/discovery.py`
-   - Data access → `src/root_mcp/tools/data_access.py`
-   - Analysis → `src/root_mcp/tools/analysis.py`
+   - Discovery tools → `src/root_mcp/core/tools/discovery.py`
+   - Data access → `src/root_mcp/core/tools/data_access.py`
+   - Analysis → `src/root_mcp/extended/tools/analysis.py`
 
 2. **Add tool specification**:
    ```python
@@ -214,12 +218,12 @@ To add a new MCP tool:
        # Implementation
    ```
 
-3. **Register in server.py**:
+3. **Add the definition to `_get_core_tools()` or `_get_extended_tools()` in server.py**:
    ```python
    Tool(
        name="my_new_tool",
        description="Description for LLMs",
-       inputSchema={
+       input_schema={
            "type": "object",
            "properties": {
                "param1": {"type": "string"},
@@ -230,10 +234,10 @@ To add a new MCP tool:
    )
    ```
 
-4. **Add handler in call_tool()**:
+4. **Dispatch from `_dispatch_tool()`**:
    ```python
    elif name == "my_new_tool":
-       result = self.analysis_tools.my_new_tool(**arguments)
+       return self.analysis_tools.my_new_tool(**arguments)
    ```
 
 5. **Write tests**:
@@ -255,11 +259,21 @@ To add a new MCP tool:
 
 ## Release Process
 
-1. Update version in `pyproject.toml`
-2. Update CHANGELOG.md
-3. Tag release: `git tag -a v1.x.x -m "Release 1.x.x"`
-4. Push tag: `git push origin v1.x.x`
-5. GitHub Actions will build and publish to PyPI
+1. Update `project.version` in `pyproject.toml` and add dated release notes to
+   `CHANGELOG.md`. The server, CLI and Sphinx docs read installed package metadata.
+2. Refresh the editable installation so version checks use the new metadata.
+3. Run lint, formatting, type checks and the test suite. Build the docs, sdist and
+   wheel, then validate the distributions with `twine check`.
+4. Review the package metadata and smoke-check entry points from the built wheel.
+5. When publishing is authorized, create and push the matching `vX.Y.Z` tag.
+   The tag workflow publishes to **TestPyPI**. Publishing to **PyPI** requires
+   manually dispatching the Release workflow with `repository=pypi` and its
+   environment approval. A tag push alone does not publish to production PyPI.
+
+Keep tool JSON Schemas, annotations, runtime dispatch and `docs/api/tools.md` in
+sync. Use SDK v2 snake_case constructor fields such as `input_schema`; the SDK
+serializes their camelCase wire equivalents. Set read-only/open-world/retry
+hints according to actual behavior and keep authorization in the server.
 
 ## Getting Help
 

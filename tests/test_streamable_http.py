@@ -14,11 +14,142 @@ from root_mcp.config import (
     DeploymentConfig,
     HTTPConfig,
     PolicyConfig,
+    ResourceConfig,
     SecurityConfig,
 )
 from root_mcp.security import AuthResult
 from root_mcp.server import ROOTMCPServer
 from root_mcp.transport.http import build_streamable_http_app
+
+
+async def _modern_rpc(client, method, params=None, *, token="ok"):
+    params = dict(params or {})
+    params["_meta"] = {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {},
+        "io.modelcontextprotocol/clientInfo": {"name": "pytest", "version": "1"},
+    }
+    headers = {
+        **_headers(),
+        "authorization": f"Bearer {token}",
+        "mcp-protocol-version": "2026-07-28",
+        "mcp-method": method,
+    }
+    if "name" in params:
+        headers["mcp-name"] = params["name"]
+    elif "uri" in params:
+        headers["mcp-name"] = params["uri"]
+    return await client.post(
+        "/mcp",
+        headers=headers,
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": method,
+            "params": params,
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_modern_http_is_stateless_and_advertises_identity():
+    root_server = ROOTMCPServer(_config())
+    app = build_streamable_http_app(
+        root_server,
+        bearer_validator=lambda token: AuthResult(principal_id="alice"),
+    )
+    await app.startup()
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+        ) as client:
+            discovery = await _modern_rpc(client, "server/discover")
+            assert discovery.status_code == 200
+            assert discovery.headers["access-control-allow-origin"] == "https://client.example"
+            assert "Origin" in discovery.headers["vary"]
+            assert "mcp-session-id" in discovery.headers["access-control-expose-headers"].lower()
+            result = discovery.json()["result"]
+            assert "2026-07-28" in result["supportedVersions"]
+            assert "CERN ROOT" in result["instructions"]
+            assert (
+                result["_meta"]["io.modelcontextprotocol/serverInfo"]["version"]
+                == root_server.config.server.version
+            )
+            listed = await _modern_rpc(client, "tools/list")
+            assert listed.status_code == 200
+            result = listed.json()["result"]
+            assert result["resultType"] == "complete"
+            assert result["cacheScope"] == "private"
+            assert result["ttlMs"] == 0
+            assert [tool["name"] for tool in result["tools"]] == ["get_server_info"]
+            called = await _modern_rpc(client, "tools/call", {"name": "get_server_info"})
+            assert called.status_code == 200
+            assert "mcp-session-id" not in called.headers
+            result = called.json()["result"]
+            assert result["structuredContent"] == json.loads(result["content"][0]["text"])
+            assert result["isError"] is False
+    finally:
+        await app.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_http_resource_catalog_is_scoped_to_each_authenticated_principal(tmp_path):
+    config = _config()
+    config.resources = [
+        ResourceConfig(
+            name="alice_data", uri=f"file://{tmp_path}/alice", allowed_principals=["alice"]
+        ),
+        ResourceConfig(name="bob_data", uri=f"file://{tmp_path}/bob", allowed_principals=["bob"]),
+    ]
+    app = build_streamable_http_app(
+        ROOTMCPServer(config),
+        bearer_validator=lambda token: AuthResult(principal_id=token),
+    )
+    await app.startup()
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+        ) as client:
+            for principal, other in [("alice", "bob"), ("bob", "alice")]:
+                listed = await _modern_rpc(client, "resources/list", token=principal)
+                resources = listed.json()["result"]["resources"]
+                assert [resource["name"] for resource in resources] == [f"{principal}_data"]
+                read = await _modern_rpc(
+                    client, "resources/read", {"uri": resources[0]["uri"]}, token=principal
+                )
+                assert read.status_code == 200
+                assert str(tmp_path) not in read.text
+                denied = await _modern_rpc(
+                    client, "resources/read", {"uri": f"root-mcp://{other}_data"}, token=principal
+                )
+                assert denied.json()["error"]["code"] == -32602
+                info = await _modern_rpc(
+                    client, "tools/call", {"name": "get_server_info"}, token=principal
+                )
+                assert [
+                    r["name"] for r in info.json()["result"]["structuredContent"]["resources"]
+                ] == [f"{principal}_data"]
+    finally:
+        await app.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_preflight_accepts_modern_routing_headers():
+    app = build_streamable_http_app(ROOTMCPServer(_config()))
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        response = await client.options(
+            "/mcp",
+            headers={
+                "origin": "https://client.example",
+                "access-control-request-method": "POST",
+                "access-control-request-headers": "mcp-method,mcp-name,mcp-protocol-version",
+            },
+        )
+    assert response.status_code == 204
+    assert "mcp-method" in response.headers["access-control-allow-headers"].lower()
+    assert "mcp-name" in response.headers["access-control-allow-headers"].lower()
 
 
 def _config(*, allow_tools: list[str] | None = None) -> Config:

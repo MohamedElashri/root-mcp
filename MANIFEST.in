@@ -1,0 +1,9 @@
+include CHANGELOG.md config.yaml skill.md
+recursive-include docs *.md *.rst *.py *.txt *.css *.png Makefile make.bat
+recursive-include examples *.md *.py *.json *.toml *.yaml *.yml
+recursive-include tests *.py
+recursive-include scripts *.py
+prune docs/_build
+prune docs/.doctrees
+exclude docs/developer/plan.md
+global-exclude __pycache__ *.py[cod] .DS_Store

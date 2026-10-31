@@ -1,0 +1,7 @@
+name: ROOT analysis
+version: 1.0.0
+schema: v1
+mcpServers:
+  - name: root-mcp
+    command: uvx
+    args: [root-mcp, --data-path, /absolute/path/to/data]

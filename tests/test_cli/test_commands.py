@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+from root_cli import __version__
 from root_cli.main import cli
 
 # Test data directory
@@ -461,7 +462,7 @@ class TestInfoCommand:
         """Test basic info command."""
         result = runner.invoke(cli, ["info"])
         assert result.exit_code == 0
-        assert "ROOT CLI" in result.output
+        assert f"ROOT CLI v{__version__}" in result.output
         assert "Available commands" in result.output
 
     def test_info_json_output(self, runner):
@@ -470,7 +471,7 @@ class TestInfoCommand:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "name" in data
-        assert "version" in data
+        assert data["version"] == __version__
         assert "commands" in data
 
 
@@ -493,7 +494,7 @@ class TestCLIEntryPoint:
         """Test CLI version."""
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "0.1.0" in result.output
+        assert __version__ in result.output
 
     def test_command_help(self, runner):
         """Test individual command help."""

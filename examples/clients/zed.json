@@ -1,0 +1,12 @@
+{
+  "context_servers": {
+    "root-mcp": {
+      "command": "uvx",
+      "args": [
+        "root-mcp",
+        "--data-path",
+        "/absolute/path/to/data"
+      ]
+    }
+  }
+}

@@ -4,8 +4,9 @@ Installation
 Requirements
 ------------
 
-- Python **3.10** or later (3.11–3.14 fully supported)
-- No C++ ROOT installation required — the core server runs on pure Python
+- Python **3.10** or later; CI targets 3.10–3.14
+- MCP Python SDK **2.3+** within the 2.x line (installed as a dependency)
+- No C++ ROOT installation required for the uproot analysis tools
 
 Install from PyPI
 -----------------
@@ -25,10 +26,9 @@ Optional extras
 
 .. note::
 
-   XRootD requires a platform-compatible binary wheel. Linux x86_64 and
-   macOS are supported. If no wheel is available for your platform,
-   install `XRootD <https://xrootd.slac.stanford.edu/>`_ from conda-forge
-   and then ``pip install root-mcp`` without the extra.
+   XRootD is a native dependency. Installation can require a compiler toolchain
+   when no compatible wheel is available. As an alternative, install XRootD
+   through conda-forge and install ROOT-MCP without the extra.
 
 **Documentation tools** (to build this site locally):
 
@@ -39,11 +39,12 @@ Optional extras
 Optional native ROOT support
 -----------------------------
 
-ROOT-MCP works fully without a CERN ROOT installation. When ROOT *is* available,
-three additional tools unlock automatically (``run_root_code``, ``run_rdataframe``,
+The standard analysis tools work without a CERN ROOT installation. When ROOT *is* available,
+three additional tools become available when explicitly enabled in extended mode (``run_root_code``, ``run_rdataframe``,
 ``run_root_macro``).
 
-ROOT is **not** pip-installable. Supported installation paths:
+Install a compatible ROOT/PyROOT environment separately. The ``root-mcp[root]``
+extra does not install PyROOT. Common environment setup options:
 
 .. list-table::
    :header-rows: 1
@@ -77,6 +78,7 @@ Verifying the installation
 .. code-block:: bash
 
    root-mcp --help
+   root-cli --version
 
 You should see the full argument list. Run a quick server check:
 

@@ -16,6 +16,7 @@ Package tree
    ├── __init__.py           — public API: Config, load_config, __version__
    ├── config.py             — Pydantic configuration models + CLI/env helpers
    ├── server.py             — ROOTMCPServer class and main() entry point
+   ├── protocol.py           — instructions, annotations and schema validation
    │
    ├── common/               — shared utilities (no analysis deps)
    │   ├── cache.py          — generic TTL/LRU caching helpers
@@ -115,7 +116,7 @@ foundation everything else builds on:
 ``root_mcp.extended``
 ~~~~~~~~~~~~~~~~~~~~~
 
-The **extended tier** loads lazily — only if ``config.server.mode == "extended"``
+The **extended tier** loads when selected — only if ``config.server.mode == "extended"``
 and the scipy/matplotlib imports succeed.  If they fail, the server falls back
 to core mode automatically.
 
@@ -124,7 +125,8 @@ to core mode automatically.
   background), per-parameter bounds, and fixed parameters.
 - :mod:`root_mcp.extended.root_native` is the native ROOT execution engine.
   ``RootCodeExecutor`` runs user code in a subprocess; ``CodeValidator``
-  performs AST-level import blocking as a best-effort sandbox.
+  performs AST-level import checks. This is for trusted local code and does
+  not provide an operating-system sandbox.
 
 ----
 
@@ -138,9 +140,9 @@ The typical flow for adding an extended analysis capability:
 2. Add the corresponding MCP tool method to
    ``src/root_mcp/extended/tools/analysis.py`` (or ``plotting.py``).
 3. Register the tool in ``src/root_mcp/server.py`` under
-   ``_register_extended_tools()``.
+   ``_get_extended_tools()`` and dispatch it in ``_dispatch_tool()``.
 4. Document the tool in ``docs/api/tools.md`` following the existing table format.
 5. Add tests under ``tests/``.
 
 Adding a core tool follows the same pattern but targets
-``src/root_mcp/core/tools/`` and ``_register_core_tools()`` in the server.
+``src/root_mcp/core/tools/`` and ``_get_core_tools()`` / ``_dispatch_tool()`` in the server.

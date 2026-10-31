@@ -33,7 +33,7 @@ By exposing a set of specialized tools via the [Model Context Protocol (MCP)](ht
 
 ROOT-MCP provides **two ways** to interact with ROOT files:
 
-### 1. MCP Server (for Claude Desktop and MCP clients)
+### 1. MCP Server (for Codex, Claude Code and other MCP clients)
 - Full JSON-RPC protocol support
 - Structured input/output for programmatic use
 - Best for: MCP-compliant LLM clients, automated workflows
@@ -43,7 +43,8 @@ ROOT-MCP provides **two ways** to interact with ROOT files:
 - Simpler architecture (no server process)
 - Best for: Direct LLM interaction, debugging, scripting
 
-Both interfaces share the same backend and support all 17 analysis tools.
+Both interfaces share the same analysis backend. MCP also provides resource
+discovery and server capability information.
 
 ---
 
@@ -77,6 +78,27 @@ Or set an environment variable once:
 ```bash
 export ROOT_MCP_DATA_PATH=/path/to/your/data
 ```
+
+### 3. Connect a coding agent
+
+```bash
+# Codex
+codex mcp add root-mcp -- uvx root-mcp --data-path /absolute/path/to/data
+
+# Claude Code (project scope)
+claude mcp add --transport stdio --scope project root-mcp -- uvx root-mcp --data-path /absolute/path/to/data
+```
+
+Use `/mcp` in your client to check the connection. See the
+[LLM integration guide](docs/guides/llm_integration.md) for development checkouts,
+Antigravity CLI, Qwen Code, Pi/OMP, VS Code, Cursor, Zed, community harnesses,
+authenticated HTTP and bounded analysis workflows.
+
+The server uses MCP Python SDK 2.3+ and the 2026-07-28 protocol, with SDK
+compatibility for older clients. It provides discovery instructions, explicit
+tool safety hints, validated inputs, structured results and readable resource
+catalogs. Remote deployments retain authentication, resource ACLs and quotas.
+See the [v0.3.1 release notes](CHANGELOG.md) for the full change list.
 
 ---
 
