@@ -110,7 +110,6 @@ async def _run_client(port: int, origin: str) -> None:
         streamable_http_client(f"http://127.0.0.1:{port}/mcp", http_client=http_client) as (
             read_stream,
             write_stream,
-            _get_session_id,
         ),
         ClientSession(read_stream, write_stream) as session,
     ):
