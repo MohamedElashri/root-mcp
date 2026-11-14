@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.3.2] - 2026-11-14
+
+- Refresh runtime, development and documentation dependencies, with a committed uv lockfile used by CI.
+- Support pandas 3 and Sphinx 9 while retaining compatible dependency versions for Python 3.10–3.14.
+- Include the fsspec XRootD adapter in the optional XRootD installation and keep requirements aligned with package metadata.
+- Update pre-commit hooks and GitHub Actions, including an immutable pin for the publishing action.
+- Fix Sphinx validator documentation warnings, update the external HTTP smoke client for MCP SDK v2, and refresh example/script formatting for the updated hooks.
+
 ## [0.3.1] - 2026-10-31
 
 - Upgrade the MCP SDK and improve tool discovery, input validation and safety annotations.

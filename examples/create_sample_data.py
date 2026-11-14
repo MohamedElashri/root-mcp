@@ -5,9 +5,10 @@ Create sample ROOT files for testing and demonstration.
 This script creates realistic HEP-style ROOT files using uproot.
 """
 
+from pathlib import Path
+
 import numpy as np
 import uproot
-from pathlib import Path
 
 
 def create_simple_ttree(output_path: str, num_events: int = 10_000) -> None:

@@ -20,9 +20,11 @@
       "repo": "setup-python",
       "path": "",
       "kind": "github-action",
-      "logical_ref": "v7.0.0",
-      "pinned_sha": "5fda3b95a4ea91299a34e894583c3862153e4b97",
-      "resolved_at": "2026-09-30T21:14:17Z"
+      "logical_ref": "v7.1.0",
+      "pinned_sha": "6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+      "resolved_at": "2026-11-14T19:00:00Z",
+      "timestamp": "2026-10-22T02:56:04Z",
+      "timestamp_source": "release"
     },
     {
       "file": ".github/workflows/ci.yml",
@@ -42,10 +44,10 @@
       "repo": "setup-uv",
       "path": "",
       "kind": "github-action",
-      "logical_ref": "v10.2.0",
-      "pinned_sha": "c18668ad3cf93ea998bef934396af7bb5c839dc7",
-      "resolved_at": "2026-09-30T21:14:17Z",
-      "timestamp": "2026-09-21T13:15:15Z",
+      "logical_ref": "v10.3.3",
+      "pinned_sha": "68559e99cc807c1eb7e9238fd43a15bba460eec2",
+      "resolved_at": "2026-11-14T19:00:00Z",
+      "timestamp": "2026-10-28T14:35:19Z",
       "timestamp_source": "release"
     },
     {
@@ -55,9 +57,11 @@
       "repo": "setup-python",
       "path": "",
       "kind": "github-action",
-      "logical_ref": "v7.0.0",
-      "pinned_sha": "5fda3b95a4ea91299a34e894583c3862153e4b97",
-      "resolved_at": "2026-09-30T21:14:17Z"
+      "logical_ref": "v7.1.0",
+      "pinned_sha": "6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+      "resolved_at": "2026-11-14T19:00:00Z",
+      "timestamp": "2026-10-22T02:56:04Z",
+      "timestamp_source": "release"
     },
     {
       "file": ".github/workflows/docs.yml",
@@ -77,10 +81,10 @@
       "repo": "setup-uv",
       "path": "",
       "kind": "github-action",
-      "logical_ref": "v10.2.0",
-      "pinned_sha": "c18668ad3cf93ea998bef934396af7bb5c839dc7",
-      "resolved_at": "2026-09-30T21:14:17Z",
-      "timestamp": "2026-09-21T13:15:15Z",
+      "logical_ref": "v10.3.3",
+      "pinned_sha": "68559e99cc807c1eb7e9238fd43a15bba460eec2",
+      "resolved_at": "2026-11-14T19:00:00Z",
+      "timestamp": "2026-10-28T14:35:19Z",
       "timestamp_source": "release"
     },
     {
@@ -90,9 +94,11 @@
       "repo": "setup-python",
       "path": "",
       "kind": "github-action",
-      "logical_ref": "v7.0.0",
-      "pinned_sha": "5fda3b95a4ea91299a34e894583c3862153e4b97",
-      "resolved_at": "2026-09-30T21:14:17Z"
+      "logical_ref": "v7.1.0",
+      "pinned_sha": "6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+      "resolved_at": "2026-11-14T19:00:00Z",
+      "timestamp": "2026-10-22T02:56:04Z",
+      "timestamp_source": "release"
     },
     {
       "file": ".github/workflows/docs.yml",
@@ -147,9 +153,24 @@
       "repo": "setup-python",
       "path": "",
       "kind": "github-action",
-      "logical_ref": "v7.0.0",
-      "pinned_sha": "5fda3b95a4ea91299a34e894583c3862153e4b97",
-      "resolved_at": "2026-09-30T21:14:17Z"
+      "logical_ref": "v7.1.0",
+      "pinned_sha": "6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+      "resolved_at": "2026-11-14T19:00:00Z",
+      "timestamp": "2026-10-22T02:56:04Z",
+      "timestamp_source": "release"
+    },
+    {
+      "file": ".github/workflows/release.yml",
+      "node": "jobs.publish_pypi.steps[4].uses",
+      "owner": "pypa",
+      "repo": "gh-action-pypi-publish",
+      "path": "",
+      "kind": "github-action",
+      "logical_ref": "v1.14.3",
+      "pinned_sha": "7245906fb61fa33a13554f9d5fb856fe61758086",
+      "resolved_at": "2026-11-14T19:00:00Z",
+      "timestamp": "2026-10-20T18:53:36Z",
+      "timestamp_source": "release"
     },
     {
       "file": ".github/workflows/release.yml",
@@ -169,9 +190,24 @@
       "repo": "setup-python",
       "path": "",
       "kind": "github-action",
-      "logical_ref": "v7.0.0",
-      "pinned_sha": "5fda3b95a4ea91299a34e894583c3862153e4b97",
-      "resolved_at": "2026-09-30T21:14:17Z"
+      "logical_ref": "v7.1.0",
+      "pinned_sha": "6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+      "resolved_at": "2026-11-14T19:00:00Z",
+      "timestamp": "2026-10-22T02:56:04Z",
+      "timestamp_source": "release"
+    },
+    {
+      "file": ".github/workflows/release.yml",
+      "node": "jobs.publish_testpypi.steps[4].uses",
+      "owner": "pypa",
+      "repo": "gh-action-pypi-publish",
+      "path": "",
+      "kind": "github-action",
+      "logical_ref": "v1.14.3",
+      "pinned_sha": "7245906fb61fa33a13554f9d5fb856fe61758086",
+      "resolved_at": "2026-11-14T19:00:00Z",
+      "timestamp": "2026-10-20T18:53:36Z",
+      "timestamp_source": "release"
     }
   ]
 }

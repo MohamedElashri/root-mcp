@@ -98,7 +98,7 @@ The server uses MCP Python SDK 2.3+ and the 2026-07-28 protocol, with SDK
 compatibility for older clients. It provides discovery instructions, explicit
 tool safety hints, validated inputs, structured results and readable resource
 catalogs. Remote deployments retain authentication, resource ACLs and quotas.
-See the [v0.3.1 release notes](CHANGELOG.md) for the full change list.
+See the [v0.3.2 release notes](CHANGELOG.md) for the full change list.
 
 ---
 
