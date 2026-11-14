@@ -109,7 +109,7 @@ plan*
 *.ipynb
 
 # uv
-uv.lock
+# Track uv.lock so CI and local validation use the same dependency versions.
 
 
 # slides

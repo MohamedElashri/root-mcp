@@ -11,17 +11,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from contextlib import suppress
-from pathlib import Path
 import socket
 import subprocess
 import sys
 import tempfile
 import textwrap
 import time
+from contextlib import suppress
+from pathlib import Path
 
+import httpx2 as httpx
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
 
 
 def _free_port() -> int:
@@ -104,21 +105,23 @@ async def _run_client(port: int, origin: str) -> None:
         "x-auth-roles": "smoke-reader",
         "Accept": "application/json, text/event-stream",
     }
-    async with streamablehttp_client(f"http://127.0.0.1:{port}/mcp", headers=headers) as (
-        read_stream,
-        write_stream,
-        _get_session_id,
+    async with (
+        httpx.AsyncClient(headers=headers) as http_client,
+        streamable_http_client(f"http://127.0.0.1:{port}/mcp", http_client=http_client) as (
+            read_stream,
+            write_stream,
+        ),
+        ClientSession(read_stream, write_stream) as session,
     ):
-        async with ClientSession(read_stream, write_stream) as session:
-            await session.initialize()
-            tools = await session.list_tools()
-            tool_names = {tool.name for tool in tools.tools}
-            if "get_server_info" not in tool_names:
-                raise RuntimeError(f"get_server_info missing from advertised tools: {tool_names}")
+        await session.initialize()
+        tools = await session.list_tools()
+        tool_names = {tool.name for tool in tools.tools}
+        if "get_server_info" not in tool_names:
+            raise RuntimeError(f"get_server_info missing from advertised tools: {tool_names}")
 
-            result = await session.call_tool("get_server_info", {})
-            if not result.content:
-                raise RuntimeError("get_server_info returned no content")
+        result = await session.call_tool("get_server_info", {})
+        if result.is_error or not result.content:
+            raise RuntimeError(f"get_server_info failed: {result}")
 
 
 def main() -> None:

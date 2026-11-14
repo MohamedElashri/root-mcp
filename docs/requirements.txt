@@ -3,7 +3,7 @@
 #
 # Also available as: pip install "root-mcp[docs]"
 
-sphinx>=7.0,<9.0
+sphinx>=7.0,<10.0
 sphinx-rtd-theme
 myst-parser[linkify]>=3.0
 sphinx-autobuild>=2024.2.4

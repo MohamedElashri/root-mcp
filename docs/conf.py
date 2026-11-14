@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import os
 import sys
-from importlib.metadata import PackageNotFoundError, version as _dist_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
 
 # Make root_mcp importable from source without an installed wheel
 sys.path.insert(0, os.path.abspath("../src"))
@@ -21,7 +22,7 @@ except PackageNotFoundError:
 
 project = "ROOT-MCP"
 author = "Mohamed Elashri"
-copyright = "2026, Mohamed Elashri"  # noqa: A001
+copyright = "2026, Mohamed Elashri"
 version = ".".join(_pkg_version.split(".")[:2])  # short X.Y
 release = _pkg_version  # full X.Y.Z
 
@@ -124,8 +125,6 @@ autodoc_mock_imports = [
     "aiofiles",
     "XRootD",
     "mcp",
-    "pydantic",
-    "pydantic_settings",
 ]
 
 # ---------------------------------------------------------------------------
